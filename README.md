@@ -134,6 +134,21 @@ Aplique as configurações no cluster:
 kubectl apply -f opentelemetry-operator/instrumentation.yaml
 ```
 
+### 📚 Exemplos de Instrumentação
+
+Você pode encontrar exemplos prontos de instrumentação na pasta `opentelemetry-operator`.
+
+📂 Estrutura da pasta:
+
+```
+📂 opentelemetry-operator/
+├── instrumentation.yaml  # Configurações de instrumentação para aplicações
+├── values.yaml           # Valores padrão do Helm Chart do OpenTelemetry Operator
+├── README.md             # Guia detalhado de uso e exemplos práticos
+```
+
+💡 **Dica:** Consulte o arquivo `README.md` dentro da pasta para mais informações e exemplos sobre como configurar a instrumentação no OpenTelemetry Operator.
+
 ---
 
 ### 5️⃣ Instalar os Componentes com Helmfile
@@ -178,3 +193,25 @@ Os seguintes componentes serão instalados e configurados no seu cluster:
 ## 🛠️ Suporte
 
 Se encontrar dificuldades ou tiver dúvidas, abra uma issue neste repositório. Estamos aqui para ajudar! 😊
+
+Para tornar o trecho mais claro, informativo e visualmente atraente, você pode reformulá-lo da seguinte maneira:
+
+---
+
+### 📚 Exemplos de Instrumentação
+
+Você pode encontrar exemplos prontos de instrumentação na pasta `opentelemetry-operator`.
+
+📂 Estrutura da pasta:
+
+```
+plaintext
+Copiar código
+📂 opentelemetry-operator/
+├── instrumentation.yaml  # Configurações de instrumentação para aplicações
+├── values.yaml           # Valores padrão do Helm Chart do OpenTelemetry Operator
+├── README.md             # Guia detalhado de uso e exemplos práticos
+
+```
+
+💡 **Dica:** Consulte o arquivo `README.md` dentro da pasta para mais informações e exemplos sobre como configurar a instrumentação no OpenTelemetry Operator.
