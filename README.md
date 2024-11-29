@@ -222,5 +222,4 @@ Copiar código
 ├── README.md             # Guia detalhado de uso e exemplos práticos
 
 ```
-
 💡 **Dica:** Consulte o arquivo `README.md` dentro da pasta para mais informações e exemplos sobre como configurar a instrumentação no OpenTelemetry Operator.
