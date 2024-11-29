@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentelemetrycollector
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetrycollector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opentelemetrycollector
+    spec:
+      containers:
+      - name: otelcol
+        args:
+        - --config=/conf/collector-config.yaml
+        image: otel/opentelemetry-collector-contrib
+        volumeMounts:
+        - mountPath: /conf
+          name: collector-config
+        envFrom:
+          - secretRef:
+              name: secrets-collector   
+          - secretRef:
+              name: secrets-collector-config
+      volumes:
+      - name: collector-config
+        secret:
+          secretName: secrets-collector-config

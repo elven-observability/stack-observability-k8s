@@ -1,0 +1,32 @@
+repositories:
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+  - name: prometheus
+    url: https://prometheus-community.github.io/helm-charts
+
+  - name: open-telemetry
+    url: https://open-telemetry.github.io/opentelemetry-helm-charts    
+
+releases:
+  - name: opentelemetry-operator
+    namespace: monitoring
+    createNamespace: true
+    chart: open-telemetry/opentelemetry-operator
+    values:
+      - ./opentelemetry-operator/values.yaml
+
+  - name: prometheus
+    namespace: monitoring
+    createNamespace: true
+    chart: prometheus/kube-prometheus-stack
+    values:
+      - ./prometheus/values-prometheus.yaml
+
+  - name: promtail
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/promtail
+    values:
+      - ./promtail/values-promtail.yaml
+
