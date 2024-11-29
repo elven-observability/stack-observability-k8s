@@ -1,0 +1,42 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: instrumentation-sample
+spec:
+  propagators:
+    - tracecontext
+    - baggage
+    - b3
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://otel-collector.monitoring:4317
+  java:    
+    env:
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://otel-collector.monitoring:4317
+  nodejs:
+    env:
+      - name: OTEL_TRACES_EXPORTER
+        value: "true"
+      - name: OTEL_METRICS_EXPORTER
+        value: "false"
+                                
+  dotnet:
+    env:
+      - name: OTEL_DOTNET_AUTO_METRICS_CONSOLE_EXPORTER_ENABLED
+        value: "false"
+      - name: OTEL_DOTNET_AUTO_TRACES_CONSOLE_EXPORTER_ENABLED
+        value: "false"
+      - name: OTEL_DOTNET_AUTO_LOGS_CONSOLE_EXPORTER_ENABLED
+        value: "false"  
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://otel-collector.monitoring:4318
+      - name: OTEL_TRACES_EXPORTER
+        value: "true"
+      - name: OTEL_METRICS_EXPORTER
+        value: "true"
+      - name: OTEL_LOGS_EXPORTER
+        value: "true"

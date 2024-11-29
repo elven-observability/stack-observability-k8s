@@ -12,22 +12,27 @@ Você utilizará o **Grafana da Elven Observability** para visualizar suas métr
 
 ```
 📂 stack-observability/
-├── opentelemetry-operator/
+├── opentelemetry-operator
 │   ├── instrumentation.yaml
-│   ├── values.yaml
 │   ├── README.md
-├── otel-collector/
+│   └── values.yaml
+├── otel-collector
 │   ├── collector-config.yaml
 │   ├── collector-deploy.yaml
 │   ├── collector-service.yaml
 │   ├── kustomization.yaml
-│   ├── secrets.env
 │   ├── README.md
-├── prometheus/
-│   ├── values-prometheus.yaml
-├── promtail/
-│   ├── values-promtail.yaml
-├── helmfile.yaml
+│   └── secrets.env
+├── otel-collector-operator
+│   ├── collector.yaml
+│   ├── instrumentation.yaml
+│   ├── kustomization.yaml
+│   ├── secrets.env
+│   └── service-account.yaml
+├── prometheus
+│   └── values-prometheus.yaml
+├── promtail
+│   └── values-promtail.yaml
 └── README.md
 ```
 
@@ -55,20 +60,7 @@ Siga a ordem correta de configuração para evitar problemas.
 
 ---
 
-### 1️⃣ Configurar Credenciais no Prometheus
-
-Crie uma `Secret` para armazenar as credenciais do tenant no Prometheus. Use o comando abaixo, substituindo `<SEU_TENANT_ID>` e `<SEU_BEARER_TOKEN>` pelos valores do seu ambiente:
-
-```bash
-kubectl create secret generic elven-observability-token \
-  -n monitoring \
-  --from-literal=tenantId=$(echo -n "<SEU_TENANT_ID>" | base64) \
-  --from-literal=bearerToken=$(echo -n "<SEU_BEARER_TOKEN>" | base64)
-```
-
----
-
-### 2️⃣ Configurar o OpenTelemetry Collector
+### 1️⃣ Configurar o OpenTelemetry Collector
 
 Edite o arquivo `otel-collector/secrets.env` para incluir as credenciais:
 
@@ -83,9 +75,26 @@ Depois, aplique a configuração do OpenTelemetry Collector:
 kubectl apply -k otel-collector/
 ```
 
+[OPCIONAL] **Collector operator**
+
+Edite o arquivo `otel-collector-operator/secrets.env` para incluir as credenciais:
+
+```
+TENANT_ID=<SEU_TENANT_ID>
+API_TOKEN=<SEU_API_TOKEN>
+```
+
+Depois, aplique a configuração do OpenTelemetry Collector:
+
+```bash
+kubectl apply -k otel-collector-operator/
+```
+
+*https://github.com/open-telemetry/opentelemetry-operator/blob/main/docs/api.md#opentelemetryiov1beta1*
+
 ---
 
-### 3️⃣ Configurar o Promtail
+### 2️⃣ Configurar o Promtail
 
 Edite o arquivo `promtail/values-promtail.yaml` para incluir suas credenciais:
 
@@ -101,7 +110,7 @@ Certifique-se de substituir `<SEU_TENANT_ID>` e `<SEU_API_TOKEN>` pelos valores 
 
 ---
 
-### 4️⃣ Configurar o OpenTelemetry Operator
+### 3️⃣ Configurar o OpenTelemetry Operator
 
 Edite o arquivo `opentelemetry-operator/instrumentation.yaml` para definir os namespaces das aplicações que deseja instrumentar. Exemplo básico:
 
@@ -151,7 +160,7 @@ Você pode encontrar exemplos prontos de instrumentação na pasta `opentelemetr
 
 ---
 
-### 5️⃣ Instalar os Componentes com Helmfile
+### 4️⃣ Instalar os Componentes com Helmfile
 
 Depois de configurar todas as credenciais e arquivos necessários, instale os componentes da stack usando o comando abaixo:
 
