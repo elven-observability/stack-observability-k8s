@@ -1,0 +1,21 @@
+repositories:
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+  - name: prometheus
+    url: https://prometheus-community.github.io/helm-charts
+
+releases:
+  - name: prometheus
+    namespace: monitoring
+    createNamespace: true
+    chart: prometheus/kube-prometheus-stack
+    values:
+      - ./prometheus/values-prometheus.yaml
+
+  - name: promtail
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/promtail
+    values:
+      - ./promtail/values-promtail.yaml

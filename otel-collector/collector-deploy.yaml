@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentelemetrycollector
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetrycollector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: opentelemetrycollector
+    spec:
+      containers:
+      - name: otelcol
+        args:
+        - --config=/conf/collector-config.yaml
+        image: otel/opentelemetry-collector-contrib
+        volumeMounts:
+        - mountPath: /conf
+          name: collector-config
+        env:
+        - name: TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: elven-observability-credentials
+              key: tenantId
+        - name: API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: elven-observability-credentials
+              key: apiToken
+      volumes:
+      - name: collector-config
+        secret:
+          secretName: secrets-collector-config
