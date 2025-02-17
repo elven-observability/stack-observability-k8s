@@ -19,3 +19,8 @@ releases:
     chart: grafana/promtail
     values:
       - ./promtail/values-promtail.yaml
+
+hooks:
+  - events: ["prepare"]
+    command: "kubectl"
+    args: ["apply", "-k", "."]

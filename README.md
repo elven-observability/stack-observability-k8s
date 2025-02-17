@@ -86,20 +86,9 @@ kubectl create secret generic elven-observability-credentials \
   --from-literal=tenantId="<SEU_TENANT_ID>" \
   --from-literal=apiToken="<SEU_API_TOKEN>"
 ```
-
 ---
 
-### 3️⃣ Aplicar o OpenTelemetry Collector e Operator
-
-Aplique a configuração do OpenTelemetry Collector e Operator:
-
-```bash
-kubectl apply -k .
-```
-
----
-
-### 4️⃣ Configurar o Prometheus
+### 3️⃣ Configurar o Prometheus
 
 Edite o arquivo `prometheus/values-prometheus.yaml` para incluir seu Tenant ID:
 
@@ -123,7 +112,7 @@ Certifique-se de substituir `<SEU_TENANT_ID>` pelo valor correto do seu ambiente
 
 ---
 
-### 5️⃣ Configuração do Promtail: Filtros por Namespace ou Annotation
+### 4️⃣ Configuração do Promtail: Filtros por Namespace ou Annotation
 
 Na configuração do **Promtail**, você pode usar filtros para controlar quais logs serão coletados com base no namespace ou em annotations específicas nos pods. Isso ajuda a reduzir o volume de dados coletados e direcionar apenas os logs relevantes para o Loki.
 
@@ -178,7 +167,7 @@ config:
 
 ---
 
-### 6️⃣ Configurar o OpenTelemetry Operator
+### 5️⃣ Configurar o OpenTelemetry Operator
 
 Edite o arquivo `opentelemetry-operator/instrumentation.yaml` para definir os namespaces das aplicações que deseja instrumentar. Exemplo básico:
 
@@ -228,7 +217,7 @@ Você pode encontrar exemplos prontos de instrumentação na pasta `opentelemetr
 
 ---
 
-### 7️⃣ Instalar os Componentes com Helmfile
+### 6️⃣ Instalar os Componentes com Helmfile
 
 Depois de configurar todas as credenciais e arquivos necessários, instale os componentes da stack usando o comando abaixo:
 
