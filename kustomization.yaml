@@ -10,6 +10,7 @@ resources:
   - ./otel-collector/collector-deploy.yaml
   - ./otel-collector/collector-service.yaml
   - ./opentelemetry-operator/opentelemetry-operator.yaml
+  - ./collector-fe/collector-fe-env-secret.yaml
 secretGenerator:
   - name: secrets-collector-config
     files:

@@ -36,23 +36,22 @@ spec:
         cpu: "250m"
         memory: "512Mi"
   nodejs:
+    image: docker.io/elvenobservability/nodejs-k8s-operator:latest
     env:
-      - name: OTEL_NODE_RESOURCE_DETECTORS
-        value: all
-      - name: OTEL_TRACES_EXPORTER
-        value: "otlp"
-      - name: OTEL_METRICS_EXPORTER
-        value: "otlp"
-      - name: OTEL_NODE_ENABLED_INSTRUMENTATIONS
-        value: "all"
-      - name: OTEL_NODE_RESOURCE_DETECTORS
-        value: "all"
+      - name: NODE_OPTIONS
+        value: "--require /otel-auto-instrumentation-nodejs/autoinstrumentation.js"
       - name: OTEL_NODE_DISABLED_INSTRUMENTATIONS
         value: "fs"
-      - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-        value: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318/v1/traces"
+      - name: OTEL_METRICS_EXEMPLAR_FILTER
+        value: "always_on"
+      - name: OTEL_METRICS_EXPORTER
+        value: "otlp"
       - name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
         value: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318/v1/metrics"
+      - name: OTEL_TRACES_EXPORTER
+        value: "otlp"
+      - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        value: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318/v1/traces"
   java:
     env:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT

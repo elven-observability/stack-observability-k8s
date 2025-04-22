@@ -5,6 +5,9 @@ repositories:
   - name: prometheus
     url: https://prometheus-community.github.io/helm-charts
 
+  - name: faro-collector
+    url: https://leozw.github.io/faro-collector
+
 releases:
   - name: prometheus
     namespace: monitoring
@@ -19,6 +22,13 @@ releases:
     chart: grafana/promtail
     values:
       - ./promtail/values-promtail.yaml
+
+  - name: collector-fe
+    namespace: default
+    createNamespace: true
+    chart: faro-collector/faro-collector
+    values:
+      - ./collector-fe/values.yaml
 
 hooks:
   - events: ["prepare"]

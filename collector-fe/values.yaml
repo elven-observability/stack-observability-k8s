@@ -1,0 +1,108 @@
+replicaCount: 1
+
+statefulset: false
+
+UpdateStrategy:
+  type: RollingUpdate
+
+image:
+  registry: docker.io
+  repository: elvenobservability/collector-fe-instrumentation
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+  annotations: {}
+  name: ""
+
+command: []
+args: []
+
+labels: {}
+
+extraEnvs: []
+
+envFrom:
+  - secretRef:
+      name: collector-fe-env-secret
+
+
+podAnnotations: {}
+podLabels: {}
+
+Strategy:
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+  type: RollingUpdate
+
+podSecurityContext: {}
+securityContext:
+  privileged: false
+
+containerPorts:
+  - name: http
+    containerPort: 3000
+    protocol: TCP
+
+service:
+  annotations: {}
+  labels: {}
+  servicePorts:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+configMounts: []
+secretMounts: []
+
+Secrets: {}
+
+ConfigMap: {}
+
+extraVolumeMounts: []
+extraVolumes: []
+
+ingress:
+  enabled: false
+  ingressClassName: ""
+  annotations: {}
+  hosts:
+    - host: example.domain.io
+      paths:
+        - path: /
+          pathType: Prefix
+          number: 80
+  tls: []
+
+probe: {}
+
+resources: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+CronJobs: []
+
+extraContainers: []
+
+extraInitContainers: []
+
+extraSecrets:
+  enabled: false
+
+extraConfigMap:
+  enabled: false
