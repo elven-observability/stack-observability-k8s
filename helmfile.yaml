@@ -8,7 +8,17 @@ repositories:
   - name: faro-collector
     url: https://leozw.github.io/faro-collector
 
+  - name: jetstack
+    url: https://charts.jetstack.io
+
 releases:
+  - name: cert-manager
+    namespace: cert-manager
+    createNamespace: true
+    chart: jetstack/cert-manager
+    values:
+      - ./cert-manager/values.yaml
+
   - name: prometheus
     namespace: monitoring
     createNamespace: true
@@ -29,7 +39,8 @@ releases:
     chart: faro-collector/faro-collector
     values:
       - ./collector-fe/values.yaml
-
+    needs:
+      - cert-manager/cert-manager
 hooks:
   - events: ["prepare"]
     command: "kubectl"
