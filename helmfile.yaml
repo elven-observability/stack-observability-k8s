@@ -45,3 +45,6 @@ hooks:
   - events: ["prepare"]
     command: "kubectl"
     args: ["apply", "-k", "."]
+
+  - events: ["prepare"]
+    command: "./apply-otel-operator.sh"
