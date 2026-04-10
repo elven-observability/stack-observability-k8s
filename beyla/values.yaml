@@ -1,0 +1,180 @@
+global:
+  image:
+    # -- Global image registry to use if it needs to be overridden for some specific use cases (e.g local registries, custom images, ...)
+    registry: ""
+    # -- Optional set of global image pull secrets.
+    pullSecrets: []
+
+image:
+  # -- Beyla image registry (defaults to docker.io)
+  registry: "docker.io"
+  # -- Beyla image repository.
+  repository: grafana/beyla
+  # -- (string) Beyla image tag. When empty, the Chart's appVersion is used.
+  tag: null
+  # -- Beyla image's SHA256 digest (either in format "sha256:XYZ" or "XYZ"). When set, will override `image.tag`.
+  digest: null
+  # -- Beyla image pull policy.
+  pullPolicy: IfNotPresent
+  # -- Optional set of image pull secrets.
+  pullSecrets: []
+
+# -- Overrides the chart's name
+nameOverride: ""
+
+# -- Overrides the chart's computed fullname.
+fullnameOverride: ""
+
+# -- Override the deployment namespace
+namespaceOverride: ""
+
+rbac:
+  # -- Whether to create RBAC resources for Belya
+  create: true
+  # -- Extra custer roles to be created for Belya
+  extraClusterRoleRules: []
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # -- ServiceAccount labels.
+  labels: {}
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podSecurityContext: {}
+
+securityContext:
+  privileged: true
+
+priorityClassName: ""
+
+service:
+  # -- whether to create a service for internal metrics
+  enabled: false
+  # -- type of the service
+  type: ClusterIP
+  # -- cluster IP
+  clusterIP: ""
+  # -- loadbalancer IP
+  loadBalancerIP: ""
+  # -- loadbalancer class name
+  loadBalancerClass: ""
+  # -- source ranges for loadbalancer
+  loadBalancerSourceRanges: []
+  # -- service port
+  port: 80
+  # -- targetPort has to be configured based on the values of `BEYLA_INTERNAL_METRICS_PROMETHEUS_PORT` environment variable
+  targetPort: 9090
+  # -- Service annotations.
+  annotations: {}
+  # -- Service labels.
+  labels: {}
+  # -- name of the port for internal metrics.
+  portName: metrics
+  # -- Adds the appProtocol field to the service.
+  appProtocol: ""
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+updateStrategy:
+  # -- update strategy type
+  type: RollingUpdate
+
+# -- Additional volumes on the output daemonset definition.
+volumes: []
+
+# -- Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+
+# -- The nodeSelector field allows user to constrain which nodes your DaemonSet pods are scheduled to based on labels on the node
+nodeSelector: {}
+
+# -- Tolerations allow pods to be scheduled on nodes with specific taints
+tolerations: []
+
+# -- used for scheduling of pods based on affinity rules
+affinity: {}
+
+# -- Adds custom annotations to the Beyla Pods.
+podAnnotations: {}
+
+# -- Adds custom labels to the Beyla Pods.
+podLabels: {}
+
+## Beyla Configuration
+## More options: https://grafana.com/docs/beyla/latest/configure/options/
+config:
+  create: true
+  name: ""
+  data:
+    discovery:
+      services:
+        - k8s_namespace: ".*"
+      exclude_instrument:
+        - k8s_namespace: argocd
+        - k8s_namespace: beta
+        - k8s_namespace: calico-apiserver
+        - k8s_namespace: calico-system
+        - k8s_namespace: cert-manager
+        - k8s_namespace: cnpg-system
+        - k8s_namespace: default
+        - k8s_namespace: dbgate
+        - k8s_namespace: ingress-nginx
+        - k8s_namespace: kong
+        - k8s_namespace: kube-node-lease
+        - k8s_namespace: kube-public
+        - k8s_namespace: kube-system
+        - k8s_namespace: metabase
+        - k8s_namespace: mgk-monitoring
+        - k8s_namespace: monitoring
+        - k8s_namespace: rabbitmq-system
+        - k8s_namespace: redis
+        - k8s_namespace: tigera-operator
+        - k8s_namespace: tools-sre
+        - k8s_namespace: unleash
+        - k8s_namespace: valkey
+        - k8s_owner_name: "*redis*"
+        - k8s_owner_name: "*valkey*"
+                       
+    attributes:
+      kubernetes:
+        enable: true
+    
+    prometheus_export:
+      port: 9090
+      path: /metrics
+
+# -- extra environment variables
+env:
+  BEYLA_METRICS_ENABLED: "true"
+  OTEL_METRICS_EXPORTER: "otlp"
+  BEYLA_BPF_TRACK_REQUEST_HEADERS: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318"
+
+# -- extra environment variables to be set from resources such as k8s configMaps/secrets
+envValueFrom: {}
+
+# -- Preconfigures some default properties for network or application observability.
+# Accepted values are "network" or "application".
+preset: application
+
+# -- Enable creation of ServiceMonitor for scraping of prometheus HTTP endpoint
+serviceMonitor:
+  enabled: false
+  annotations: {}
+  endpoint:
+    interval: 15s
+  jobLabel: ""
+ 

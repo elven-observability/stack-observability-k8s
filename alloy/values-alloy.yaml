@@ -1,0 +1,270 @@
+crds:
+  create: false
+
+nameOverride: elven-logs-collector
+
+global:
+  podSecurityContext:
+    runAsUser: 0
+    runAsGroup: 0
+
+image:
+  tag: v1.14.0
+
+logs:
+  namespaceRegex: "^(default|namespace1|namespace2)$"
+  annotationFilter:
+    enabled: false
+  loki:
+    url: https://loki.elvenobservability.com/loki/api/v1/push
+
+alloy:
+  stabilityLevel: generally-available
+  storagePath: /var/lib/alloy-data
+  enableReporting: false
+  extraEnv:
+    - name: API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: elven-observability-credentials
+          key: apiToken
+    - name: TENANT_ID
+      valueFrom:
+        secretKeyRef:
+          name: elven-observability-credentials
+          key: tenantId
+  mounts:
+    varlog: true
+    dockercontainers: false
+    extra:
+      - name: alloy-data
+        mountPath: /var/lib/alloy-data
+      - name: promtail-legacy-positions
+        mountPath: /run/promtail
+        readOnly: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "300m"
+      memory: "512Mi"
+  configMap:
+    content: |-
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + coalesce(sys.env("HOSTNAME"), constants.hostname)
+        }
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_controller_name"]
+          regex         = "([0-9a-z-.]+?)(-[0-9a-f]{8,10})?"
+          action        = "replace"
+          target_label  = "__tmp_controller_name"
+        }
+
+        rule {
+          source_labels = [
+            "__meta_kubernetes_pod_label_app_kubernetes_io_name",
+            "__meta_kubernetes_pod_label_app",
+            "__tmp_controller_name",
+            "__meta_kubernetes_pod_name",
+          ]
+          regex        = "^;*([^;]+)(;.*)?$"
+          action       = "replace"
+          target_label = "app"
+        }
+
+        rule {
+          source_labels = [
+            "__meta_kubernetes_pod_label_app_kubernetes_io_instance",
+            "__meta_kubernetes_pod_label_instance",
+          ]
+          regex        = "^;*([^;]+)(;.*)?$"
+          action       = "replace"
+          target_label = "instance"
+        }
+
+        rule {
+          source_labels = [
+            "__meta_kubernetes_pod_label_app_kubernetes_io_component",
+            "__meta_kubernetes_pod_label_component",
+          ]
+          regex        = "^;*([^;]+)(;.*)?$"
+          action       = "replace"
+          target_label = "component"
+        }
+
+        rule {
+          action        = "keep"
+          source_labels = ["__meta_kubernetes_namespace"]
+          regex         = {{ .Values.logs.namespaceRegex | quote }}
+        }
+
+        {{- if .Values.logs.annotationFilter.enabled }}
+        rule {
+          action        = "keep"
+          source_labels = [
+            "__meta_kubernetes_pod_annotation_alloy_logs",
+            "__meta_kubernetes_pod_annotation_promtail_logs",
+          ]
+          separator = ";"
+          regex     = "true;.*|.*;true"
+        }
+        {{- end }}
+
+        rule {
+          action        = "replace"
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node_name"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = ["namespace", "app"]
+          separator     = "/"
+          replacement   = "$1"
+          target_label  = "job"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = [
+            "__meta_kubernetes_pod_uid",
+            "__meta_kubernetes_pod_container_name",
+          ]
+          separator    = "/"
+          replacement  = "/var/log/pods/*$1/*.log"
+          target_label = "__path__"
+        }
+
+        rule {
+          action        = "replace"
+          source_labels = [
+            "__meta_kubernetes_pod_annotationpresent_kubernetes_io_config_hash",
+            "__meta_kubernetes_pod_annotation_kubernetes_io_config_hash",
+            "__meta_kubernetes_pod_container_name",
+          ]
+          separator    = "/"
+          regex        = "true/(.*)"
+          replacement  = "/var/log/pods/*$1/*.log"
+          target_label = "__path__"
+        }
+      }
+
+      local.file_match "pod_logs" {
+        path_targets = discovery.relabel.pod_logs.output
+      }
+
+      loki.process "pod_logs" {
+        forward_to = [loki.write.default.receiver]
+
+        stage.cri {}
+
+        stage.json {
+          expressions = {
+            timestamp = "timestamp",
+            time      = "time",
+            loglevel  = "level",
+            level     = "level",
+            logger    = "logger",
+          }
+        }
+
+        stage.template {
+          source   = "loglevel"
+          template = {{ printf "%q" "{{ if .loglevel }}{{ ToUpper .loglevel }}{{ else if .level }}{{ ToUpper .level }}{{ else }}INFO{{ end }}" }}
+        }
+
+        stage.template {
+          source   = "ts_candidate"
+          template = {{ printf "%q" "{{ if .timestamp }}{{ .timestamp }}{{ else if .time }}{{ .time }}{{ end }}" }}
+        }
+
+        stage.timestamp {
+          source            = "ts_candidate"
+          format            = "RFC3339"
+          fallback_formats  = ["RFC3339Nano", "Unix"]
+          action_on_failure = "skip"
+        }
+
+        stage.labels {
+          values = {
+            severity = "loglevel",
+            logger   = "logger",
+          }
+        }
+      }
+
+      loki.source.file "pod_logs" {
+        targets               = local.file_match.pod_logs.targets
+        legacy_positions_file = "/run/promtail/positions.yaml"
+        forward_to            = [loki.process.pod_logs.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = {{ .Values.logs.loki.url | quote }}
+
+          authorization {
+            type        = "Bearer"
+            credentials = sys.env("API_TOKEN")
+          }
+
+          headers = {
+            "X-Scope-OrgID" = sys.env("TENANT_ID"),
+          }
+
+          tls_config {
+            min_version = "TLS12"
+          }
+        }
+      }
+
+controller:
+  type: daemonset
+  tolerations:
+    - operator: "Exists"
+  volumes:
+    extra:
+      - name: alloy-data
+        hostPath:
+          path: /var/lib/alloy-data
+          type: DirectoryOrCreate
+      - name: promtail-legacy-positions
+        hostPath:
+          path: /run/promtail
+          type: DirectoryOrCreate
+
+serviceMonitor:
+  enabled: false

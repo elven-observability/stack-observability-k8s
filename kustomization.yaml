@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: kustomize
+  namespace: monitoring
+generatorOptions:
+  disableNameSuffixHash: true
+namespace: monitoring
+resources:
+  - ./monitoring-namespace.yaml
+  - ./otel-collector/collector-rbac.yaml
+  - ./otel-collector/collector-deploy.yaml
+  - ./otel-collector/collector-service.yaml
+  - ./opentelemetry-operator/opentelemetry-operator.yaml
+  - ./collector-fe/collector-fe-env-secret.yaml
+
+secretGenerator:
+  - name: secrets-collector-config
+    files:
+      - ./otel-collector/collector-config.yaml

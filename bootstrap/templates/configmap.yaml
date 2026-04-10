@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elven-bootstrap
+  labels:
+    app.kubernetes.io/name: elven-bootstrap
+    app.kubernetes.io/managed-by: Helm
+data:
+  purpose: "bootstrap"
+  description: "Release sentinela para coordenar hooks do stack-observability-k8s"

@@ -1,0 +1,111 @@
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: instrumentation
+spec:
+  exporter:
+    endpoint: http://opentelemetrycollector.monitoring.svc.cluster.local:4318
+  propagators:
+    - tracecontext
+    - baggage
+    - b3
+    - b3multi
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"
+  defaults:
+    useLabelsForResourceAttributes: true
+  resource:
+    addK8sUIDAttributes: true
+  imagePullPolicy: IfNotPresent
+  env:
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318"
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: "http/protobuf"
+    - name: OTEL_SEMCONV_STABILITY_OPT_IN
+      value: "http,db,messaging"
+    - name: OTEL_TRACES_EXPORTER
+      value: "otlp"
+    - name: OTEL_METRICS_EXPORTER
+      value: "otlp"
+  java:
+    volumeLimitSize: "1Gi"
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+  nodejs:
+    image: docker.io/elvenobservability/nodejs-k8s-operator:latest
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+  python:
+    image: docker.io/elvenobservability/python-k8s-operator:0.1.1
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+
+  dotnet:
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+    env:
+      - name: OTEL_DOTNET_AUTO_TRACES_ENABLED
+        value: "true"
+      - name: OTEL_DOTNET_AUTO_METRICS_ENABLED
+        value: "true"
+      - name: OTEL_DOTNET_AUTO_LOGS_ENABLED
+        value: "false"
+      - name: OTEL_LOGS_EXPORTER
+        value: "none"
+
+  go:
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+
+  apacheHttpd:
+    version: "2.4"
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+
+  nginx:
+    configFile: /etc/nginx/nginx.conf
+    volumeLimitSize: "1Gi"
+    resourceRequirements:
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+      requests:
+        cpu: "50m"
+        memory: "64Mi"

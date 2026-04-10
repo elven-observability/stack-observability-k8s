@@ -1,0 +1,117 @@
+repositories:
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+  - name: prometheus
+    url: https://prometheus-community.github.io/helm-charts
+
+  - name: faro-collector
+    url: https://leozw.github.io/faro-collector
+
+  - name: jetstack
+    url: https://charts.jetstack.io
+
+hooks:
+  - events: ["prepare"]
+    showlogs: true
+    command: "./helmfile-global-hooks.sh"
+    args:
+      - "{{ .HelmfileCommand }}"
+      - "prepare"
+
+releases:
+  ######## Certificate #########
+  - name: cert-manager
+    namespace: cert-manager
+    createNamespace: true
+    chart: jetstack/cert-manager
+    version: v1.18.2
+    values:
+      - ./cert-manager/values.yaml
+    hooks:
+      - events: ["postsync"]
+        command: "kubectl"
+        args:
+          - "wait"
+          - "--for=condition=Available"
+          - "deployment/cert-manager"
+          - "-n"
+          - "cert-manager"
+          - "--timeout=180s"
+      - events: ["postsync"]
+        command: "kubectl"
+        args:
+          - "wait"
+          - "--for=condition=Available"
+          - "deployment/cert-manager-webhook"
+          - "-n"
+          - "cert-manager"
+          - "--timeout=180s"
+      - events: ["postsync"]
+        command: "kubectl"
+        args:
+          - "wait"
+          - "--for=condition=Available"
+          - "deployment/cert-manager-cainjector"
+          - "-n"
+          - "cert-manager"
+          - "--timeout=180s"
+
+  ######## prometheus #########
+  - name: prometheus
+    namespace: monitoring
+    createNamespace: true
+    chart: prometheus/kube-prometheus-stack
+    values:
+      - ./prometheus/values-prometheus.yaml
+
+  ######## alloy logs #########
+  - name: elven-logs-collector
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/alloy
+    version: 1.6.2
+    values:
+      - ./alloy/values-alloy.yaml
+
+  - name: elven-collector-fe
+    namespace: monitoring
+    createNamespace: true
+    chart: faro-collector/faro-collector
+    values:
+      - ./collector-fe/values.yaml
+
+  - name: elven-bootstrap
+    namespace: monitoring
+    createNamespace: true
+    chart: ./bootstrap
+    needs:
+      - cert-manager/cert-manager
+      - monitoring/prometheus
+      - monitoring/elven-logs-collector
+      - monitoring/elven-collector-fe
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: "kubectl"
+        args:
+          - "apply"
+          - "-f"
+          - "cert-manager/cluster-issuer.yaml"
+      - events: ["postsync"]
+        showlogs: true
+        command: "kubectl"
+        args:
+          - "apply"
+          - "-k"
+          - "."
+      - events: ["postsync"]
+        showlogs: true
+        command: "./apply-otel-operator.sh"
+
+  # - name: beyla
+  #   namespace: monitoring
+  #   createNamespace: true
+  #   chart: grafana/beyla
+  #   values:
+  #     - ./beyla/values.yaml
