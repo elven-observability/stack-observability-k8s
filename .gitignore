@@ -1,1 +1,2 @@
 .DS_Store
+prometheus/values-prometheus.rendered.yaml

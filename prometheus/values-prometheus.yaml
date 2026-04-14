@@ -4355,7 +4355,7 @@ prometheus:
             key: apiToken
             name: elven-observability-credentials
         headers:
-          X-Scope-OrgID: JCA
+          X-Scope-OrgID: __PROMETHEUS_REMOTE_WRITE_TENANT__
         writeRelabelConfigs:
           - sourceLabels:
               - __name__

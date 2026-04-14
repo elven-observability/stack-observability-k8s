@@ -3,49 +3,64 @@ receivers:
     protocols:
       grpc:
         endpoint: "0.0.0.0:4317"
+        max_recv_msg_size_mib: 16
       http:
         endpoint: "0.0.0.0:4318"
+
   prometheus:
     config:
+      global:
+        scrape_interval: 30s
+        scrape_timeout: 10s
       scrape_configs:
-        - job_name: "kubernetes-pods"
+        - job_name: kubernetes-pods
+          honor_timestamps: true
           kubernetes_sd_configs:
             - role: pod
           relabel_configs:
-            - source_labels:
-                [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
               action: keep
-              regex: true
-            - source_labels:
-                [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
+              regex: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: keep
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_pod_phase]
+              action: drop
+              regex: Pending|Succeeded|Failed|Completed
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scheme]
               action: replace
               target_label: __scheme__
               regex: (https?)
-            - source_labels:
-                [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
               action: replace
               target_label: __metrics_path__
               regex: (.+)
-            - source_labels:
-                [
-                  __address__,
-                  __meta_kubernetes_pod_annotation_prometheus_io_port,
-                ]
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
               action: replace
+              target_label: __address__
               regex: ([^:]+)(?::\d+)?;(\d+)
               replacement: $1:$2
-              target_label: __address__
-            - action: labelmap
-              regex: __meta_kubernetes_pod_label_(.+)
             - source_labels: [__meta_kubernetes_namespace]
-              action: replace
               target_label: namespace
             - source_labels: [__meta_kubernetes_pod_name]
-              action: replace
               target_label: pod
+            - source_labels: [__meta_kubernetes_pod_container_name]
+              target_label: container
+            - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+              action: replace
+              target_label: app
+              regex: (.+)
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              action: replace
+              target_label: app
+              regex: (.+)
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
 
 exporters:
-  otlp_http:
+  otlp_http/traces:
     endpoint: https://tempo.elvenobservability.com/http
     headers:
       X-Scope-OrgID: "${TENANT_ID}"
@@ -78,21 +93,17 @@ exporters:
     remote_write_queue:
       enabled: true
       queue_size: 5000
-      num_consumers: 4
+    max_batch_request_parallelism: 4
 
 processors:
   memory_limiter:
     check_interval: 1s
-    limit_percentage: 80
-    spike_limit_percentage: 20
+    limit_mib: 6144
+    spike_limit_mib: 1024
 
-  k8sattributes:
+  k8s_attributes:
     extract:
-      metadata:
-        - k8s.namespace.name
-        - k8s.deployment.name
-        - k8s.pod.name
-        - k8s.node.name
+      metadata: [k8s.namespace.name, k8s.deployment.name, k8s.pod.name, k8s.node.name, k8s.container.name]
     passthrough: false
     pod_association:
       - sources:
@@ -104,83 +115,161 @@ processors:
       - sources:
           - from: connection
 
-  batch:
+  batch/traces:
+    timeout: 5s
+    send_batch_size: 1000
+    send_batch_max_size: 1500
+
+  batch/metrics:
     timeout: 10s
     send_batch_size: 2000
     send_batch_max_size: 2500
 
-  # ── Traces: só latência alta + errors ──
+  filter/traces:
+    error_mode: ignore
+    traces:
+      span:
+        # Synthetic probes and curl-style smoke tests are intentionally dropped before tail sampling.
+        - 'IsMatch(attributes["http.route"], "^/(health|healthz|healthy|live|livez|ready|readyz|startup|startupz|ping|pong|status|version|metrics|favicon\\.ico|api/health|_health|kong-health.*)$")'
+        - 'IsMatch(attributes["url.path"], "^/(health|healthz|healthy|live|livez|ready|readyz|startup|startupz|ping|pong|status|version|metrics|favicon\\.ico|api/health|_health)$")'
+        - 'IsMatch(attributes["http.target"], "^/(health|healthz|healthy|live|livez|ready|readyz|startup|startupz|ping|pong|status|version|metrics|favicon\\.ico)(\\?.*)?$")'
+        - 'IsMatch(attributes["http.user_agent"], "^(ELB-HealthChecker|kube-probe|Kubernetes|GoogleHC|curl).*")'
+        - 'IsMatch(attributes["user_agent.original"], "^(ELB-HealthChecker|kube-probe|Kubernetes|GoogleHC|curl).*")'
+
   tail_sampling:
-    decision_wait: 10s
-    num_traces: 100000
-    expected_new_traces_per_sec: 1000
+    sampling_strategy: trace-complete
+    decision_wait: 5s
+    num_traces: 200000
+    expected_new_traces_per_sec: 5000
     policies:
-      - name: errors
+      - name: keep-status-error
         type: status_code
         status_code:
-          status_codes:
-            - ERROR
-      - name: high-latency
+          status_codes: [ERROR]
+      - name: keep-http-errors-old
+        type: ottl_condition
+        ottl_condition:
+          span: ['attributes["http.status_code"] >= 400']
+      - name: keep-http-errors-new
+        type: ottl_condition
+        ottl_condition:
+          span: ['attributes["http.response.status_code"] >= 400']
+      - name: keep-grpc-errors
+        type: ottl_condition
+        ottl_condition:
+          span: ['attributes["rpc.grpc.status_code"] != nil and attributes["rpc.grpc.status_code"] != 0']
+      - name: keep-high-latency
         type: latency
         latency:
-          threshold_ms: 500
-      # - name: small-sample
-      #   type: probabilistic
-      #   probabilistic:
-      #     sampling_percentage: 5
+          threshold_ms: 1500
 
-  # ── Métricas scraped pelo collector: só ruído genérico de scrape/app ──
-  filter/prometheus:
+  transform/traces:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(span.attributes, "container.id")
+          - delete_key(span.attributes, "k8s.pod.uid")
+          - delete_key(span.attributes, "host.id")
+          - delete_key(span.attributes, "process.pid")
+          - delete_key(span.attributes, "process.parent_pid")
+          - delete_key(span.attributes, "telemetry.sdk.language")
+          - delete_key(span.attributes, "telemetry.sdk.name")
+          - delete_key(span.attributes, "telemetry.sdk.version")
+          - delete_key(span.attributes, "telemetry.auto.version")
+          - delete_key(span.attributes, "net.sock.peer.addr")
+          - delete_key(span.attributes, "net.sock.peer.port")
+          - delete_key(span.attributes, "net.sock.host.addr")
+          - delete_key(span.attributes, "net.sock.host.port")
+          - delete_key(span.attributes, "network.peer.address")
+          - delete_key(span.attributes, "network.peer.port")
+          - delete_key(span.attributes, "network.local.address")
+          - delete_key(span.attributes, "network.local.port")
+          - delete_key(span.attributes, "net.host.ip")
+          - delete_key(span.attributes, "net.peer.ip")
+          - delete_key(span.attributes, "client.address")
+          - delete_key(span.attributes, "server.address")
+          - delete_key(span.attributes, "server.port")
+          - delete_key(span.attributes, "user_agent.original")
+          - delete_key(span.attributes, "thread.id")
+          - delete_key(span.attributes, "thread.name")
+          - delete_key(span.attributes, "code.filepath")
+          - delete_key(span.attributes, "code.lineno")
+          - delete_key(span.attributes, "code.column")
+          - delete_key(span.attributes, "code.namespace")
+      - context: resource
+        statements:
+          - delete_key(resource.attributes, "telemetry.sdk.language")
+          - delete_key(resource.attributes, "telemetry.sdk.name")
+          - delete_key(resource.attributes, "telemetry.sdk.version")
+          - delete_key(resource.attributes, "telemetry.auto.version")
+          - delete_key(resource.attributes, "process.pid")
+          - delete_key(resource.attributes, "process.executable.name")
+          - delete_key(resource.attributes, "process.executable.path")
+          - delete_key(resource.attributes, "process.command_args")
+          - delete_key(resource.attributes, "process.command_line")
+          - delete_key(resource.attributes, "process.runtime.name")
+          - delete_key(resource.attributes, "process.runtime.version")
+          - delete_key(resource.attributes, "process.runtime.description")
+          - delete_key(resource.attributes, "process.owner")
+          - delete_key(resource.attributes, "host.id")
+          - delete_key(resource.attributes, "host.arch")
+          - delete_key(resource.attributes, "os.type")
+          - delete_key(resource.attributes, "os.description")
+          - delete_key(resource.attributes, "os.version")
+          - delete_key(resource.attributes, "container.id")
+
+  filter/metrics_prometheus:
+    error_mode: ignore
     metrics:
       exclude:
         match_type: regexp
         metric_names:
-          - "scrape_.*"
-          - "promhttp_.*"
-          - "target_info"
+          - "^scrape_.*"
+          - "^promhttp_.*"
+          - "^target_info$"
 
-  # ── Métricas OTLP e scraped: pruning seguro de atributos voláteis ──
-  transform/metrics:
+  transform/metrics_common:
+    error_mode: ignore
     metric_statements:
       - context: datapoint
         statements:
-          # ── IDs que mudam a cada restart (cardinality bomb) ──
-          - delete_key(attributes, "container_id")
-          - delete_key(attributes, "container.id")
-          - delete_key(attributes, "pod_uid")
-          - delete_key(attributes, "k8s_pod_uid")
-          - delete_key(attributes, "k8s.pod.uid")
-          - delete_key(attributes, "uid")
-          - delete_key(attributes, "k8s_pod_start_time")
-          - delete_key(attributes, "k8s.pod.start_time")
-          - delete_key(attributes, "service_instance_id")
-          - delete_key(attributes, "service.instance.id")
-
-          # ── Image IDs (mudam a cada build) ──
-          - delete_key(attributes, "image_id")
-          - delete_key(attributes, "container.image.id")
-          - delete_key(attributes, "image_size_in_bytes")
+          - delete_key(datapoint.attributes, "container_id")
+          - delete_key(datapoint.attributes, "container.id")
+          - delete_key(datapoint.attributes, "pod_uid")
+          - delete_key(datapoint.attributes, "k8s_pod_uid")
+          - delete_key(datapoint.attributes, "uid")
+          - delete_key(datapoint.attributes, "service_instance_id")
+          - delete_key(datapoint.attributes, "service.instance.id")
+          - delete_key(datapoint.attributes, "k8s_pod_start_time")
+          - delete_key(datapoint.attributes, "image_id")
+          - delete_key(datapoint.attributes, "image_size_in_bytes")
+      - context: resource
+        statements:
+          - delete_key(resource.attributes, "container.id")
+          - delete_key(resource.attributes, "k8s.pod.uid")
+          - delete_key(resource.attributes, "service.instance.id")
+          - delete_key(resource.attributes, "uid")
+          - delete_key(resource.attributes, "k8s.pod.start_time")
+          - delete_key(resource.attributes, "image.id")
 
 service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      level: none
   pipelines:
     metrics/otlp:
       receivers: [otlp]
-      processors: [memory_limiter, k8sattributes, transform/metrics, batch]
+      processors: [memory_limiter, k8s_attributes, transform/metrics_common, batch/metrics]
       exporters: [prometheusremotewrite]
-
     metrics/prometheus:
       receivers: [prometheus]
-      processors:
-        [
-          memory_limiter,
-          k8sattributes,
-          filter/prometheus,
-          transform/metrics,
-          batch,
-        ]
+      processors: [memory_limiter, k8s_attributes, filter/metrics_prometheus, transform/metrics_common, batch/metrics]
       exporters: [prometheusremotewrite]
-
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, k8sattributes, tail_sampling, batch]
-      exporters: [otlp_http]
+      processors: [memory_limiter, k8s_attributes, filter/traces, tail_sampling, transform/traces, batch/traces]
+      exporters: [otlp_http/traces]

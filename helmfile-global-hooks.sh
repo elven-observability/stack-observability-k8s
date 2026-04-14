@@ -12,6 +12,13 @@ case "${HELMFILE_COMMAND}:${HOOK_PHASE}" in
     echo "helmfile-global-hooks: command=${HELMFILE_COMMAND} phase=${HOOK_PHASE}"
     ./destroy-kustomize-resources.sh
     ;;
+  apply:cleanup|sync:cleanup)
+    echo "helmfile-global-hooks: command=${HELMFILE_COMMAND} phase=${HOOK_PHASE}"
+    ./apply-local-resources.sh
+    ;;
+  *:prepare)
+    ./render-prometheus-values.sh
+    ;;
   *)
     exit 0
     ;;

@@ -6,7 +6,7 @@ cd "$SCRIPT_DIR"
 
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-monitoring}"
 INSTRUMENTATION_TARGET_NAMESPACES="${INSTRUMENTATION_TARGET_NAMESPACES:-}"
-EXCLUDED_NAMESPACES_REGEX="${EXCLUDED_NAMESPACES_REGEX:-^(kube-system|kube-public|kube-node-lease|cert-manager|monitoring|ingress-nginx|kong|kong-system|cnpg-system|calico-apiserver|calico-system|tigera-operator|cattle-system|istio-system|linkerd|linkerd-viz|metallb-system|longhorn-system|velero|argocd|flux-system|kyverno|kyverno-system|gatekeeper-system|mgk-.*)$}"
+EXCLUDED_NAMESPACES_REGEX="${EXCLUDED_NAMESPACES_REGEX:-^(kube-system|kube-public|kube-node-lease|cert-manager|monitoring|ingress-nginx|kong|kong-system|cnpg-system|calico-apiserver|calico-system|tigera-operator|cattle-system|istio-system|linkerd|linkerd-viz|metallb-system|longhorn-system|velero|argocd|flux-system|kyverno|kyverno-system|gatekeeper-system|mgk-.*|sentinel)$}"
 failed_namespaces=""
 
 collect_target_namespaces() {

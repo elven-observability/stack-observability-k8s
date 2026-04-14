@@ -18,6 +18,12 @@ hooks:
     args:
       - "{{ .HelmfileCommand }}"
       - "prepare"
+  - events: ["cleanup"]
+    showlogs: true
+    command: "./helmfile-global-hooks.sh"
+    args:
+      - "{{ .HelmfileCommand }}"
+      - "cleanup"
 
 releases:
   ######## Certificate #########
@@ -62,8 +68,9 @@ releases:
     namespace: monitoring
     createNamespace: true
     chart: prometheus/kube-prometheus-stack
+    version: 82.15.0
     values:
-      - ./prometheus/values-prometheus.yaml
+      - ./prometheus/values-prometheus.rendered.yaml
 
   ######## alloy logs #########
   - name: elven-logs-collector
@@ -78,40 +85,15 @@ releases:
     namespace: monitoring
     createNamespace: true
     chart: faro-collector/faro-collector
+    version: 1.1.0
     values:
       - ./collector-fe/values.yaml
 
-  - name: elven-bootstrap
+  - name: beyla
     namespace: monitoring
     createNamespace: true
-    chart: ./bootstrap
-    needs:
-      - cert-manager/cert-manager
-      - monitoring/prometheus
-      - monitoring/elven-logs-collector
-      - monitoring/elven-collector-fe
-    hooks:
-      - events: ["postsync"]
-        showlogs: true
-        command: "kubectl"
-        args:
-          - "apply"
-          - "-f"
-          - "cert-manager/cluster-issuer.yaml"
-      - events: ["postsync"]
-        showlogs: true
-        command: "kubectl"
-        args:
-          - "apply"
-          - "-k"
-          - "."
-      - events: ["postsync"]
-        showlogs: true
-        command: "./apply-otel-operator.sh"
-
-  # - name: beyla
-  #   namespace: monitoring
-  #   createNamespace: true
-  #   chart: grafana/beyla
-  #   values:
-  #     - ./beyla/values.yaml
+    installed: false
+    chart: grafana/beyla
+    version: 1.15.0
+    values:
+      - ./beyla/values.yaml
