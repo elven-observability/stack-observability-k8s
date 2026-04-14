@@ -59,6 +59,11 @@ echo "Deleting OpenTelemetry Collector manifests..."
 kubectl delete -f otel-collector/collector-service.yaml --ignore-not-found=true || true
 kubectl delete -f otel-collector/collector-deploy.yaml --ignore-not-found=true || true
 kubectl delete -f otel-collector/collector-rbac.yaml --ignore-not-found=true || true
+kubectl delete -n "${OPERATOR_NAMESPACE}" deployment opentelemetrycollector --ignore-not-found=true || true
+kubectl delete -n "${OPERATOR_NAMESPACE}" service opentelemetrycollector --ignore-not-found=true || true
+kubectl delete -n "${OPERATOR_NAMESPACE}" serviceaccount opentelemetrycollector --ignore-not-found=true || true
+kubectl delete clusterrole opentelemetrycollector-prometheus --ignore-not-found=true || true
+kubectl delete clusterrolebinding opentelemetrycollector-prometheus --ignore-not-found=true || true
 
 echo "Deleting OpenTelemetry Operator manifests..."
 kubectl delete -f opentelemetry-operator/opentelemetry-operator.yaml --ignore-not-found=true || true

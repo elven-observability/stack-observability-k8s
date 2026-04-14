@@ -4,7 +4,6 @@ global:
     registry: ""
     # -- Optional set of global image pull secrets.
     pullSecrets: []
-
 image:
   # -- Beyla image registry (defaults to docker.io)
   registry: "docker.io"
@@ -147,7 +146,7 @@ config:
         - k8s_namespace: valkey
         - k8s_owner_name: "*redis*"
         - k8s_owner_name: "*valkey*"
-                       
+
     attributes:
       kubernetes:
         enable: true
@@ -161,7 +160,7 @@ env:
   BEYLA_METRICS_ENABLED: "true"
   OTEL_METRICS_EXPORTER: "otlp"
   BEYLA_BPF_TRACK_REQUEST_HEADERS: "true"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://elven-otel-collector.monitoring.svc.cluster.local:4318"
 
 # -- extra environment variables to be set from resources such as k8s configMaps/secrets
 envValueFrom: {}
@@ -169,7 +168,6 @@ envValueFrom: {}
 # -- Preconfigures some default properties for network or application observability.
 # Accepted values are "network" or "application".
 preset: application
-
 # -- Enable creation of ServiceMonitor for scraping of prometheus HTTP endpoint
 serviceMonitor:
   enabled: false
@@ -177,4 +175,4 @@ serviceMonitor:
   endpoint:
     interval: 15s
   jobLabel: ""
- 
+

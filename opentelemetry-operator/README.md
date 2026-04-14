@@ -40,7 +40,7 @@ INSTRUMENTATION_NAMESPACE=default ./apply-operator-and-instrumentation.sh
 
 ## Contrato do `Instrumentation`
 
-- `exporter.endpoint`: `http://opentelemetrycollector.monitoring.svc.cluster.local:4318`
+- `exporter.endpoint`: `http://elven-otel-collector.monitoring.svc.cluster.local:4318`
 - `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`
 - `OTEL_SEMCONV_STABILITY_OPT_IN=http,db,messaging`
 - `OTEL_TRACES_EXPORTER=otlp`

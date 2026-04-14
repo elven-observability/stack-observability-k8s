@@ -132,7 +132,7 @@ Depois do `helmfile apply`, valide:
 ```bash
 kubectl get pods -n monitoring
 kubectl get instrumentations -A
-kubectl logs -n monitoring deploy/opentelemetrycollector --since=2m
+kubectl logs -n monitoring deploy/elven-otel-collector --since=2m
 kubectl logs -n monitoring deploy/elven-instrumentation-operator-controller-manager --since=2m
 ```
 

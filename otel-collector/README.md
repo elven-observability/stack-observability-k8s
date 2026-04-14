@@ -79,6 +79,6 @@ kubectl apply -k .
 
 ```bash
 kubectl get pods -n monitoring
-kubectl logs -n monitoring deploy/opentelemetrycollector --since=5m
+kubectl logs -n monitoring deploy/elven-otel-collector --since=5m
 kubectl get secret -n monitoring secrets-collector-config -o jsonpath='{.data.collector-config\\.yaml}' | base64 --decode
 ```

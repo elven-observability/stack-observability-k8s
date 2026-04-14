@@ -4,7 +4,7 @@ metadata:
   name: instrumentation
 spec:
   exporter:
-    endpoint: http://opentelemetrycollector.monitoring.svc.cluster.local:4318
+    endpoint: http://elven-otel-collector.monitoring.svc.cluster.local:4318
   propagators:
     - tracecontext
     - baggage
@@ -20,7 +20,7 @@ spec:
   imagePullPolicy: IfNotPresent
   env:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: "http://opentelemetrycollector.monitoring.svc.cluster.local:4318"
+      value: "http://elven-otel-collector.monitoring.svc.cluster.local:4318"
     - name: OTEL_EXPORTER_OTLP_PROTOCOL
       value: "http/protobuf"
     - name: OTEL_SEMCONV_STABILITY_OPT_IN

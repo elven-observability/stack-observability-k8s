@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: opentelemetrycollector
+  name: elven-otel-collector
   namespace: monitoring
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: opentelemetrycollector
+      app.kubernetes.io/name: elven-otel-collector
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: opentelemetrycollector
+        app.kubernetes.io/name: elven-otel-collector
     spec:
-      serviceAccountName: opentelemetrycollector
+      serviceAccountName: elven-otel-collector
       containers:
         - name: otelcol
           args:
