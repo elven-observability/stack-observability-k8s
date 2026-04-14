@@ -12,7 +12,7 @@ image:
   tag: v1.14.0
 
 logs:
-  namespaceRegex: "^(default|namespace1|namespace2)$"
+  namespaceRegex: "^(commerce-demo)$"
   annotationFilter:
     enabled: false
   loki:
