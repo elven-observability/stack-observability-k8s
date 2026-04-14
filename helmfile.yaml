@@ -85,10 +85,10 @@ releases:
     values:
       - ./collector-fe/values.yaml
 
-  - name: beyla
-    namespace: monitoring
-    createNamespace: true
-    installed: false
-    chart: grafana/beyla
-    values:
-      - ./beyla/values.yaml
+  # - name: beyla
+  #   namespace: monitoring
+  #   createNamespace: true
+  #   installed: false
+  #   chart: grafana/beyla
+  #   values:
+  #     - ./beyla/values.yaml
