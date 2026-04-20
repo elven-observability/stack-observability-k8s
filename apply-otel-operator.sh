@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-FILE="opentelemetry-operator/instrumentation.yaml"
+FILE="elven-otel-operator/instrumentation.yaml"
 OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-monitoring}"
 INSTRUMENTATION_TARGET_NAMESPACES="${INSTRUMENTATION_TARGET_NAMESPACES:-}"
 EXCLUDED_NAMESPACES_REGEX="${EXCLUDED_NAMESPACES_REGEX:-^(kube-system|kube-public|kube-node-lease|cert-manager|monitoring|ingress-nginx|kong|kong-system|cnpg-system|calico-apiserver|calico-system|tigera-operator|cattle-system|istio-system|linkerd|linkerd-viz|metallb-system|longhorn-system|velero|argocd|flux-system|kyverno|kyverno-system|gatekeeper-system|mgk-.*|sentinel)$}"

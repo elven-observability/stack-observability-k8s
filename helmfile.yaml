@@ -68,7 +68,7 @@ releases:
     createNamespace: true
     chart: prometheus/kube-prometheus-stack
     values:
-      - ./prometheus/values-prometheus.rendered.yaml
+      - ./elven-prometheus/values-prometheus.rendered.yaml
 
   ######## alloy logs #########
   - name: elven-logs-collector
@@ -76,14 +76,14 @@ releases:
     createNamespace: true
     chart: grafana/alloy
     values:
-      - ./alloy/values-alloy.yaml
+      - ./elven-logs-collector/values-alloy.yaml
 
   - name: elven-collector-fe
     namespace: monitoring
     createNamespace: true
     chart: faro-collector/faro-collector
     values:
-      - ./collector-fe/values.yaml
+      - ./elven-collector-fe/values.yaml
 
   # - name: beyla
   #   namespace: monitoring
@@ -91,4 +91,4 @@ releases:
   #   installed: false
   #   chart: grafana/beyla
   #   values:
-  #     - ./beyla/values.yaml
+  #     - ./elven-ebpf/values.yaml

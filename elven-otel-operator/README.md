@@ -9,9 +9,9 @@ Este diretorio entrega o baseline de auto-instrumentacao da stack Elven para `20
 
 Arquivos principais:
 
-- [opentelemetry-operator.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/opentelemetry-operator/opentelemetry-operator.yaml)
-- [instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/opentelemetry-operator/instrumentation.yaml)
-- [apply-operator-and-instrumentation.sh](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/opentelemetry-operator/apply-operator-and-instrumentation.sh)
+- [opentelemetry-operator.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/opentelemetry-operator.yaml)
+- [instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/instrumentation.yaml)
+- [apply-operator-and-instrumentation.sh](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/apply-operator-and-instrumentation.sh)
 
 ## Fluxo padrao da stack
 

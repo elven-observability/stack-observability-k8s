@@ -42,7 +42,7 @@ O tenant do Prometheus nao fica mais hardcoded no repo. O `helmfile` resolve `te
 `collector-fe`
 
 - O release sobe por padrao.
-- A secret [collector-fe/collector-fe-env-secret.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/collector-fe/collector-fe-env-secret.yaml) ja vem com defaults funcionais.
+- A secret [collector-fe-env-secret.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-collector-fe/collector-fe-env-secret.yaml) ja vem com defaults funcionais.
 - So ajuste esse arquivo se o cliente precisar personalizar `SECRET_KEY`, `LOKI_URL`, `ALLOW_ORIGINS` ou `JWT_ISSUER`.
 
 `Beyla`
@@ -53,7 +53,7 @@ O tenant do Prometheus nao fica mais hardcoded no repo. O `helmfile` resolve `te
 
 `Instrumentation`
 
-- A stack aplica o [opentelemetry-operator/instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/opentelemetry-operator/instrumentation.yaml) automaticamente no fim do `helmfile apply`.
+- A stack aplica o [instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/instrumentation.yaml) automaticamente no fim do `helmfile apply`.
 - Por padrao ela instrumenta todos os namespaces elegiveis e ignora namespaces operacionais.
 - Se quiser limitar explicitamente, use `INSTRUMENTATION_TARGET_NAMESPACES="app,worker"`.
 
@@ -169,5 +169,5 @@ Isso e intencional, para nao apagar recursos adicionais do cliente por acidente.
 
 ## Documentacao complementar
 
-- [opentelemetry-operator/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/opentelemetry-operator/README.md)
-- [otel-collector/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/otel-collector/README.md)
+- [elven-otel-operator/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/README.md)
+- [elven-otel-collector/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/README.md)

@@ -8,13 +8,13 @@ generatorOptions:
 namespace: monitoring
 resources:
   - ./monitoring-namespace.yaml
-  - ./otel-collector/collector-rbac.yaml
-  - ./otel-collector/collector-deploy.yaml
-  - ./otel-collector/collector-service.yaml
-  - ./opentelemetry-operator/opentelemetry-operator.yaml
-  - ./collector-fe/collector-fe-env-secret.yaml
+  - ./elven-otel-collector/collector-rbac.yaml
+  - ./elven-otel-collector/collector-deploy.yaml
+  - ./elven-otel-collector/collector-service.yaml
+  - ./elven-otel-operator/opentelemetry-operator.yaml
+  - ./elven-collector-fe/collector-fe-env-secret.yaml
 
 secretGenerator:
   - name: secrets-collector-config
     files:
-      - ./otel-collector/collector-config.yaml
+      - ./elven-otel-collector/collector-config.yaml

@@ -17,10 +17,10 @@ Ele nao substitui o Prometheus de infra.
 
 ## Arquivos
 
-- [collector-config.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/otel-collector/collector-config.yaml)
-- [collector-deploy.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/otel-collector/collector-deploy.yaml)
-- [collector-rbac.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/otel-collector/collector-rbac.yaml)
-- [collector-service.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/otel-collector/collector-service.yaml)
+- [collector-config.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-config.yaml)
+- [collector-deploy.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-deploy.yaml)
+- [collector-rbac.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-rbac.yaml)
+- [collector-service.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-service.yaml)
 
 ## Receivers
 

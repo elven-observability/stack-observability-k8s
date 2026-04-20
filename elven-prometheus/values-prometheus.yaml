@@ -4,7 +4,7 @@
 
 ## Provide a name in place of kube-prometheus-stack for `app:` labels
 ##
-nameOverride: ""
+nameOverride: "elven-prometheus"
 
 ## Override the deployment namespace
 ##
