@@ -12,11 +12,11 @@ image:
   tag: v1.14.0
 
 logs:
-  namespaceRegex: "^(commerce-demo)$"
+  namespaceRegex: ".+"
   annotationFilter:
     enabled: false
   loki:
-    url: https://loki.elvenobservability.com/loki/api/v1/push
+    url: https://logs.elvenobservability.com/loki/api/v1/push
 
 alloy:
   stabilityLevel: generally-available
