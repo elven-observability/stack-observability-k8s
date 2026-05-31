@@ -53,7 +53,7 @@ echo "Deleting collector config secret..."
 kubectl delete -n "${OPERATOR_NAMESPACE}" secret secrets-collector-config --ignore-not-found=true || true
 
 echo "Deleting collector-fe secret..."
-kubectl delete -f elven-collector-fe/collector-fe-env-secret.yaml --ignore-not-found=true || true
+kubectl delete -n "${OPERATOR_NAMESPACE}" secret elven-collector-fe-env-secret --ignore-not-found=true || true
 
 echo "Deleting OpenTelemetry Collector manifests..."
 kubectl delete -f elven-otel-collector/collector-service.yaml --ignore-not-found=true || true

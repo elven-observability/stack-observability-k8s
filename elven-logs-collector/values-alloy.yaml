@@ -9,7 +9,7 @@ global:
     runAsGroup: 0
 
 image:
-  tag: v1.14.0
+  tag: v1.16.1
 
 logs:
   namespaceRegex: ".+"

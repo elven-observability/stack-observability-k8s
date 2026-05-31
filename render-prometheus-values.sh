@@ -8,8 +8,6 @@ SOURCE_FILE="elven-prometheus/values-prometheus.yaml"
 TARGET_FILE="elven-prometheus/values-prometheus.rendered.yaml"
 PLACEHOLDER="__PROMETHEUS_REMOTE_WRITE_TENANT__"
 
-kubectl apply -f monitoring-namespace.yaml >/dev/null
-
 tenant_id="$(./get-secret-value.sh monitoring elven-observability-credentials tenantId)"
 
 sed "s/${PLACEHOLDER}/${tenant_id}/g" "${SOURCE_FILE}" > "${TARGET_FILE}"

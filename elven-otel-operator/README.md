@@ -9,9 +9,9 @@ Este diretorio entrega o baseline de auto-instrumentacao da stack Elven para `20
 
 Arquivos principais:
 
-- [opentelemetry-operator.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/opentelemetry-operator.yaml)
-- [instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/instrumentation.yaml)
-- [apply-operator-and-instrumentation.sh](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/apply-operator-and-instrumentation.sh)
+- `opentelemetry-operator.yaml`
+- `instrumentation.yaml`
+- `apply-operator-and-instrumentation.sh`
 
 ## Fluxo padrao da stack
 
@@ -30,9 +30,9 @@ Se quiser restringir os namespaces:
 INSTRUMENTATION_TARGET_NAMESPACES="app,worker" helmfile apply
 ```
 
-## Fluxo manual
+## Fluxo de desenvolvimento
 
-Se quiser testar o operator isoladamente:
+O fluxo de cliente deve ser sempre `helmfile apply`. Para testar o operator isoladamente durante desenvolvimento do repo:
 
 ```bash
 INSTRUMENTATION_NAMESPACE=default ./apply-operator-and-instrumentation.sh

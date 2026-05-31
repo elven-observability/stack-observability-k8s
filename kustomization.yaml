@@ -12,7 +12,6 @@ resources:
   - ./elven-otel-collector/collector-deploy.yaml
   - ./elven-otel-collector/collector-service.yaml
   - ./elven-otel-operator/opentelemetry-operator.yaml
-  - ./elven-collector-fe/collector-fe-env-secret.yaml
 
 secretGenerator:
   - name: secrets-collector-config

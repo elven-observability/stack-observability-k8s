@@ -17,10 +17,10 @@ Ele nao substitui o Prometheus de infra.
 
 ## Arquivos
 
-- [collector-config.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-config.yaml)
-- [collector-deploy.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-deploy.yaml)
-- [collector-rbac.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-rbac.yaml)
-- [collector-service.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/collector-service.yaml)
+- `collector-config.yaml`
+- `collector-deploy.yaml`
+- `collector-rbac.yaml`
+- `collector-service.yaml`
 
 ## Receivers
 
@@ -69,7 +69,7 @@ Essa reducao de cardinalidade de infra fica do lado do Prometheus.
 
 O collector sobe via `kustomization.yaml` da raiz e e aplicado automaticamente no `helmfile apply`.
 
-Se quiser aplicar isoladamente:
+O fluxo de cliente deve ser sempre pelo Helmfile. Para desenvolvimento local do repo, o collector tambem pode ser aplicado isoladamente:
 
 ```bash
 kubectl apply -k .

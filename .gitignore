@@ -1,3 +1,4 @@
 .DS_Store
-prometheus/values-prometheus.rendered.yaml
 elven-prometheus/values-prometheus.rendered.yaml
+bootstrap/*.env
+!bootstrap/*.env.example

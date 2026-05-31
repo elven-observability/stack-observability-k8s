@@ -16,8 +16,9 @@ case "${HELMFILE_COMMAND}:${HOOK_PHASE}" in
     echo "helmfile-global-hooks: command=${HELMFILE_COMMAND} phase=${HOOK_PHASE}"
     ./apply-local-resources.sh
     ;;
-  *:prepare)
-    ./render-prometheus-values.sh
+  apply:prepare|sync:prepare|diff:prepare|template:prepare|lint:prepare)
+    echo "helmfile-global-hooks: command=${HELMFILE_COMMAND} phase=${HOOK_PHASE}"
+    ./bootstrap/prepare.sh
     ;;
   *)
     exit 0

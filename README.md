@@ -1,95 +1,94 @@
 # Stack de Observabilidade para Clientes Elven
 
-Este repositório é o template que seus clientes instalam no cluster deles para enviar telemetria ao SaaS LGTM da Elven Observability.
+Template de instalacao da stack Kubernetes que envia telemetria para o SaaS LGTM da Elven Observability.
 
-Arquitetura da stack:
+Componentes instalados:
 
-- `Prometheus`: métricas de infra e Kubernetes
-- `OpenTelemetry Collector`: traces e métricas OTLP das apps, mais scrape genérico de pods anotados com `prometheus.io/*`
-- `OpenTelemetry Operator`: auto-instrumentação e `inject-sdk`
-- `Grafana Alloy`: logs stdout para Loki
-- `collector-fe`: frontend collector da Elven
-- `Beyla`: opcional, desligado por padrão
+- `cert-manager`
+- `kube-prometheus-stack`, com `remoteWrite` para Mimir
+- `Grafana Alloy`, coletando logs stdout dos pods para Loki
+- `OpenTelemetry Collector`, recebendo OTLP e scrape generico de pods anotados
+- `OpenTelemetry Operator`, aplicando auto-instrumentacao
+- `collector-fe`
+- `Beyla`, preparado como opcional e desligado por padrao
 
-## Fluxo rápido
+## Instalar
 
-### 1. Criar o namespace
+Pre-requisitos locais:
+
+- `kubectl` apontando para o cluster correto
+- `helm`
+- `helmfile`
+
+Primeira instalacao:
 
 ```bash
-kubectl apply -f ./monitoring-namespace.yaml
+export ELVEN_TENANT_ID="seu-tenant"
+export ELVEN_API_TOKEN="<SEU_API_TOKEN>"
+
+helmfile apply
 ```
 
-### 2. Criar a secret central
-
-```bash
-kubectl create secret generic elven-observability-credentials \
-  -n monitoring \
-  --from-literal=tenantId="seu-tenant" \
-  --from-literal=apiToken="<SEU_API_TOKEN>"
-```
-
-Essa secret alimenta automaticamente:
-
-- `OpenTelemetry Collector`
-- `Prometheus remoteWrite`
-- `Grafana Alloy`
-- `collector-fe` para o `LOKI_API_TOKEN`
-
-O tenant do Prometheus nao fica mais hardcoded no repo. O `helmfile` resolve `tenantId` direto dessa secret durante o render.
-
-### 3. Ajustes opcionais
-
-`collector-fe`
-
-- O release sobe por padrao.
-- A secret [collector-fe-env-secret.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-collector-fe/collector-fe-env-secret.yaml) ja vem com defaults funcionais.
-- So ajuste esse arquivo se o cliente precisar personalizar `SECRET_KEY`, `LOKI_URL`, `ALLOW_ORIGINS` ou `JWT_ISSUER`.
-
-`Beyla`
-
-- Fica fora do baseline e nao sobe no `helmfile apply` padrao.
-- O release ja esta preparado no [helmfile.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/helmfile.yaml), mas permanece com `installed: false`.
-- So habilite se o cliente realmente precisar de observabilidade por eBPF.
-
-`Instrumentation`
-
-- A stack aplica o [instrumentation.yaml](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/instrumentation.yaml) automaticamente no fim do `helmfile apply`.
-- Por padrao ela instrumenta todos os namespaces elegiveis e ignora namespaces operacionais.
-- Se quiser limitar explicitamente, use `INSTRUMENTATION_TARGET_NAMESPACES="app,worker"`.
-
-### 4. Subir tudo
+Depois da primeira instalacao, as secrets ficam no cluster. Para reconciliar novamente:
 
 ```bash
 helmfile apply
 ```
 
-Exemplo com namespace-alvo explicito para instrumentacao:
+O `helmfile apply` e o unico comando de instalacao esperado. Ele cria o namespace, cria/atualiza as secrets, renderiza valores derivados da secret, instala os charts Helm e aplica os manifests locais.
 
-```bash
-INSTRUMENTATION_TARGET_NAMESPACES="app,worker" helmfile apply
-```
+## Variaveis de bootstrap
 
-## O que o `helmfile apply` faz
+Obrigatorias apenas quando a secret central ainda nao existe:
+
+- `ELVEN_TENANT_ID`
+- `ELVEN_API_TOKEN`
+
+Opcionais:
+
+- `ELVEN_NAMESPACE`, default `monitoring`
+- `COLLECTOR_FE_LOKI_URL`, default `https://logs.elvenobservability.com`
+- `COLLECTOR_FE_ALLOW_ORIGINS`, default `https://*.elvenobservability.com`
+- `COLLECTOR_FE_JWT_ISSUER`, default `elven-observability`
+- `COLLECTOR_FE_SECRET_KEY`, default gerado automaticamente e reaproveitado nas proximas execucoes
+- `INSTRUMENTATION_TARGET_NAMESPACES`, lista separada por virgula para limitar onde o `Instrumentation` sera aplicado
+
+Existe um exemplo em `bootstrap/env.example`.
+
+## O que o Helmfile faz
+
+Durante `prepare`:
+
+- valida `kubectl` e `helm`
+- cria o namespace `monitoring`
+- cria ou atualiza `elven-observability-credentials`
+- cria ou atualiza `elven-collector-fe-env-secret`, sem secret fixa versionada no repo
+- renderiza `elven-prometheus/values-prometheus.rendered.yaml` com o tenant atual
+
+Durante a instalacao:
 
 - instala `cert-manager`
 - instala `kube-prometheus-stack`
 - instala `Grafana Alloy`
 - instala `collector-fe`
+
+Durante `cleanup` de `apply`/`sync`:
+
 - aplica o `ClusterIssuer`
-- aplica a `kustomization.yaml` da raiz
+- aplica a `kustomization.yaml`
 - sobe o `OpenTelemetry Collector`
 - sobe o `elven-instrumentation-operator`
 - espera a CRD e o controller do Operator
 - aplica o `Instrumentation` nos namespaces elegiveis
-- faz rollout dos componentes locais que dependem de secret/config para garantir convergencia
+- reinicia os componentes locais para garantir convergencia com secrets/configs atuais
 
 ## Contrato operacional
 
 ### Prometheus
 
-- continua responsavel por infra e Kubernetes
-- faz `remoteWrite` para o Mimir da Elven
-- o `X-Scope-OrgID` agora vem da secret central, sem edicao manual no values
+- coleta metricas de infra e Kubernetes
+- envia metricas para Mimir via `remoteWrite`
+- usa `X-Scope-OrgID` renderizado a partir da secret central
 
 ### OpenTelemetry Collector
 
@@ -107,45 +106,38 @@ metadata:
     prometheus.io/scheme: "http"
 ```
 
-- separa pipelines de metricas por origem:
-  - `metrics/otlp`
-  - `metrics/prometheus`
-- faz `tail_sampling` para manter apenas traces de erro ou acima de `1.5s`
-
 ### OpenTelemetry Operator
 
-- usa o release renomeado `elven-instrumentation-operator`
-- aplica o `Instrumentation` moderno do repo com `OTLP HTTP/protobuf` em `4318`
-- preserva as imagens custom da Elven para `Node.js` e `Python`
+- usa o deployment `elven-instrumentation-operator-controller-manager`
+- aplica `Instrumentation` moderno com OTLP HTTP/protobuf em `4318`
+- preserva imagens custom da Elven para `Node.js` e `Python`
 - usa `inject-sdk` como fallback para `Ruby`, `Rust` e workloads com SDK proprio
 
 ### Alloy
 
-- substitui o Promtail no baseline
+- substitui Promtail no baseline
 - coleta logs stdout dos pods Kubernetes
-- envia para Loki usando a mesma secret central
+- envia para Loki usando `Bearer` token e `X-Scope-OrgID` da secret central
 
 ## Verificacoes rapidas
 
-Depois do `helmfile apply`, valide:
-
 ```bash
 kubectl get pods -n monitoring
+kubectl get secret elven-observability-credentials elven-collector-fe-env-secret -n monitoring
 kubectl get instrumentations -A
 kubectl logs -n monitoring deploy/elven-otel-collector --since=2m
 kubectl logs -n monitoring deploy/elven-instrumentation-operator-controller-manager --since=2m
 ```
 
-Checagens esperadas:
+Esperado:
 
 - pods de `monitoring` em `Running`
-- pelo menos um `Instrumentation` criado nos namespaces elegiveis
-- collector sem warnings de alias deprecated
+- secrets de bootstrap presentes
+- pelo menos um `Instrumentation` nos namespaces elegiveis
+- collector sem erro de exportacao
 - operator pronto e sem erro de admission/injection
 
-## Remocao
-
-Para desmontar a stack:
+## Remover
 
 ```bash
 helmfile destroy
@@ -162,12 +154,13 @@ Esse fluxo remove:
 
 Ele nao remove:
 
-- o namespace `monitoring`
-- a secret central `elven-observability-credentials`
+- namespace `monitoring`
+- secret central `elven-observability-credentials`
 
-Isso e intencional, para nao apagar recursos adicionais do cliente por acidente.
+Isso evita apagar credenciais e recursos adicionais do cliente por acidente.
 
 ## Documentacao complementar
 
-- [elven-otel-operator/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-operator/README.md)
-- [elven-otel-collector/README.md](/Users/leonardozwirtes/Documents/Elven/elven-observability/stack-observability-k8s/elven-otel-collector/README.md)
+- `bootstrap/README.md`
+- `elven-otel-operator/README.md`
+- `elven-otel-collector/README.md`
