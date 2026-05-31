@@ -19,10 +19,10 @@ image:
   pullSecrets: []
 
 # -- Overrides the chart's name
-nameOverride: ""
+nameOverride: "elven-beyla"
 
 # -- Overrides the chart's computed fullname.
-fullnameOverride: ""
+fullnameOverride: "elven-beyla"
 
 # -- Override the deployment namespace
 namespaceOverride: ""
@@ -175,4 +175,3 @@ serviceMonitor:
   endpoint:
     interval: 15s
   jobLabel: ""
-

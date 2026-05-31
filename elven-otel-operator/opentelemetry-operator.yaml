@@ -17869,7 +17869,7 @@ metadata:
   labels:
     app.kubernetes.io/name: elven-instrumentation-operator
     control-plane: controller-manager
-  name: eo-operator-controller-manager-metrics-service
+  name: elven-instrumentation-operator-metrics-service
   namespace: monitoring
 spec:
   ports:

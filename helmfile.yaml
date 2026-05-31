@@ -72,7 +72,7 @@ releases:
           - "--timeout=180s"
 
   ######## prometheus #########
-  - name: elven
+  - name: elven-prometheus
     namespace: monitoring
     createNamespace: true
     chart: prometheus/kube-prometheus-stack
@@ -97,10 +97,11 @@ releases:
     values:
       - ./elven-collector-fe/values.yaml
 
-  # - name: beyla
-  #   namespace: monitoring
-  #   createNamespace: true
-  #   installed: false
-  #   chart: grafana/beyla
-  #   values:
-  #     - ./elven-ebpf/values.yaml
+  - name: elven-beyla
+    namespace: monitoring
+    createNamespace: true
+    installed: false
+    chart: grafana/beyla
+    version: 1.16.7
+    values:
+      - ./elven-ebpf/values.yaml

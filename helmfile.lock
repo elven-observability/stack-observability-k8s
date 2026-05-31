@@ -3,6 +3,9 @@ dependencies:
   - name: alloy
     repository: https://grafana.github.io/helm-charts
     version: 1.8.2
+  - name: beyla
+    repository: https://grafana.github.io/helm-charts
+    version: 1.16.7
   - name: cert-manager
     repository: https://charts.jetstack.io
     version: v1.20.2
@@ -12,5 +15,5 @@ dependencies:
   - name: kube-prometheus-stack
     repository: https://prometheus-community.github.io/helm-charts
     version: 86.1.0
-digest: sha256:5c7c3fe503ab239f7490a6390dab356858f67516750242e184543f9a791721fb
-generated: "2026-05-31T13:01:58.012285-03:00"
+digest: sha256:bbd1081089a6818ee2f3f4e623af24f5049e2e5aa7c3c60651472605d701b719
+generated: "2026-05-31T13:13:56.774645-03:00"

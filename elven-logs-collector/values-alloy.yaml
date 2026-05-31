@@ -12,7 +12,39 @@ image:
   tag: v1.16.1
 
 logs:
-  namespaceRegex: ".+"
+  namespaces:
+    # Empty include means "all namespaces". Add names here for an allow-list.
+    include: []
+    # Regex used only when include is empty.
+    includeRegex: ".+"
+    # Operational namespaces are excluded by default to keep tenant logs focused.
+    exclude:
+      - kube-system
+      - kube-public
+      - kube-node-lease
+      - cert-manager
+      - monitoring
+      - ingress-nginx
+      - kong
+      - kong-system
+      - cnpg-system
+      - calico-apiserver
+      - calico-system
+      - tigera-operator
+      - cattle-system
+      - istio-system
+      - linkerd
+      - linkerd-viz
+      - metallb-system
+      - longhorn-system
+      - velero
+      - argocd
+      - flux-system
+      - kyverno
+      - kyverno-system
+      - gatekeeper-system
+    # Extra advanced deny-list. Example: "^(mgk-.*|sentinel)$"
+    excludeRegex: "^(mgk-.*|sentinel)$"
   annotationFilter:
     enabled: false
   loki:
@@ -110,8 +142,28 @@ alloy:
         rule {
           action        = "keep"
           source_labels = ["__meta_kubernetes_namespace"]
-          regex         = {{ .Values.logs.namespaceRegex | quote }}
+          {{- if .Values.logs.namespaces.include }}
+          regex         = {{ printf "^(%s)$" (join "|" .Values.logs.namespaces.include) | quote }}
+          {{- else }}
+          regex         = {{ .Values.logs.namespaces.includeRegex | quote }}
+          {{- end }}
         }
+
+        {{- if .Values.logs.namespaces.exclude }}
+        rule {
+          action        = "drop"
+          source_labels = ["__meta_kubernetes_namespace"]
+          regex         = {{ printf "^(%s)$" (join "|" .Values.logs.namespaces.exclude) | quote }}
+        }
+        {{- end }}
+
+        {{- if .Values.logs.namespaces.excludeRegex }}
+        rule {
+          action        = "drop"
+          source_labels = ["__meta_kubernetes_namespace"]
+          regex         = {{ .Values.logs.namespaces.excludeRegex | quote }}
+        }
+        {{- end }}
 
         {{- if .Values.logs.annotationFilter.enabled }}
         rule {
