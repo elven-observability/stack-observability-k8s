@@ -145,9 +145,11 @@ Permissao sugerida para o usuario do exporter:
 
 ```sql
 CREATE USER 'exporter'@'%' IDENTIFIED BY '<MYSQL_EXPORTER_PASSWORD>' WITH MAX_USER_CONNECTIONS 3;
-GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+GRANT PROCESS, SELECT ON *.* TO 'exporter'@'%';
 FLUSH PRIVILEGES;
 ```
+
+O scraper de replication status fica desligado por padrao para nao exigir `REPLICATION CLIENT`. Se o cliente precisar dessas metricas, habilite `collectors.slave_status: true` e conceda `REPLICATION CLIENT` ao usuario do exporter.
 
 ### Prometheus
 

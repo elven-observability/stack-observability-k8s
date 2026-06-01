@@ -10,9 +10,11 @@ O componente usa `prometheus-mysql-exporter`, cria um `ServiceMonitor` para o Pr
 
 ```sql
 CREATE USER 'exporter'@'%' IDENTIFIED BY '<MYSQL_EXPORTER_PASSWORD>' WITH MAX_USER_CONNECTIONS 3;
-GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+GRANT PROCESS, SELECT ON *.* TO 'exporter'@'%';
 FLUSH PRIVILEGES;
 ```
+
+O scraper de replication status fica desligado por padrao para nao exigir `REPLICATION CLIENT`.
 
 2. Crie a Secret no namespace da stack:
 
@@ -55,6 +57,8 @@ O `ServiceMonitor` usa `jobLabel: elven_job`, entao as series chegam com:
 - `scrape_source="serviceMonitor"`
 
 O chart upstream vem com annotations `prometheus.io/*`, mas aqui `prometheus.io/scrape` fica `"false"` para evitar scrape duplicado pelo `elven-otel-collector`. O caminho oficial desta integracao e somente via `ServiceMonitor`.
+
+Para coletar metricas de replica/replication, habilite `collectors.slave_status: true` em `elven-mysql/values.yaml` e conceda `REPLICATION CLIENT` ao usuario do exporter.
 
 ## Verificar
 

@@ -106,7 +106,7 @@ mysql:
 collectors:
   global_status: true
   global_variables: true
-  slave_status: true
+  slave_status: false
 
 resources:
   requests:
