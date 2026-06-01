@@ -97,6 +97,17 @@ releases:
     values:
       - ./elven-collector-fe/values.yaml
 
+  - name: elven-mysql
+    namespace: monitoring
+    createNamespace: true
+    installed: false
+    chart: prometheus/prometheus-mysql-exporter
+    version: 2.14.0
+    needs:
+      - monitoring/elven-prometheus
+    values:
+      - ./elven-mysql/values.yaml
+
   - name: elven-beyla
     namespace: monitoring
     createNamespace: true

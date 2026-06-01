@@ -10,6 +10,7 @@ Componentes instalados:
 - `elven-otel-collector`, recebendo OTLP e scrape generico de pods anotados
 - `elven-instrumentation-operator`, aplicando auto-instrumentacao
 - `elven-collector-fe`
+- `elven-mysql`, preparado como opcional para MySQL dentro do Kubernetes
 - `elven-beyla`, preparado como opcional e desligado por padrao
 
 ## Instalar
@@ -71,6 +72,7 @@ Durante a instalacao:
 - instala release `elven-prometheus`
 - instala release `elven-logs-collector`
 - instala release `elven-collector-fe`
+- mantem release opcional `elven-mysql`, desligada por padrao
 - mantem release opcional `elven-beyla`, desligada por padrao
 
 Durante `cleanup` de `apply`/`sync`:
@@ -95,11 +97,57 @@ Durante `cleanup` de `apply`/`sync`:
 | OTLP | manifests locais | `elven-otel-collector` |
 | Auto-instrumentacao | manifests locais | `elven-instrumentation-operator-controller-manager` |
 | Frontend collector | `elven-collector-fe` | `elven-collector-fe` |
+| MySQL opcional | `elven-mysql` | `elven-mysql` |
 | eBPF opcional | `elven-beyla` | `elven-beyla` |
 
 Os componentes da stack Elven usam prefixo `elven-*`. A excecao intencional e `cert-manager`, que mantem os nomes upstream para evitar surpresa operacional.
 
 Para habilitar Beyla, altere a release `elven-beyla` no `helmfile.yaml` de `installed: false` para `installed: true` e rode `helmfile apply`.
+
+### MySQL no Kubernetes
+
+`elven-mysql` monitora MySQL via `prometheus-mysql-exporter` e `ServiceMonitor`. A release fica desligada por padrao porque cada cliente tem host, namespace e senha proprios.
+
+Fluxo recomendado:
+
+```bash
+export ELVEN_MYSQL_PASSWORD="<MYSQL_EXPORTER_PASSWORD>"
+./elven-mysql/create-secret.sh
+```
+
+Depois ajuste `elven-mysql/values.yaml` com o Service DNS do MySQL:
+
+```yaml
+mysql:
+  host: mysql.default.svc.cluster.local
+  port: 3306
+  user: exporter
+```
+
+Habilite a release no `helmfile.yaml`:
+
+```yaml
+- name: elven-mysql
+  installed: true
+```
+
+E aplique:
+
+```bash
+helmfile apply
+```
+
+As metricas chegam ao Mimir pelo `remoteWrite` do `elven-prometheus`, com `job="elven-mysql"` e labels como `elven_component="mysql"`, `db_system="mysql"` e `scrape_source="serviceMonitor"`.
+
+O exporter desativa `prometheus.io/scrape` no pod para evitar scrape duplicado pelo `elven-otel-collector`; o scrape oficial e somente pelo `ServiceMonitor`.
+
+Permissao sugerida para o usuario do exporter:
+
+```sql
+CREATE USER 'exporter'@'%' IDENTIFIED BY '<MYSQL_EXPORTER_PASSWORD>' WITH MAX_USER_CONNECTIONS 3;
+GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
+FLUSH PRIVILEGES;
+```
 
 ### Prometheus
 
@@ -177,6 +225,7 @@ kubectl get pods -n monitoring
 kubectl get secret elven-observability-credentials elven-collector-fe-env-secret -n monitoring
 kubectl get instrumentations -A
 kubectl get deploy,daemonset,statefulset -n monitoring | grep elven
+kubectl get servicemonitor,prometheusrule -n monitoring | grep elven
 kubectl logs -n monitoring deploy/elven-otel-collector --since=2m
 kubectl logs -n monitoring deploy/elven-instrumentation-operator-controller-manager --since=2m
 ```

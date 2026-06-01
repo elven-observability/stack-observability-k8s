@@ -15,5 +15,8 @@ dependencies:
   - name: kube-prometheus-stack
     repository: https://prometheus-community.github.io/helm-charts
     version: 86.1.0
-digest: sha256:bbd1081089a6818ee2f3f4e623af24f5049e2e5aa7c3c60651472605d701b719
-generated: "2026-05-31T13:13:56.774645-03:00"
+  - name: prometheus-mysql-exporter
+    repository: https://prometheus-community.github.io/helm-charts
+    version: 2.14.0
+digest: sha256:79be2166cf4b4e3e7470049e167c22a402fd23e6c5088a8bd066ea97e01bc2ab
+generated: "2026-06-01T17:27:12.383815-03:00"

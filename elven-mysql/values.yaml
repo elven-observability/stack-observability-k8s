@@ -1,0 +1,132 @@
+fullnameOverride: "elven-mysql"
+
+replicaCount: 1
+
+image:
+  registry: quay.io
+  repository: prometheus/mysqld-exporter
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  name: metrics
+  type: ClusterIP
+  externalPort: 9104
+  internalPort: 9104
+  labels:
+    elven_stack: observability
+    elven_component: mysql
+    elven_job: elven-mysql
+    db_system: mysql
+    db_role: primary
+
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 30s
+  scrapeTimeout: 10s
+  additionalLabels:
+    release: elven-prometheus
+    app.kubernetes.io/part-of: elven-observability
+    elven_stack: observability
+    elven_component: mysql
+  jobLabel: elven_job
+  targetLabels:
+    - elven_stack
+    - elven_component
+    - elven_job
+    - db_system
+    - db_role
+  relabelings:
+    - action: replace
+      sourceLabels:
+        - __meta_kubernetes_namespace
+      targetLabel: exporter_namespace
+    - action: replace
+      sourceLabels:
+        - __meta_kubernetes_service_name
+      targetLabel: exporter_service
+    - action: replace
+      targetLabel: scrape_source
+      replacement: serviceMonitor
+
+prometheusRule:
+  enabled: true
+  namespace: monitoring
+  additionalLabels:
+    release: elven-prometheus
+    app.kubernetes.io/part-of: elven-observability
+    elven_stack: observability
+    elven_component: mysql
+  rules:
+    - alert: ElvenMySQLDown
+      expr: mysql_up{job="elven-mysql"} == 0
+      for: 2m
+      labels:
+        severity: warning
+        elven_component: mysql
+      annotations:
+        summary: "MySQL exporter cannot connect to the database"
+        description: "The elven-mysql exporter is up, but mysql_up is 0. Check the configured MySQL Service DNS, user grants and password Secret."
+    - alert: ElvenMySQLHighConnections
+      expr: mysql_global_status_threads_connected{job="elven-mysql"} / mysql_global_variables_max_connections{job="elven-mysql"} > 0.85
+      for: 10m
+      labels:
+        severity: warning
+        elven_component: mysql
+      annotations:
+        summary: "MySQL connection usage is high"
+        description: "MySQL is using more than 85% of max_connections for at least 10 minutes."
+
+podLabels:
+  elven_stack: observability
+  elven_component: mysql
+  elven_job: elven-mysql
+  db_system: mysql
+  db_role: primary
+
+annotations:
+  prometheus.io/scrape: "false"
+  prometheus.io/path: /metrics
+  prometheus.io/port: "9104"
+
+mysql:
+  host: mysql.default.svc.cluster.local
+  port: 3306
+  user: exporter
+  db: ""
+  protocol: ""
+  pass: ""
+  existingPasswordSecret:
+    name: elven-mysql-exporter
+    key: password
+  additionalConfig:
+    - connect-timeout=5
+
+collectors:
+  global_status: true
+  global_variables: true
+  slave_status: true
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
