@@ -6,6 +6,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${REPO_DIR}"
 
+"${SCRIPT_DIR}/validate-endpoints.sh"
 "${SCRIPT_DIR}/preflight.sh"
 "${SCRIPT_DIR}/ensure-secrets.sh"
 "${REPO_DIR}/render-prometheus-values.sh"

@@ -9,6 +9,8 @@ cd "${REPO_DIR}"
 NAMESPACE="${ELVEN_NAMESPACE:-monitoring}"
 CREDENTIALS_SECRET="${ELVEN_CREDENTIALS_SECRET:-elven-observability-credentials}"
 COLLECTOR_FE_SECRET="${COLLECTOR_FE_SECRET_NAME:-elven-collector-fe-env-secret}"
+DEFAULT_COLLECTOR_FE_LOKI_URL="https://loki.elvenobservability.com"
+LEGACY_COLLECTOR_FE_LOKI_URL="https://logs.elvenobservability.com"
 
 log() {
   printf 'bootstrap: %s\n' "$*"
@@ -82,7 +84,15 @@ existing_allow_origins="$(secret_key_value_or_empty "${NAMESPACE}" "${COLLECTOR_
 existing_jwt_issuer="$(secret_key_value_or_empty "${NAMESPACE}" "${COLLECTOR_FE_SECRET}" JWT_ISSUER)"
 
 collector_fe_secret_key="${COLLECTOR_FE_SECRET_KEY:-${existing_secret_key:-$(generate_secret_key)}}"
-collector_fe_loki_url="${COLLECTOR_FE_LOKI_URL:-${existing_loki_url:-https://logs.elvenobservability.com}}"
+requested_loki_url="${COLLECTOR_FE_LOKI_URL:-${existing_loki_url}}"
+if [[ -z "${requested_loki_url}" || "${requested_loki_url}" == "${LEGACY_COLLECTOR_FE_LOKI_URL}" ]]; then
+  if [[ "${requested_loki_url}" == "${LEGACY_COLLECTOR_FE_LOKI_URL}" ]]; then
+    log "migrating collector-fe Loki endpoint from legacy logs host to loki.elvenobservability.com."
+  fi
+  collector_fe_loki_url="${DEFAULT_COLLECTOR_FE_LOKI_URL}"
+else
+  collector_fe_loki_url="${requested_loki_url}"
+fi
 collector_fe_allow_origins="${COLLECTOR_FE_ALLOW_ORIGINS:-${existing_allow_origins:-https://*.elvenobservability.com}}"
 collector_fe_jwt_issuer="${COLLECTOR_FE_JWT_ISSUER:-${existing_jwt_issuer:-elven-observability}}"
 

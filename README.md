@@ -13,6 +13,11 @@ Componentes instalados:
 - `elven-mysql`, preparado como opcional para MySQL dentro do Kubernetes
 - `elven-beyla`, preparado como opcional e desligado por padrao
 
+Logs de backend e frontend usam TLS verificado no endpoint canonico
+`https://loki.elvenobservability.com`. O bootstrap migra automaticamente a
+Secret do collector-fe quando encontra o hostname legado
+`logs.elvenobservability.com`; desabilitar a verificacao TLS e proibido.
+
 ## Instalar
 
 Pre-requisitos locais:
@@ -48,10 +53,11 @@ Obrigatorias apenas quando a secret central ainda nao existe:
 Opcionais:
 
 - `ELVEN_NAMESPACE`, default `monitoring`
-- `COLLECTOR_FE_LOKI_URL`, default `https://logs.elvenobservability.com`
+- `COLLECTOR_FE_LOKI_URL`, default `https://loki.elvenobservability.com`
 - `COLLECTOR_FE_ALLOW_ORIGINS`, default `https://*.elvenobservability.com`
 - `COLLECTOR_FE_JWT_ISSUER`, default `elven-observability`
 - `COLLECTOR_FE_SECRET_KEY`, default gerado automaticamente e reaproveitado nas proximas execucoes
+- `ELVEN_ROLLOUT_TIMEOUT`, default `1800s`, para DaemonSets em clusters grandes
 - `INSTRUMENTATION_TARGET_NAMESPACES`, lista separada por virgula para limitar onde o `Instrumentation` sera aplicado
 
 Existe um exemplo em `bootstrap/env.example`.

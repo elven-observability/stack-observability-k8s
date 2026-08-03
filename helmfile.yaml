@@ -16,7 +16,7 @@ helmDefaults:
   waitForJobs: true
   atomic: true
   cleanupOnFail: true
-  timeout: 600
+  timeout: 1800
   historyMax: 10
 
 hooks:

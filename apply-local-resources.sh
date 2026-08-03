@@ -3,6 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
+ROLLOUT_TIMEOUT="${ELVEN_ROLLOUT_TIMEOUT:-1800s}"
+[[ "${ROLLOUT_TIMEOUT}" =~ ^[1-9][0-9]*(s|m|h)$ ]] || {
+  printf 'Invalid ELVEN_ROLLOUT_TIMEOUT: %s\n' "${ROLLOUT_TIMEOUT}" >&2
+  exit 1
+}
 
 restart_if_present() {
   local resource="$1"
@@ -10,7 +15,8 @@ restart_if_present() {
 
   if kubectl get "${resource}" -n "${namespace}" >/dev/null 2>&1; then
     kubectl rollout restart "${resource}" -n "${namespace}"
-    kubectl rollout status "${resource}" -n "${namespace}" --timeout=300s
+    kubectl rollout status "${resource}" -n "${namespace}" \
+      --timeout="${ROLLOUT_TIMEOUT}"
   fi
 }
 
