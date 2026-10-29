@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway-headless
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  clusterIP: None
+  selector:
+    {{- include "elven.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.ports.otlpGrpc }}, targetPort: otlp-grpc}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "elven.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  ports:
+    - {name: otlp-grpc, port: {{ .Values.ports.otlpGrpc }}, targetPort: otlp-grpc}
+    - {name: otlp-http, port: {{ .Values.ports.otlpHttp }}, targetPort: otlp-http}
+    - {name: metrics, port: {{ .Values.ports.metrics }}, targetPort: metrics}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  serviceName: {{ include "elven.fullname" . }}-gateway-headless
+  replicas: {{ .Values.gateway.replicas }}
+  podManagementPolicy: OrderedReady
+  persistentVolumeClaimRetentionPolicy: {whenDeleted: Retain, whenScaled: Retain}
+  selector:
+    matchLabels:
+      {{- include "elven.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "elven.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/part-of: elven-observability
+        app.kubernetes.io/component: gateway
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/gateway-config.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "elven.fullname" . }}-gateway
+      automountServiceAccountToken: false
+      hostNetwork: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      terminationGracePeriodSeconds: {{ .Values.gateway.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with omit .Values.nodeSelector "kubernetes.io/os" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "elven.collectorImage" . | quote }}
+          imagePullPolicy: {{ .Values.images.collector.pullPolicy }}
+          args: ["--config=/etc/elven/collector.yaml"]
+          securityContext:
+            {{- include "elven.collectorSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          env:
+            - name: ELVEN_POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+            - name: ELVEN_API_TOKEN
+              valueFrom: {secretKeyRef: {name: {{ .Values.credentials.existingSecret }}, key: api-token}}
+            - name: ELVEN_TENANT_ID
+              valueFrom: {secretKeyRef: {name: {{ .Values.credentials.existingSecret }}, key: tenant-id}}
+          ports:
+            - {name: otlp-grpc, containerPort: {{ .Values.ports.otlpGrpc }}}
+            - {name: otlp-http, containerPort: {{ .Values.ports.otlpHttp }}}
+            - {name: health, containerPort: {{ .Values.ports.health }}}
+            - {name: metrics, containerPort: {{ .Values.ports.metrics }}}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            periodSeconds: 10
+          startupProbe:
+            httpGet: {path: /, port: health}
+            failureThreshold: 60
+            periodSeconds: 5
+          volumeMounts:
+            - {name: config, mountPath: /etc/elven, readOnly: true}
+            - {name: tls, mountPath: /etc/elven/tls, readOnly: true}
+            - {name: data, mountPath: /var/lib/elven}
+            {{- if .Values.exportTLS.existingCASecret }}
+            - {name: export-ca, mountPath: /etc/elven/export-ca, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap: {name: {{ include "elven.fullname" . }}-gateway}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+            defaultMode: 0440
+            items:
+              - {key: tls.crt, path: tls.crt}
+              - {key: tls.key, path: tls.key}
+              - {key: ca.crt, path: ca.crt}
+        {{- if .Values.exportTLS.existingCASecret }}
+        - name: export-ca
+          secret: {secretName: {{ .Values.exportTLS.existingCASecret }}, defaultMode: 0440}
+        {{- end }}
+        {{- if not .Values.gateway.persistence.enabled }}
+        - name: data
+          emptyDir: {sizeLimit: {{ .Values.gateway.persistence.ephemeralSizeLimit }}}
+        {{- end }}
+  {{- if .Values.gateway.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "elven.selectorLabels" . | nindent 10 }}
+          app.kubernetes.io/part-of: elven-observability
+          app.kubernetes.io/component: gateway
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.gateway.persistence.storageClass }}
+        storageClassName: {{ .Values.gateway.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests: {storage: {{ .Values.gateway.persistence.size }}}
+  {{- end }}
+{{- if .Values.gateway.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "elven.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+{{- end }}

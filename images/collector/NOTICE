@@ -1,0 +1,16 @@
+Elven Collector is a minimal distribution built with OpenTelemetry Collector Builder.
+Upstream code and binary copyright The OpenTelemetry Authors, licensed Apache-2.0.
+Elven packaging copyright Elven Observability contributors, licensed Apache-2.0.
+
+Explicit component selection is recorded in builder-config.yaml; generated Go module
+locks and build information are included in /usr/share/elven-collector/build/.
+Dependency license/copyright texts and their SHA256 manifest are bundled in
+/usr/share/licenses/elven-collector/dependencies/, including the Go stdlib license.
+Core/Builder: https://github.com/open-telemetry/opentelemetry-collector/tree/v0.164.0
+Source: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.164.1
+Go JOSE is pinned to 4.1.6 when transitively required (CVE-2026-116587).
+golang.org/x/net is pinned to 0.62.0 for CVE-2026-78661 and CVE-2026-97045.
+The runtime is scratch with the CA bundle from the digest-pinned official image;
+the official otelcol-contrib binary is not included in this minimal distribution.
+Upstream dependencies retain their respective licenses; consult the release SBOM.
+This packaging does not imply endorsement by the OpenTelemetry project.

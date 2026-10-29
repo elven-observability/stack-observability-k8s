@@ -1,0 +1,33 @@
+# REVIEW TEMPLATE. Each optional module stays off until its inputs/approval exist.
+# Replace 'applications' with actual authorized namespaces. No wildcard scope.
+collection:
+  namespaces: [applications]
+modules:
+  logs:
+    enabled: false # Enable only after read-only host log access is approved.
+    hostAccessApproved: false
+  clusterMetrics:
+    enabled: false # Enable with API CIDRs and namespace-scoped read permissions.
+    clusterWideApproved: false
+  kubeletMetrics:
+    enabled: false # Requires valid serving CA, SAN and node egress ranges.
+    port: 10250
+    endpointAddress: ip # hostname if the serving cert uses node DNS SANs.
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    caSecretName: "" # Optional approved CA Secret; never disable verification.
+  ebpf:
+    enabled: false
+    hostAccessApproved: false
+    workloads: [] # Example after approval: [{namespace: applications, deployment: api}]
+nodeAgent:
+  nodeSelector: {} # Select a pilot worker by reviewed node labels when needed.
+  hostAliases: [] # Only reviewed stable IP/DNS mappings; no automatic TOFU.
+networkPolicy:
+  exportCIDRs: []
+  apiServerCIDRs: [] # Include service and effective post-DNAT API addresses.
+  kubeletCIDRs: []
+  apiServerPorts: [443, 6443]
+gateway:
+  persistence:
+    enabled: true
+    size: 2Gi

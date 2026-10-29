@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""Elven distribution control plane. No third-party Python dependencies."""
+import argparse
+import base64
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+ROOT = Path(__file__).resolve().parent
+CHART = ROOT / "charts/elven-observability"
+VERSION = "1.0.0-rc.1"
+OWNER = "elven-cli"
+MUTATING = {"install", "upgrade", "rollback", "uninstall"}
+
+
+class Failure(Exception):
+    pass
+
+
+def run(argv, data=None, quiet_error=False):
+    result = subprocess.run([str(arg) for arg in argv], input=data, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode:
+        # kubectl/Helm errors can echo a Secret. Never print arbitrary stderr.
+        hint = " Inspect the target's events locally; never share Secret contents." if quiet_error else ""
+        raise Failure(f"{Path(str(argv[0])).name} {argv[1]} failed (exit {result.returncode}).{hint}")
+    return result.stdout
+
+
+def kube(args, *command, data=None):
+    if not args.context:
+        raise Failure("--context is required; the active Kubernetes context is never used implicitly.")
+    argv = ["kubectl"]
+    if args.kubeconfig:
+        argv += ["--kubeconfig", args.kubeconfig]
+    return run(argv + ["--context", args.context, *command], data=data, quiet_error=True)
+
+
+def helm(args, *command, online=False):
+    argv = [os.environ.get("ELVEN_HELM_BINARY", "helm"), *command]
+    if online:
+        if not args.context:
+            raise Failure("--context is required.")
+        argv += ["--kube-context", args.context]
+        if args.kubeconfig:
+            argv += ["--kubeconfig", args.kubeconfig]
+    return run(argv, quiet_error=online)
+
+
+def identifier(value, label, limit=53):
+    if not value or len(value) > limit or not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", value):
+        raise Failure(f"{label} must be a lowercase DNS label of at most {limit} characters.")
+    return value
+
+
+def base_values(args):
+    if not args.cluster_name or args.cluster_name in ("CHANGE_ME", "example-cluster", "your-cluster"):
+        raise Failure("--cluster-name must identify the actual cluster, not an example placeholder.")
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}", args.cluster_name):
+        raise Failure("--cluster-name must be a stable identifier, not a URL, path or expression.")
+    return {"cluster": {"name": args.cluster_name},
+            "credentials": {"existingSecret": args.credentials_secret or f"{args.release}-ingest"},
+            "tls": {"existingSecret": args.tls_secret or f"{args.release}-internal-tls"}}
+
+
+def render(args, directory):
+    overrides = directory / "values.json"
+    overrides.write_text(json.dumps(base_values(args)))
+    overrides.chmod(0o600)
+    flags = ["--namespace", args.namespace]
+    render_flags = ["--kube-version", args.render_kube_version]
+    for path in args.values:
+        if not Path(path).is_file():
+            raise Failure(f"Values file does not exist: {path}")
+        flags += ["--values", path]
+    flags += ["--values", overrides]
+    # The chart exposes only schema-validated, non-secret effective settings.
+    settings_yaml = helm(args, "template", args.release, CHART, *flags, *render_flags,
+                         "--show-only", "templates/settings.yaml")
+    match = re.search(r'^\s+settings\.json:\s*("[^\n]+")\s*$', settings_yaml, re.MULTILINE)
+    if not match:
+        raise Failure("Chart settings contract missing; run scripts/validate.py before installing.")
+    settings = json.loads(json.loads(match.group(1)))
+    for field in ("exportCIDRs", "apiServerCIDRs", "kubeletCIDRs", "profileCIDRs", "dnsCIDRs"):
+        for value in settings.get("networkPolicy", {}).get(field, []):
+            try:
+                network = ipaddress.ip_network(value, strict=True)
+            except ValueError:
+                raise Failure(f"networkPolicy.{field} contains an invalid/noncanonical CIDR; review address and prefix.") from None
+            if network.prefixlen == 0:
+                raise Failure(f"networkPolicy.{field} cannot allow an unrestricted /0 network.")
+    if settings.get("fullnameOverride"):
+        raise Failure("fullnameOverride is unsupported by the CLI; release names provide isolation and TLS identity.")
+    manifest = helm(args, "template", args.release, CHART, *flags, *render_flags)
+    return manifest, settings, flags
+
+
+def required_programs(args, online=False):
+    programs = [os.environ.get("ELVEN_HELM_BINARY", "helm")]
+    if online:
+        programs.append("kubectl")
+    for program in programs:
+        if not shutil.which(program):
+            raise Failure(f"Required program is missing: {program}")
+    version = helm(args, "version", "--short")
+    match = re.search(r"v(\d+)\.(\d+)\.(\d+)(?![\d.-])", version)
+    if not match:
+        raise Failure("Cannot identify Helm version.")
+    actual = tuple(map(int, match.groups()))
+    if not ((actual[0] == 3 and actual >= (3, 22, 1)) or (actual[0] == 4 and actual >= (4, 3, 1))):
+        raise Failure("Use Helm 4.3.1+ (preferred) or supported compatibility bridge 3.22.1+.")
+    return actual[0]
+
+
+def get_secret(args, name):
+    raw = kube(args, "get", "secret", name, "-n", args.namespace,
+               "--ignore-not-found", "-o", "json")
+    return json.loads(raw) if raw.strip() else None
+
+
+def labels(args):
+    return {"app.kubernetes.io/managed-by": OWNER, "app.kubernetes.io/instance": args.release,
+            "app.kubernetes.io/part-of": "elven-observability",
+            "elven.observability/namespace": args.namespace}
+
+
+def secret_owned(args, secret):
+    existing = secret.get("metadata", {}).get("labels", {})
+    return all(existing.get(key) == value for key, value in labels(args).items())
+
+
+def secret_keys(secret, required, label):
+    for key in required:
+        try:
+            value = base64.b64decode(secret.get("data", {}).get(key, ""), validate=True)
+        except (ValueError, TypeError):
+            raise Failure(f"{label} contains invalid base64 data.") from None
+        if not value:
+            raise Failure(f"{label} requires nonempty key {key}.")
+
+
+def validate_tls(args, settings, secret):
+    """Verify chain, explicit SAN, purpose, expiry and private-key pairing."""
+    if not shutil.which("openssl"):
+        raise Failure("openssl is required to validate existing mTLS certificates before installation.")
+    hostname = f"{args.release}-gateway.{args.namespace}.svc.{settings['cluster'].get('domain', 'cluster.local')}"
+    with tempfile.TemporaryDirectory(prefix="elven-tls-check-") as tmp:
+        folder = Path(tmp)
+        for key in ("ca.crt", "tls.crt", "tls.key", "client.crt", "client.key"):
+            path = folder / key
+            path.write_bytes(base64.b64decode(secret["data"][key], validate=True))
+            path.chmod(0o600)
+        try:
+            run(["openssl", "x509", "-in", folder / "ca.crt", "-noout", "-checkend", "86400"])
+            for name, purpose in (("tls", "sslserver"), ("client", "sslclient")):
+                crt, key = folder / f"{name}.crt", folder / f"{name}.key"
+                run(["openssl", "x509", "-in", crt, "-noout", "-checkend", "86400"])
+                command = ["openssl", "verify", "-x509_strict", "-CAfile", folder / "ca.crt", "-purpose", purpose]
+                if name == "tls":
+                    command += ["-verify_hostname", hostname]
+                    sans = run(["openssl", "x509", "-in", crt, "-noout", "-ext", "subjectAltName"])
+                    if hostname not in re.findall(r"DNS:([^,\s]+)", sans):
+                        raise Failure("Server certificate requires the exact Service DNS name in its SAN.")
+                run(command + [crt])
+                if run(["openssl", "x509", "-in", crt, "-pubkey", "-noout"]) != run(["openssl", "pkey", "-in", key, "-pubout"]):
+                    raise Failure("Certificate and private key do not match.")
+        except Failure:
+            raise Failure("mTLS Secret failed chain/SAN/purpose/key/expiry validation (minimum 24h remaining). Rotate safely before reconciling; Secret contents were not printed.") from None
+
+
+def can_i(args, verb, resource, namespaced=False, namespace=None):
+    command = ["auth", "can-i", verb, resource]
+    if namespaced or namespace:
+        command += ["--namespace", namespace or args.namespace]
+    argv = ["kubectl"]
+    if args.kubeconfig:
+        argv += ["--kubeconfig", args.kubeconfig]
+    result = subprocess.run(argv + ["--context", args.context, *command], text=True, capture_output=True)
+    if result.returncode != 0 or result.stdout.strip() != "yes":
+        raise Failure(f"Installation permission missing: {verb} {resource}. Ask the cluster administrator; runtime RBAC is separate.")
+
+
+def check_source_claims(args, settings):
+    modules = settings.get("modules", {})
+    signals = {signal for module, signal in (("logs", "logs"), ("ebpf", "traces"),
+               ("kubeletMetrics", "kubelet"), ("clusterMetrics", "cluster-metrics"))
+               if modules.get(module, {}).get("enabled")}
+    if not signals or getattr(args, "allow_overlapping_collection", False):
+        return
+    try:
+        workloads = json.loads(kube(args, "get", "daemonsets,deployments", "--all-namespaces",
+            "-l", "app.kubernetes.io/part-of=elven-observability", "-o", "json"))["items"]
+    except (Failure, KeyError, ValueError):
+        raise Failure("Cannot inspect existing Elven collection claims. Grant read-only list of labeled DaemonSets/Deployments, or explicitly review and acknowledge --allow-overlapping-collection. No resources were changed.") from None
+    wanted = set(settings.get("collection", {}).get("namespaces", []))
+    for workload in workloads:
+        meta = workload.get("metadata", {})
+        existing_labels = meta.get("labels", {})
+        if meta.get("namespace") == args.namespace and existing_labels.get("app.kubernetes.io/instance") == args.release:
+            continue
+        annotations = meta.get("annotations", {})
+        active_signals = set(filter(None, annotations.get("elven.observability/source-signals", "").split(",")))
+        if not active_signals:
+            # Older labeled agents have no scoped-claim metadata. Do not
+            # assume their sources are disjoint from a new installation.
+            component = existing_labels.get("app.kubernetes.io/component")
+            active_signals = {"logs", "traces", "kubelet"} if component == "node" else {"cluster-metrics"} if component == "cluster-metrics" else set()
+        active_namespaces = set(filter(None, annotations.get("elven.observability/collection-namespaces", "").split(",")))
+        if signals & active_signals and (not wanted or not active_namespaces or wanted & active_namespaces):
+            raise Failure(f"Collection overlaps {meta.get('namespace')}/{meta.get('name')}. Choose disjoint namespaces/sources, or explicitly acknowledge --allow-overlapping-collection after checking destinations and duplication.")
+
+
+def preflight(args, manifest, settings, changing=False):
+    version = json.loads(kube(args, "version", "-o", "json"))["serverVersion"]["gitVersion"]
+    match = re.match(r"v1\.(\d+)\.", version)
+    if (not match or not 35 <= int(match.group(1)) <= 37) and args.command not in ("uninstall", "rollback", "status"):
+        raise Failure(f"Unsupported Kubernetes {version}; supported minor lines are 1.35–1.37. No automatic legacy exception.")
+    system = json.loads(kube(args, "get", "namespace", "kube-system", "-o", "json"))
+    uid = system["metadata"]["uid"]
+    if changing and (not args.expect_cluster_uid or args.expect_cluster_uid != uid):
+        raise Failure(f"Cluster identity not confirmed. Re-run with --expect-cluster-uid {uid} after verifying --context.")
+    if args.expect_cluster_uid and args.expect_cluster_uid != uid:
+        raise Failure("Cluster UID does not match --expect-cluster-uid. Nothing has been changed.")
+    namespace_raw = kube(args, "get", "namespace", args.namespace, "--ignore-not-found", "-o", "json")
+    namespace = json.loads(namespace_raw) if namespace_raw.strip() else None
+    modules = settings.get("modules", {})
+    host_modules = any(modules.get(name, {}).get("enabled") for name in ("logs", "ebpf", "kubeletMetrics"))
+    if host_modules and args.command in ("install", "upgrade", "preflight"):
+        ns_labels = (namespace or {}).get("metadata", {}).get("labels", {})
+        if ns_labels.get("pod-security.kubernetes.io/enforce") in ("baseline", "restricted"):
+            raise Failure("Namespace Pod Security disallows host modules. Obtain a scoped admission exception; this installer never relaxes namespace policy.")
+    if args.command in ("install", "upgrade", "preflight"):
+        check_source_claims(args, settings)
+        policy = settings.get("networkPolicy", {})
+        if not policy.get("enabled") and not args.allow_unrestricted_network:
+            raise Failure("NetworkPolicy disabled. Use a reviewed policy or explicitly acknowledge --allow-unrestricted-network.")
+        if policy.get("enabled") and not policy.get("exportCIDRs"):
+            raise Failure("networkPolicy.exportCIDRs is empty: export would be blocked. Confirm backend IP ranges first.")
+        resources = ["statefulsets.apps", "services", "configmaps", "serviceaccounts"]
+        if policy.get("enabled"):
+            resources.append("networkpolicies.networking.k8s.io")
+        if "kind: DaemonSet\n" in manifest:
+            resources.append("daemonsets.apps")
+        if "kind: Deployment\n" in manifest:
+            resources.append("deployments.apps")
+        if settings.get("gateway", {}).get("pdb", {}).get("enabled"):
+            resources.append("poddisruptionbudgets.policy")
+        for resource in resources:
+            can_i(args, "create", resource, True)
+            can_i(args, "patch", resource, True)
+        if not namespace:
+            can_i(args, "create", "namespaces")
+        if "kind: ClusterRole\n" in manifest:
+            can_i(args, "create", "clusterroles.rbac.authorization.k8s.io")
+            can_i(args, "create", "clusterrolebindings.rbac.authorization.k8s.io")
+        # Helm's default release storage is a namespace-scoped Secret even
+        # when credentials are externally provisioned. Runtime SAs cannot read it.
+        for verb in ("get", "list", "create", "update", "patch", "delete"):
+            can_i(args, verb, "secrets", True)
+        if modules.get("clusterMetrics", {}).get("enabled"):
+            for target_namespace in settings.get("collection", {}).get("namespaces", []):
+                kube(args, "get", "namespace", target_namespace, "-o", "name")
+                for resource in ("roles.rbac.authorization.k8s.io", "rolebindings.rbac.authorization.k8s.io"):
+                    can_i(args, "create", resource, namespace=target_namespace)
+                    can_i(args, "patch", resource, namespace=target_namespace)
+        persistence = settings.get("gateway", {}).get("persistence", {})
+        if persistence.get("enabled"):
+            classes = json.loads(kube(args, "get", "storageclasses", "-o", "json"))["items"]
+            selected = persistence.get("storageClass")
+            if selected:
+                available = any(item["metadata"]["name"] == selected for item in classes)
+            else:
+                available = any(item["metadata"].get("annotations", {}).get("storageclass.kubernetes.io/is-default-class") == "true" for item in classes)
+            if not available:
+                raise Failure("No selected/default StorageClass for the durable gateway. Provision storage first; do not silently fall back to emptyDir.")
+        else:
+            print("WARNING: ephemeral gateway storage; Pod recreation loses queued data.", file=sys.stderr)
+    if namespace and changing:
+        list_flags = ["--all"] if getattr(args, "helm_major", 4) == 3 else []
+        releases = json.loads(helm(args, "list", "--namespace", args.namespace, *list_flags, "--output", "json", online=True))
+        selected = next((release for release in releases if release["name"] == args.release), None)
+        if selected and not selected.get("chart", "").startswith("elven-observability-1."):
+            raise Failure("This release belongs to a different chart/legacy major. Choose a new release; automatic adoption or removal is forbidden.")
+        if not selected and args.command in ("uninstall", "rollback"):
+            raise Failure("The requested Elven v1 release does not exist. Nothing has been changed.")
+    if namespace and args.command in ("install", "upgrade", "preflight"):
+        for name, keys in ((settings["credentials"]["existingSecret"], ("tenant-id", "api-token")),
+                           (settings["tls"]["existingSecret"], ("tls.crt", "tls.key", "ca.crt", "client.crt", "client.key"))):
+            secret = get_secret(args, name)
+            if secret:
+                if not args.use_existing_secrets and not secret_owned(args, secret):
+                    raise Failure(f"Secret {name} has another owner. Use a different release or --use-existing-secrets to reference, never adopt, externally managed material.")
+                secret_keys(secret, keys, name)
+                if name == settings["tls"]["existingSecret"]:
+                    validate_tls(args, settings, secret)
+            elif args.use_existing_secrets:
+                raise Failure(f"Externally managed Secret {name} is missing.")
+    elif not namespace and args.use_existing_secrets and args.command in ("install", "upgrade", "preflight"):
+        raise Failure("--use-existing-secrets requires the target namespace and Secrets to already exist.")
+    print(f"Context: {args.context}; Kubernetes: {version}; cluster UID: {uid}")
+    print("Read-only checks passed; admission, CNI enforcement and backend ingestion still require runtime validation.")
+    return namespace
+
+
+def private_input(path, description):
+    if not path:
+        raise Failure(f"Provide {description}; secrets are read from files, never literal command-line arguments.")
+    file = Path(path)
+    info = file.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+        raise Failure(f"{description} must be a regular file with permissions 0600 or 0400.")
+    value = file.read_text().strip()
+    if not value or "\n" in value or "\r" in value or len(value) > 16384:
+        raise Failure(f"{description} is empty or invalid.")
+    return value
+
+
+def require_promoted_images(settings, development=False):
+    if development:
+        print("WARNING: development images explicitly accepted. This is an unpromoted laboratory installation, not a production release.", file=sys.stderr)
+        return
+    lock_path = ROOT / "versions.lock.json"
+    if not lock_path.is_file():
+        raise Failure("Image release lock is missing; installation is blocked.")
+    lock = json.loads(lock_path.read_text())
+    if lock.get("distribution", {}).get("publicationStatus") != "verified":
+        raise Failure("Production installation blocked: Elven images have not been published, signed and promoted. Follow docs/supply-chain.md. --development-images is only for an explicitly accepted disposable laboratory.")
+    required = ["collector"]
+    modules = settings.get("modules", {})
+    if modules.get("ebpf", {}).get("enabled"):
+        required.append("beyla")
+    if modules.get("profiles", {}).get("enabled"):
+        required.append("alloy")
+    for name in required:
+        approved = lock.get("images", {}).get(name, {}).get("distribution", {})
+        selected = settings.get("images", {}).get(name, {})
+        if (approved.get("status") != "verified" or not approved.get("digest")
+                or selected.get("digest") != approved["digest"]
+                or selected.get("repository", "").removeprefix("docker.io/") != approved.get("repository", "").removeprefix("docker.io/")):
+            raise Failure(f"images.{name} does not match the signed/promoted release lock. Promote and review the exact image first; no automatic fallback to upstream or latest.")
+
+
+def create_secret(args, name, values):
+    obj = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+           "metadata": {"name": name, "namespace": args.namespace, "labels": labels(args)},
+           "stringData": values}
+    # Create, never apply/replace/adopt. Races fail closed with AlreadyExists.
+    kube(args, "create", "-f", "-", data=json.dumps(obj))
+
+
+def generate_pki(args, settings, folder):
+    if not shutil.which("openssl"):
+        raise Failure("openssl is required to bootstrap mTLS, or use preprovisioned --use-existing-secrets.")
+    service = f"{args.release}-gateway"
+    domain = settings["cluster"].get("domain", "cluster.local")
+    server_name = f"{service}.{args.namespace}.svc.{domain}"
+    if len(server_name) > 253:
+        raise Failure("Gateway DNS name exceeds 253 characters; shorten the release, namespace or cluster domain.")
+    ca_key, ca = folder / "ca.key", folder / "ca.crt"
+    run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+         "-nodes", "-days", "365", "-subj", "/CN=Elven local release CA",
+         "-addext", "basicConstraints=critical,CA:TRUE",
+         "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+         "-addext", "subjectKeyIdentifier=hash",
+         "-keyout", ca_key, "-out", ca])
+    # X.509 CommonName is limited to 64 characters; the verified full Service
+    # identity belongs in SAN and may legitimately be longer than 64.
+    for name, cn, usage in (("server", service, "serverAuth"), ("client", f"{args.release}-agent", "clientAuth")):
+        key, csr, crt, ext = (folder / f"{name}.{suffix}" for suffix in ("key", "csr", "crt", "ext"))
+        run(["openssl", "req", "-new", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+             "-nodes", "-subj", f"/CN={cn}", "-keyout", key, "-out", csr])
+        content = f"basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyAgreement\nextendedKeyUsage={usage}\nsubjectKeyIdentifier=hash\nauthorityKeyIdentifier=keyid,issuer\n"
+        if name == "server":
+            names = [service, f"{service}.{args.namespace}", f"{service}.{args.namespace}.svc", server_name]
+            content += "subjectAltName=" + ",".join("DNS:" + item for item in names) + "\n"
+        ext.write_text(content)
+        run(["openssl", "x509", "-req", "-in", csr, "-CA", ca, "-CAkey", ca_key,
+             "-CAcreateserial", "-days", "364", "-extfile", ext, "-out", crt])
+    # CA signing key is never uploaded or retained; rotation requires a planned
+    # new trust bundle. Runtime gets only the server/client keys it needs.
+    return {"tls.crt": (folder / "server.crt").read_text(), "tls.key": (folder / "server.key").read_text(),
+            "ca.crt": ca.read_text(), "client.crt": (folder / "client.crt").read_text(),
+            "client.key": (folder / "client.key").read_text()}
+
+
+def install(args, namespace, settings, flags, folder, helm_major):
+    credentials_name, tls_name = settings["credentials"]["existingSecret"], settings["tls"]["existingSecret"]
+    existing_ingest = get_secret(args, credentials_name) if namespace else None
+    existing_tls = get_secret(args, tls_name) if namespace else None
+    # All locally fallible inputs and PKI are validated BEFORE any writes.
+    credentials = None
+    if not existing_ingest:
+        credentials = {"tenant-id": private_input(args.tenant_file, "--tenant-file"),
+                       "api-token": private_input(args.token_file, "--token-file")}
+    pki = generate_pki(args, settings, folder) if not existing_tls else None
+    if not namespace:
+        kube(args, "create", "-f", "-", data=json.dumps({"apiVersion": "v1", "kind": "Namespace",
+             "metadata": {"name": args.namespace, "labels": {"app.kubernetes.io/part-of": "elven-observability"}}}))
+    if credentials:
+        create_secret(args, credentials_name, credentials)
+    if pki:
+        create_secret(args, tls_name, pki)
+    # Never expose credential values in Helm arguments, release history, files or logs.
+    failure_flag = "--rollback-on-failure" if helm_major == 4 else "--atomic"
+    helm(args, "upgrade", "--install", args.release, CHART, *flags,
+         "--wait", "--wait-for-jobs", "--timeout", args.timeout, "--history-max", "10",
+         "--reset-values", failure_flag, online=True)
+    print(f"Release {args.release} reconciled in {args.namespace}; Secrets and PVCs are retained.")
+    print("This proves Helm reconciliation, not receipt in the Elven tenant. Follow docs/operations.md acceptance checks.")
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("command", choices=("version", "render", "preflight", "install", "upgrade", "status", "rollback", "uninstall"))
+    parser.add_argument("--release", default="elven")
+    parser.add_argument("--namespace", default="elven-observability")
+    parser.add_argument("--context")
+    parser.add_argument("--kubeconfig")
+    parser.add_argument("--expect-cluster-uid")
+    parser.add_argument("--cluster-name")
+    parser.add_argument("--values", action="append", default=[])
+    parser.add_argument("--render-kube-version", default="1.37.2")
+    parser.add_argument("--tenant-file", default=os.environ.get("ELVEN_TENANT_FILE"))
+    parser.add_argument("--token-file", default=os.environ.get("ELVEN_TOKEN_FILE"))
+    parser.add_argument("--use-existing-secrets", action="store_true")
+    parser.add_argument("--credentials-secret")
+    parser.add_argument("--tls-secret")
+    parser.add_argument("--allow-unrestricted-network", action="store_true")
+    parser.add_argument("--allow-overlapping-collection", action="store_true")
+    parser.add_argument("--development-images", action="store_true")
+    parser.add_argument("--output")
+    parser.add_argument("--revision", type=int)
+    parser.add_argument("--timeout", default="15m")
+    args = parser.parse_args()
+    if args.command == "version":
+        print(f"Elven Observability Distribution {VERSION}")
+        return
+    identifier(args.release, "--release", 40)
+    identifier(args.namespace, "--namespace", 63)
+    for secret_name in (args.credentials_secret, args.tls_secret):
+        if secret_name:
+            identifier(secret_name, "Secret name", 63)
+    if not re.fullmatch(r"[1-9][0-9]{0,4}[smh]", args.timeout):
+        raise Failure("--timeout must be a bounded positive duration, such as 15m.")
+    online = args.command != "render"
+    helm_major = required_programs(args, online)
+    args.helm_major = helm_major
+    if online and not args.context:
+        raise Failure("--context is mandatory; refusing to rely on the active context.")
+    with tempfile.TemporaryDirectory(prefix="elven-control-") as tmp:
+        folder = Path(tmp)
+        if args.command in ("status", "uninstall", "rollback"):
+            # Operational recovery must not depend on current chart defaults,
+            # backend availability, credentials or the source values file.
+            installed = json.loads(kube(args, "get", "configmap", f"{args.release}-settings",
+                                        "-n", args.namespace, "-o", "json"))
+            metadata = installed.get("metadata", {})
+            annotations = metadata.get("annotations", {})
+            if (annotations.get("meta.helm.sh/release-name") != args.release
+                    or annotations.get("meta.helm.sh/release-namespace") != args.namespace):
+                raise Failure("Installed settings do not belong to this Helm release; refusing recovery/adoption.")
+            settings = json.loads(installed["data"]["settings.json"])
+            expected_name = settings.get("cluster", {}).get("name")
+            if args.cluster_name and args.cluster_name != expected_name:
+                raise Failure("--cluster-name does not match the installed release.")
+            args.cluster_name = expected_name
+            manifest, flags = "", []
+        else:
+            manifest, settings, flags = render(args, folder)
+        if args.command == "render":
+            if args.output:
+                path = Path(args.output)
+                if path.exists():
+                    raise Failure("--output already exists; choose a new path to preserve the previous review.")
+                with path.open("x") as stream:
+                    stream.write(manifest)
+                path.chmod(0o600)
+                print(f"Rendered {path}; no Kubernetes access or changes.")
+            else:
+                print(manifest, end="")
+            return
+        namespace = preflight(args, manifest, settings, args.command in MUTATING)
+        if args.command == "preflight":
+            require_promoted_images(settings, args.development_images)
+            return
+        if args.command in ("install", "upgrade"):
+            require_promoted_images(settings, args.development_images)
+            install(args, namespace, settings, flags, folder, helm_major)
+        elif args.command == "status":
+            selector = f"app.kubernetes.io/instance={args.release},app.kubernetes.io/part-of=elven-observability"
+            print(kube(args, "get", "pods,pvc", "-n", args.namespace, "-l", selector), end="")
+            print("Readiness is not backend delivery. Confirm the actual tenant and a synthetic trace/log/metric.")
+        elif args.command == "rollback":
+            if args.revision is None or args.revision < 1:
+                raise Failure("rollback requires --revision with a positive Helm revision.")
+            helm(args, "rollback", args.release, str(args.revision), "--namespace", args.namespace,
+                 "--wait", "--wait-for-jobs", "--timeout", args.timeout, online=True)
+            print("Rollback reconciled; retained queues require the same storage format/configuration. Verify delivery.")
+        elif args.command == "uninstall":
+            helm(args, "uninstall", args.release, "--namespace", args.namespace,
+                 "--wait", "--timeout", args.timeout, online=True)
+            print("Release removed. Namespace, credential/TLS Secrets and gateway PVCs were NOT deleted. Drain and retain data deliberately.")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (Failure, OSError, ValueError, KeyError) as error:
+        # Exception text is local validation only; subprocess stderr is suppressed.
+        print(f"elven: {error}", file=sys.stderr)
+        sys.exit(1)

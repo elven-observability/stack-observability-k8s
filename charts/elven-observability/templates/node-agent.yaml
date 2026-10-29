@@ -1,0 +1,374 @@
+{{- if eq (include "elven.nodeEnabled" .) "true" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elven.fullname" . }}-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node
+data:
+  collector.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:{{ .Values.ports.health }}
+      {{- if .Values.modules.logs.enabled }}
+      file_storage/positions:
+        directory: /var/lib/elven/positions
+        fsync: true
+      {{- end }}
+    receivers:
+      {{- if .Values.modules.logs.enabled }}
+      file_log/containers:
+        include:
+          {{- range .Values.collection.namespaces }}
+          - {{ printf "/var/log/pods/%s_*/*/*.log" . | quote }}
+          {{- end }}
+        exclude:
+          - {{ printf "/var/log/pods/%s_*/*/*.log" .Release.Namespace | quote }}
+        include_file_path: true
+        start_at: end
+        poll_interval: 1s
+        max_log_size: 256KiB
+        max_concurrent_files: 64
+        storage: file_storage/positions
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 5s
+          max_elapsed_time: 0s
+        operators:
+          - type: container
+            id: cri
+            max_log_size: 256KiB
+            on_error: drop_quiet
+          - type: json_parser
+            id: structured
+            parse_to: attributes.application
+            if: 'body matches "^\\s*\\{"'
+            on_error: send_quiet
+          - type: severity_parser
+            parse_from: attributes.application.level
+            if: 'attributes.application != nil and attributes.application.level != nil'
+            on_error: send_quiet
+          - type: severity_parser
+            parse_from: attributes.application.severity
+            if: 'attributes.application != nil and attributes.application.severity != nil'
+            on_error: send_quiet
+      {{- end }}
+      {{- if .Values.modules.kubeletMetrics.enabled }}
+      kubelet_stats/usage:
+        collection_interval: 30s
+        auth_type: serviceAccount
+        {{- if eq .Values.modules.kubeletMetrics.endpointAddress "hostname" }}
+        endpoint: https://${env:K8S_NODE_NAME}:{{ .Values.modules.kubeletMetrics.port }}
+        {{- else }}
+        endpoint: https://${env:K8S_NODE_IP}:{{ .Values.modules.kubeletMetrics.port }}
+        {{- end }}
+        insecure_skip_verify: false
+        {{- if .Values.modules.kubeletMetrics.caSecretName }}
+        ca_file: /etc/elven/kubelet-ca/ca.crt
+        {{- else }}
+        ca_file: {{ .Values.modules.kubeletMetrics.caFile | quote }}
+        {{- end }}
+        metric_groups: [node, pod, container]
+      {{- end }}
+      {{- if .Values.modules.ebpf.enabled }}
+      otlp/local:
+        protocols:
+          http:
+            endpoint: 127.0.0.1:{{ .Values.ports.localOtlpHttp }}
+      {{- end }}
+      {{- if .Values.selfMonitoring.enabled }}
+      prometheus/self:
+        config:
+          scrape_configs:
+            - job_name: elven-node-self
+              scrape_interval: {{ .Values.selfMonitoring.interval }}
+              static_configs:
+                - targets: [127.0.0.1:{{ .Values.ports.metrics }}]
+                  labels:
+                    elven_instance: ${env:K8S_NODE_NAME}
+                    elven_release: {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+      {{- end }}
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      resource/identity:
+        attributes:
+          - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
+          - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
+      {{- if .Values.modules.logs.enabled }}
+      transform/log_privacy:
+        error_mode: propagate
+        log_statements:
+          - context: log
+            statements:
+              {{- if eq .Values.privacy.logBodyMode "strict" }}
+              - set(body, "[REDACTED]")
+              {{- else }}
+              - 'replace_pattern(body, "(?i)(password|passwd|token|authorization|api[_-]?key)[[:space:]]*[:=][[:space:]]*[^ ,;]+", "[REDACTED]") where IsString(body)'
+              - 'replace_pattern(body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[REDACTED_EMAIL]") where IsString(body)'
+              {{- end }}
+              - keep_keys(attributes, ["log.iostream"])
+      {{- end }}
+      {{- if .Values.modules.kubeletMetrics.enabled }}
+      filter/metric_scope:
+        error_mode: propagate
+        metrics:
+          datapoint:
+            - 'resource.attributes["k8s.namespace.name"] != nil and not ({{ range $index, $namespace := .Values.collection.namespaces }}{{ if $index }} or {{ end }}resource.attributes["k8s.namespace.name"] == {{ $namespace | quote }}{{ end }})'
+      {{- end }}
+    exporters:
+      otlp_http/gateway:
+        endpoint: {{ include "elven.gatewayEndpoint" . | quote }}
+        timeout: 10s
+        tls:
+          {{- include "elven.clientTLS" . | nindent 10 }}
+        # The gateway acknowledges only after its sanitized persistent queue.
+        # No asynchronous batch/volatile queue is inserted in this node path.
+        sending_queue:
+          enabled: false
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 5s
+          max_elapsed_time: 0s
+    service:
+      extensions: [health_check{{ if .Values.modules.logs.enabled }}, file_storage/positions{{ end }}]
+      telemetry:
+        logs:
+          level: warn
+        metrics:
+          level: normal
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: {{ .Values.ports.metrics }}
+      pipelines:
+        {{- if .Values.selfMonitoring.enabled }}
+        metrics/self:
+          receivers: [prometheus/self]
+          processors: [memory_limiter, resource/identity]
+          exporters: [otlp_http/gateway]
+        {{- end }}
+        {{- if .Values.modules.logs.enabled }}
+        logs:
+          receivers: [file_log/containers]
+          processors: [memory_limiter, resource/identity, transform/log_privacy]
+          exporters: [otlp_http/gateway]
+        {{- end }}
+        {{- if .Values.modules.kubeletMetrics.enabled }}
+        metrics/usage:
+          receivers: [kubelet_stats/usage]
+          processors: [memory_limiter, filter/metric_scope, resource/identity]
+          exporters: [otlp_http/gateway]
+        {{- end }}
+        {{- if .Values.modules.ebpf.enabled }}
+        traces:
+          receivers: [otlp/local]
+          processors: [memory_limiter, resource/identity]
+          exporters: [otlp_http/gateway]
+        {{- end }}
+  {{- if .Values.modules.ebpf.enabled }}
+  beyla.yaml: |
+    log_level: WARN
+    attributes:
+      kubernetes:
+        enable: true
+        meta_restrict_local_node: true
+    discovery:
+      instrument:
+        {{- range .Values.modules.ebpf.workloads }}
+        - k8s_namespace: {{ .namespace | quote }}
+          k8s_deployment_name: {{ .deployment | quote }}
+        {{- end }}
+      exclude_instrument:
+        - k8s_namespace: {{ .Release.Namespace | quote }}
+        - k8s_namespace: kube-system
+      exclude_otel_instrumented_services: false
+      disabled_route_harvesters: [java, nodejs, go]
+    ebpf:
+      context_propagation: disabled
+    otel_traces_export:
+      protocol: http/protobuf
+      instrumentations: [http, grpc]
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "elven.fullname" . }}-node
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    elven.observability/collection-namespaces: {{ join "," .Values.collection.namespaces | quote }}
+    elven.observability/source-signals: {{ join "," (compact (list (ternary "logs" "" .Values.modules.logs.enabled) (ternary "traces" "" .Values.modules.ebpf.enabled) (ternary "kubelet" "" .Values.modules.kubeletMetrics.enabled))) | quote }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node
+spec:
+  selector:
+    matchLabels:
+      {{- include "elven.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: node
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 1}
+  template:
+    metadata:
+      labels:
+        {{- include "elven.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/part-of: elven-observability
+        app.kubernetes.io/component: node
+      annotations:
+        {{- with omit .Values.podAnnotations "checksum/config" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/config: {{ toJson .Values | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ include "elven.fullname" . }}-node
+      automountServiceAccountToken: false
+      hostNetwork: false
+      hostPID: {{ .Values.modules.ebpf.enabled }}
+      terminationGracePeriodSeconds: {{ .Values.nodeAgent.terminationGracePeriodSeconds }}
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with omit .Values.nodeAgent.nodeSelector "kubernetes.io/os" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeAgent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeAgent.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "elven.collectorImage" . | quote }}
+          imagePullPolicy: {{ .Values.images.collector.pullPolicy }}
+          args: ["--config=/etc/elven/config/collector.yaml"]
+          securityContext:
+            {{- if .Values.modules.logs.enabled }}
+            runAsUser: 0
+            runAsGroup: 10001
+            runAsNonRoot: false
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+            {{- else }}
+            {{- include "elven.collectorSecurity" . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.nodeAgent.resources | nindent 12 }}
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+            - name: K8S_NODE_IP
+              valueFrom: {fieldRef: {fieldPath: status.hostIP}}
+          ports:
+            - {name: health, containerPort: {{ .Values.ports.health }}}
+            - {name: metrics, containerPort: {{ .Values.ports.metrics }}}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 15
+          volumeMounts:
+            - {name: config, mountPath: /etc/elven/config, readOnly: true}
+            - {name: tls, mountPath: /etc/elven/tls, readOnly: true}
+            {{- if .Values.modules.logs.enabled }}
+            - {name: pod-logs, mountPath: /var/log/pods, readOnly: true}
+            - {name: positions, mountPath: /var/lib/elven/positions}
+            {{- end }}
+            {{- if .Values.modules.kubeletMetrics.enabled }}
+            - {name: api-token, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+            {{- if .Values.modules.kubeletMetrics.caSecretName }}
+            - {name: kubelet-ca, mountPath: /etc/elven/kubelet-ca, readOnly: true}
+            {{- end }}
+            {{- end }}
+        {{- if .Values.modules.ebpf.enabled }}
+        - name: beyla
+          image: {{ include "elven.beylaImage" . | quote }}
+          imagePullPolicy: {{ .Values.images.beyla.pullPolicy }}
+          env:
+            - {name: BEYLA_CONFIG_PATH, value: /etc/elven/config/beyla.yaml}
+            - {name: BEYLA_ENFORCE_SYS_CAPS, value: "1"}
+            - {name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces"}
+            - name: K8S_NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 10001
+            runAsNonRoot: false
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop: [ALL]
+              add:
+                {{- toYaml (concat (list "BPF" "PERFMON" "SYS_PTRACE" "DAC_READ_SEARCH" "CHECKPOINT_RESTORE" "NET_RAW") .Values.modules.ebpf.additionalCapabilities) | nindent 16 }}
+            seccompProfile: {type: Unconfined}
+            appArmorProfile: {type: Unconfined}
+          resources:
+            {{- toYaml .Values.nodeAgent.resources | nindent 12 }}
+          volumeMounts:
+            - {name: config, mountPath: /etc/elven/config, readOnly: true}
+            - {name: beyla-run, mountPath: /var/run/beyla}
+            - {name: btf, mountPath: /sys/kernel/btf/vmlinux, readOnly: true}
+            - {name: api-token, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+        {{- end }}
+      volumes:
+        - name: config
+          configMap: {name: {{ include "elven.fullname" . }}-node}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+            defaultMode: 0440
+            items:
+              - {key: ca.crt, path: ca.crt}
+              - {key: client.crt, path: client.crt}
+              - {key: client.key, path: client.key}
+        {{- if .Values.modules.logs.enabled }}
+        - name: pod-logs
+          hostPath: {path: /var/log/pods, type: Directory}
+        - name: positions
+          emptyDir: {sizeLimit: 32Mi}
+        {{- end }}
+        {{- if or .Values.modules.kubeletMetrics.enabled .Values.modules.ebpf.enabled }}
+        - name: api-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken: {path: token, expirationSeconds: 3600}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+              - downwardAPI:
+                  items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]
+        {{- end }}
+        {{- if and .Values.modules.kubeletMetrics.enabled .Values.modules.kubeletMetrics.caSecretName }}
+        - name: kubelet-ca
+          secret: {secretName: {{ .Values.modules.kubeletMetrics.caSecretName }}, defaultMode: 0440}
+        {{- end }}
+        {{- if .Values.modules.ebpf.enabled }}
+        - name: beyla-run
+          emptyDir: {sizeLimit: 32Mi}
+        - name: btf
+          hostPath: {path: /sys/kernel/btf/vmlinux, type: File}
+        {{- end }}
+{{- end }}

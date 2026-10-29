@@ -1,0 +1,9 @@
+**
+!images
+!images/licenses
+!images/licenses/**
+!images/collector
+!images/collector/Dockerfile
+!images/collector/NOTICE
+!images/collector/builder-config.yaml
+!images/collector/license-bundle.go

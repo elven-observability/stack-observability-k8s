@@ -1,0 +1,30 @@
+dist:
+  module: github.com/elven-observability/stack-observability-k8s/collector
+  name: elven-collector
+  description: Elven Observability Collector
+  output_path: /src/_build
+  version: 1.0.0-dev
+extensions:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.164.1
+receivers:
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.164.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sclusterreceiver v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver v0.164.1
+processors:
+  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.164.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.164.1
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.164.1
+exporters:
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.164.0
+providers:
+  - gomod: go.opentelemetry.io/collector/confmap/provider/envprovider v1.70.0
+  - gomod: go.opentelemetry.io/collector/confmap/provider/fileprovider v1.70.0
+replaces:
+  # CVE-2026-116587: do not carry vulnerable go-jose if pulled transitively.
+  - github.com/go-jose/go-jose/v4 => github.com/go-jose/go-jose/v4 v4.1.6
+  # CVE-2026-78661/CVE-2026-97045: fix HTML parser handling, no severity waiver.
+  - golang.org/x/net => golang.org/x/net v0.62.0

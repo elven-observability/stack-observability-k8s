@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Elven Observability distribution values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cluster", "fullnameOverride", "images", "imagePullSecrets", "credentials", "tls", "endpoints", "exportTLS", "ports", "gateway", "nodeAgent", "clusterMetrics", "profiles", "collection", "modules", "privacy", "networkPolicy", "selfMonitoring", "podAnnotations", "nodeSelector", "tolerations"],
+  "properties": {
+    "cluster": {
+      "type": "object", "additionalProperties": false, "required": ["name", "environment", "domain"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"},
+        "environment": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"},
+        "domain": {"$ref": "#/definitions/dnsName"}
+      }
+    },
+    "fullnameOverride": {"type": "string", "maxLength": 44, "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "images": {
+      "type": "object", "additionalProperties": false, "required": ["collector", "beyla", "alloy"],
+      "properties": {"collector": {"$ref": "#/definitions/image"}, "beyla": {"$ref": "#/definitions/image"}, "alloy": {"$ref": "#/definitions/image"}}
+    },
+    "imagePullSecrets": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"$ref": "#/definitions/dnsName"}}}},
+    "credentials": {"$ref": "#/definitions/existingSecret"},
+    "tls": {"$ref": "#/definitions/existingSecret"},
+    "endpoints": {
+      "type": "object", "additionalProperties": false, "required": ["logs", "metrics", "traces", "profiles"],
+      "properties": {"logs": {"$ref": "#/definitions/httpsEndpoint"}, "metrics": {"$ref": "#/definitions/httpsEndpoint"}, "traces": {"$ref": "#/definitions/httpsEndpoint"}, "profiles": {"$ref": "#/definitions/httpsEndpoint"}}
+    },
+    "exportTLS": {
+      "type": "object", "additionalProperties": false, "required": ["existingCASecret"],
+      "properties": {"existingCASecret": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}}
+    },
+    "ports": {
+      "type": "object", "additionalProperties": false, "required": ["otlpGrpc", "otlpHttp", "health", "metrics", "localOtlpHttp"],
+      "properties": {"otlpGrpc": {"$ref": "#/definitions/port"}, "otlpHttp": {"$ref": "#/definitions/port"}, "health": {"$ref": "#/definitions/port"}, "metrics": {"$ref": "#/definitions/port"}, "localOtlpHttp": {"$ref": "#/definitions/port"}}
+    },
+    "gateway": {
+      "type": "object", "additionalProperties": false, "required": ["replicas", "resources", "persistence", "queueSizeBytes", "terminationGracePeriodSeconds", "pdb"],
+      "properties": {
+        "replicas": {"type": "integer", "const": 1, "description": "This release candidate supports one gateway replica; HA and load-balancing acceptance are not complete."},
+        "resources": {"$ref": "#/definitions/resources"},
+        "persistence": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "size", "storageClass", "ephemeralSizeLimit"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "size": {"type": "string", "pattern": "^[1-9][0-9]*Gi$"},
+            "storageClass": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
+            "ephemeralSizeLimit": {"type": "string", "pattern": "^[1-9][0-9]*Gi$"}
+          }
+        },
+        "queueSizeBytes": {"type": "integer", "minimum": 8388608, "maximum": 67108864},
+        "terminationGracePeriodSeconds": {"type": "integer", "minimum": 30, "maximum": 1800},
+        "pdb": {"type": "object", "additionalProperties": false, "required": ["enabled"], "properties": {"enabled": {"type": "boolean", "const": false, "description": "Reserved until gateway HA is supported."}}}
+      }
+    },
+    "nodeAgent": {
+      "type": "object", "additionalProperties": false, "required": ["resources", "nodeSelector", "tolerations", "hostAliases", "terminationGracePeriodSeconds"],
+      "properties": {
+        "resources": {"$ref": "#/definitions/resources"},
+        "nodeSelector": {"$ref": "#/definitions/stringMap"},
+        "tolerations": {"$ref": "#/definitions/tolerations"},
+        "hostAliases": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["ip", "hostnames"], "properties": {"ip": {"type": "string", "anyOf": [{"format": "ipv4"}, {"format": "ipv6"}]}, "hostnames": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/dnsName"}}}}},
+        "terminationGracePeriodSeconds": {"type": "integer", "minimum": 30, "maximum": 1800}
+      }
+    },
+    "clusterMetrics": {"type": "object", "additionalProperties": false, "required": ["resources"], "properties": {"resources": {"$ref": "#/definitions/resources"}}},
+    "profiles": {"type": "object", "additionalProperties": false, "required": ["resources"], "properties": {"resources": {"$ref": "#/definitions/resources"}}},
+    "collection": {
+      "type": "object", "additionalProperties": false, "required": ["namespaces"],
+      "properties": {"namespaces": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/dnsLabel"}}}
+    },
+    "modules": {
+      "type": "object", "additionalProperties": false, "required": ["logs", "clusterMetrics", "kubeletMetrics", "ebpf", "profiles"],
+      "properties": {
+        "logs": {"$ref": "#/definitions/hostModule"},
+        "clusterMetrics": {"type": "object", "additionalProperties": false, "required": ["enabled", "clusterWideApproved"], "properties": {"enabled": {"type": "boolean"}, "clusterWideApproved": {"type": "boolean"}}},
+        "kubeletMetrics": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "port", "endpointAddress", "caFile", "caSecretName"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "port": {"$ref": "#/definitions/port"},
+            "endpointAddress": {"type": "string", "enum": ["ip", "hostname"]},
+            "caFile": {"type": "string", "minLength": 1, "pattern": "^/[^\u0000\r\n]+$"},
+            "caSecretName": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}
+          }
+        },
+        "ebpf": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "hostAccessApproved", "additionalCapabilities", "additionalCapabilitiesApproved", "workloads"],
+          "properties": {
+            "enabled": {"type": "boolean"}, "hostAccessApproved": {"type": "boolean"},
+            "additionalCapabilities": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"type": "string", "enum": ["SYS_ADMIN", "SYS_RESOURCE"]}, "description": "Optional platform-specific escalation after kernel/admission review; no automatic fallback. The distribution supports Linux >=5.11 with BTF."},
+            "additionalCapabilitiesApproved": {"type": "boolean", "description": "Explicit approval of any SYS_ADMIN/SYS_RESOURCE addition; privileged mode and NET_ADMIN are never enabled."},
+            "workloads": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["namespace", "deployment"], "properties": {"namespace": {"$ref": "#/definitions/dnsLabel"}, "deployment": {"$ref": "#/definitions/dnsName"}}}}
+          }
+        },
+        "profiles": {
+          "type": "object", "additionalProperties": false, "required": ["enabled", "dataPolicyApproved", "targets"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "dataPolicyApproved": {"type": "boolean", "description": "Explicit approval of pprof source frames and labels: profiles bypass OTLP sanitization and have no durable WAL. Target selection alone does not approve the data policy."},
+            "targets": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["name", "address", "scheme", "path", "secretName"], "properties": {
+              "name": {"$ref": "#/definitions/dnsLabel"},
+              "address": {"type": "string", "maxLength": 259, "pattern": "^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?:[1-9][0-9]{0,4}$"},
+              "scheme": {"type": "string", "enum": ["https"]},
+              "path": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^/[^?#\\s]*$"},
+              "secretName": {"$ref": "#/definitions/dnsName"}
+            }}}
+          }
+        }
+      }
+    },
+    "privacy": {"type": "object", "additionalProperties": false, "required": ["logBodyMode", "preserveSpanLinks", "spanLinkAttributesApproved"], "properties": {"logBodyMode": {"type": "string", "enum": ["strict", "redact"]}, "preserveSpanLinks": {"type": "boolean"}, "spanLinkAttributesApproved": {"type": "boolean"}}},
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "dnsNamespace", "dnsPort", "dnsPodLabels", "dnsCIDRs", "exportCIDRs", "exportPorts", "apiServerCIDRs", "apiServerPorts", "kubeletCIDRs", "profileCIDRs", "profilePorts"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "dnsNamespace": {"$ref": "#/definitions/dnsLabel"},
+        "dnsPort": {"$ref": "#/definitions/port"},
+        "dnsPodLabels": {"$ref": "#/definitions/stringMap"},
+        "dnsCIDRs": {"$ref": "#/definitions/cidrList"},
+        "exportCIDRs": {"$ref": "#/definitions/cidrList"},
+        "exportPorts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/port"}},
+        "apiServerCIDRs": {"$ref": "#/definitions/cidrList"},
+        "apiServerPorts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/port"}},
+        "kubeletCIDRs": {"$ref": "#/definitions/cidrList"},
+        "profileCIDRs": {"$ref": "#/definitions/cidrList"},
+        "profilePorts": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/definitions/port"}}
+      }
+    },
+    "selfMonitoring": {"type": "object", "additionalProperties": false, "required": ["enabled", "interval"], "properties": {"enabled": {"type": "boolean"}, "interval": {"type": "string", "pattern": "^[1-9][0-9]*(s|m|h)$"}}},
+    "podAnnotations": {"$ref": "#/definitions/stringMap"},
+    "nodeSelector": {"$ref": "#/definitions/stringMap"},
+    "tolerations": {"$ref": "#/definitions/tolerations"}
+  },
+  "definitions": {
+    "dnsLabel": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "dnsName": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"},
+    "existingSecret": {"type": "object", "additionalProperties": false, "required": ["existingSecret"], "properties": {"existingSecret": {"$ref": "#/definitions/dnsName"}}},
+    "enabledOnly": {"type": "object", "additionalProperties": false, "required": ["enabled"], "properties": {"enabled": {"type": "boolean"}}},
+    "hostModule": {"type": "object", "additionalProperties": false, "required": ["enabled", "hostAccessApproved"], "properties": {"enabled": {"type": "boolean"}, "hostAccessApproved": {"type": "boolean"}}},
+    "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+    "httpsEndpoint": {"type": "string", "minLength": 10, "maxLength": 2048, "pattern": "^https://[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?(:[1-9][0-9]{0,4})?(/[^?#\\s]*)?$"},
+    "image": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 3, "maxLength": 255, "pattern": "^[a-z0-9]([a-z0-9._:/-]*[a-z0-9])?$"},
+        "tag": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$", "not": {"enum": ["latest"]}},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "pullPolicy": {"type": "string", "enum": ["IfNotPresent", "Always"]}
+      }
+    },
+    "cpuQuantity": {"type": "string", "pattern": "^([1-9][0-9]*([.][0-9]+)?|0[.][0-9]*[1-9][0-9]*)(m)?$"},
+    "memoryQuantity": {"type": "string", "pattern": "^([1-9][0-9]*([.][0-9]+)?|0[.][0-9]*[1-9][0-9]*)([EPTGMK]i?|[kmun])?$"},
+    "resourcePair": {"type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": {"cpu": {"$ref": "#/definitions/cpuQuantity"}, "memory": {"$ref": "#/definitions/memoryQuantity"}}},
+    "resources": {"type": "object", "additionalProperties": false, "required": ["requests", "limits"], "properties": {"requests": {"$ref": "#/definitions/resourcePair"}, "limits": {"$ref": "#/definitions/resourcePair"}}},
+    "stringMap": {"type": "object", "additionalProperties": {"type": "string"}},
+    "cidrList": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^(([0-9]{1,3}\\.){3}[0-9]{1,3}/([1-9]|[12][0-9]|3[0-2])|[0-9a-fA-F:]+/([1-9]|[1-9][0-9]|1[01][0-9]|12[0-8]))$"}},
+    "tolerations": {"type": "array", "items": {"type": "object", "additionalProperties": false, "properties": {
+      "key": {"type": "string"}, "operator": {"type": "string", "enum": ["Equal", "Exists"]}, "value": {"type": "string"}, "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]}, "tolerationSeconds": {"type": "integer", "minimum": 0}
+    }}}
+  }
+}

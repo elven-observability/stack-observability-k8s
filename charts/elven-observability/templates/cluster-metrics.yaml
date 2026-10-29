@@ -1,0 +1,175 @@
+{{- if .Values.modules.clusterMetrics.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elven.fullname" . }}-cluster-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+data:
+  collector.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:{{ .Values.ports.health }}
+    receivers:
+      k8s_cluster/own:
+        auth_type: serviceAccount
+        collection_interval: 30s
+        node_conditions_to_report: [Ready, MemoryPressure, DiskPressure]
+        allocatable_types_to_report: [cpu, memory, pods]
+        {{- with .Values.collection.namespaces }}
+        namespaces:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if .Values.selfMonitoring.enabled }}
+      prometheus/self:
+        config:
+          scrape_configs:
+            - job_name: elven-cluster-self
+              scrape_interval: {{ .Values.selfMonitoring.interval }}
+              static_configs:
+                - targets: [127.0.0.1:{{ .Values.ports.metrics }}]
+                  labels:
+                    elven_instance: ${env:ELVEN_POD_NAME}
+                    elven_release: {{ printf "%s/%s" .Release.Namespace .Release.Name | quote }}
+      {{- end }}
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      resource/identity:
+        attributes:
+          - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
+          - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
+    exporters:
+      otlp_http/gateway:
+        endpoint: {{ include "elven.gatewayEndpoint" . | quote }}
+        timeout: 10s
+        tls:
+          {{- include "elven.clientTLS" . | nindent 10 }}
+        sending_queue:
+          enabled: false
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 5s
+          max_elapsed_time: 0s
+    service:
+      extensions: [health_check]
+      telemetry:
+        logs:
+          level: warn
+        metrics:
+          level: normal
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: {{ .Values.ports.metrics }}
+      pipelines:
+        metrics:
+          receivers: [k8s_cluster/own{{ if .Values.selfMonitoring.enabled }}, prometheus/self{{ end }}]
+          processors: [memory_limiter, resource/identity]
+          exporters: [otlp_http/gateway]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "elven.fullname" . }}-cluster-metrics
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    elven.observability/collection-namespaces: {{ join "," .Values.collection.namespaces | quote }}
+    elven.observability/source-signals: clustermetrics
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+spec:
+  # A singleton prevents duplicate cluster-state collection. Recreate avoids
+  # temporarily running two readers on upgrade; this is not HA by design.
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "elven.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: cluster-metrics
+  template:
+    metadata:
+      labels:
+        {{- include "elven.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/part-of: elven-observability
+        app.kubernetes.io/component: cluster-metrics
+      annotations:
+        {{- with omit .Values.podAnnotations "checksum/config" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/config: {{ toJson .Values | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ include "elven.fullname" . }}-cluster-metrics
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with omit .Values.nodeSelector "kubernetes.io/os" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "elven.collectorImage" . | quote }}
+          imagePullPolicy: {{ .Values.images.collector.pullPolicy }}
+          args: ["--config=/etc/elven/config/collector.yaml"]
+          securityContext:
+            {{- include "elven.collectorSecurity" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.clusterMetrics.resources | nindent 12 }}
+          env:
+            - name: ELVEN_POD_NAME
+              valueFrom: {fieldRef: {fieldPath: metadata.name}}
+          ports:
+            - {name: health, containerPort: {{ .Values.ports.health }}}
+            - {name: metrics, containerPort: {{ .Values.ports.metrics }}}
+          readinessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet: {path: /, port: health}
+            initialDelaySeconds: 15
+          volumeMounts:
+            - {name: config, mountPath: /etc/elven/config, readOnly: true}
+            - {name: tls, mountPath: /etc/elven/tls, readOnly: true}
+            - {name: api-token, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: {{ include "elven.fullname" . }}-cluster-metrics}
+        - name: tls
+          secret:
+            secretName: {{ .Values.tls.existingSecret }}
+            defaultMode: 0440
+            items:
+              - {key: ca.crt, path: ca.crt}
+              - {key: client.crt, path: client.crt}
+              - {key: client.key, path: client.key}
+        - name: api-token
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken: {path: token, expirationSeconds: 3600}
+              - configMap:
+                  name: kube-root-ca.crt
+                  items: [{key: ca.crt, path: ca.crt}]
+              - downwardAPI:
+                  items: [{path: namespace, fieldRef: {fieldPath: metadata.namespace}}]
+{{- end }}

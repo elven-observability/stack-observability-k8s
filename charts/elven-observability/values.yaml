@@ -1,0 +1,130 @@
+# Replace example-cluster. The CLI rejects example identity before installation.
+cluster:
+  name: example-cluster
+  environment: production
+  domain: cluster.local
+fullnameOverride: ""
+images:
+  collector:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.164.0"
+    digest: sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+    pullPolicy: IfNotPresent
+  beyla:
+    repository: grafana/beyla
+    tag: "3.40.0"
+    digest: sha256:59e31947a79178f7228e3886d061e1261f792e84ea7365b8b54113232437a8b4
+    pullPolicy: IfNotPresent
+  alloy:
+    repository: grafana/alloy
+    tag: v1.21.3
+    digest: sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    pullPolicy: IfNotPresent
+imagePullSecrets: []
+credentials:
+  existingSecret: elven-ingest
+tls:
+  existingSecret: elven-internal-tls
+endpoints:
+  logs: https://loki.elvenobservability.com/otlp/v1/logs
+  metrics: https://mimir.elvenobservability.com/otlp/v1/metrics
+  traces: https://tempo.elvenobservability.com/http/v1/traces
+  profiles: https://pyroscope.elvenobservability.com
+exportTLS:
+  # Optional private export CA supplied as a separate Secret, key ca.crt.
+  existingCASecret: ""
+ports:
+  otlpGrpc: 4317
+  otlpHttp: 4318
+  health: 13133
+  metrics: 8888
+  localOtlpHttp: 14318
+gateway:
+  # This release candidate supports a singleton only; it does not claim HA.
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+    ephemeralSizeLimit: 1Gi
+  queueSizeBytes: 20971520
+  terminationGracePeriodSeconds: 120
+  pdb:
+    enabled: false
+nodeAgent:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  nodeSelector: {}
+  tolerations: []
+  # Only reviewed, static node DNS mappings; prefer real platform DNS.
+  hostAliases: []
+  terminationGracePeriodSeconds: 60
+clusterMetrics:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+profiles:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+collection:
+  # Explicit opt-in; never discovers/scrapes client prometheus.io annotations.
+  namespaces: []
+modules:
+  logs:
+    enabled: false
+    hostAccessApproved: false
+  clusterMetrics:
+    enabled: false
+    clusterWideApproved: false
+  kubeletMetrics:
+    enabled: false
+    port: 10250
+    # hostname verifies a serving certificate with a node-name DNS SAN.
+    endpointAddress: ip
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    caSecretName: ""
+  ebpf:
+    enabled: false
+    hostAccessApproved: false
+    # Distribution floor: Linux >=5.11 with BTF. No automatic SYS_ADMIN fallback.
+    additionalCapabilities: []
+    additionalCapabilitiesApproved: false
+    workloads: []
+  profiles:
+    enabled: false
+    # Raw pprof frames/labels bypass OTLP sanitization and have no durable WAL.
+    # Approve the source data policy explicitly before enabling collection.
+    dataPolicyApproved: false
+    targets: []
+privacy:
+  # strict drops arbitrary log text. redact is opt-in and is not a PII guarantee.
+  logBodyMode: strict
+  # Collector's transform processor cannot sanitize attributes inside span links.
+  # Link IDs and attributes are therefore removed together unless approved.
+  preserveSpanLinks: false
+  spanLinkAttributesApproved: false
+networkPolicy:
+  enabled: true
+  dnsNamespace: kube-system
+  dnsPort: 53
+  dnsPodLabels: {k8s-app: kube-dns}
+  dnsCIDRs: []
+  # Must be populated from reviewed real destinations; empty denies the traffic.
+  exportCIDRs: []
+  exportPorts: [443]
+  apiServerCIDRs: []
+  apiServerPorts: [443, 6443]
+  kubeletCIDRs: []
+  profileCIDRs: []
+  profilePorts: [443]
+selfMonitoring:
+  enabled: true
+  interval: 30s
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []

@@ -1,0 +1,162 @@
+name: Validate Elven distribution
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: elven-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # A stray kubectl command must not fall back to a runner/user context.
+  # test-kind.py supplies its own disposable kubeconfig on every cluster call.
+  KUBECONFIG: /dev/null
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contracts-and-runtimes:
+    name: Contracts and runtimes / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    steps:
+      - name: Check out the proposed distribution
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pinned test dependencies
+        run: >-
+          python -m pip install
+          PyYAML==6.0.3
+          jsonschema==4.26.0
+          opentelemetry-proto==1.45.1
+          protobuf==7.36.2
+      - name: Install checksum-verified Helm and kubeconform
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_tools_dir="$RUNNER_TEMP/elven-validation-tools"
+          mkdir -p "$task_tools_dir/bin"
+          cd "$task_tools_dir"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz \
+            --output helm-v4.3.1-linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --retry 3 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz.sha256sum \
+            --output helm-v4.3.1-linux-amd64.tar.gz.sha256sum
+          sha256sum --check helm-v4.3.1-linux-amd64.tar.gz.sha256sum
+          tar -xzf helm-v4.3.1-linux-amd64.tar.gz linux-amd64/helm
+          install -m 0755 linux-amd64/helm bin/helm
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            --output kubeconform-linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/CHECKSUMS \
+            --output CHECKSUMS
+          sha256sum --ignore-missing --check CHECKSUMS
+          tar -xzf kubeconform-linux-amd64.tar.gz -C bin kubeconform
+          printf '%s\n' "$task_tools_dir/bin" >> "$GITHUB_PATH"
+          printf 'ELVEN_HELM_BINARY=%s/bin/helm\n' "$task_tools_dir" >> "$GITHUB_ENV"
+          bin/helm version --short
+          bin/kubeconform -v
+      - name: Chart contracts, strict Kubernetes schemas and real pinned runtime configs
+        run: python scripts/validate.py --runtime
+      - name: Preserve only sanitized validation reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elven-validation-python-${{ matrix.python-version }}
+          include-hidden-files: true
+          path: .artifacts/validation-*/report.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  isolated-kubernetes:
+    name: Disposable Kubernetes 1.37 lifecycle and delivery
+    needs: contracts-and-runtimes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the proposed distribution
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - name: Install pinned synthetic test dependencies
+        run: >-
+          python -m pip install
+          PyYAML==6.0.3
+          jsonschema==4.26.0
+          opentelemetry-proto==1.45.1
+          protobuf==7.36.2
+      - name: Install checksum-verified Helm, kind and matching kubectl
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_tools_dir="$RUNNER_TEMP/elven-kind-tools"
+          mkdir -p "$task_tools_dir/bin"
+          cd "$task_tools_dir"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz \
+            --output helm-v4.3.1-linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --retry 3 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz.sha256sum \
+            --output helm-v4.3.1-linux-amd64.tar.gz.sha256sum
+          sha256sum --check helm-v4.3.1-linux-amd64.tar.gz.sha256sum
+          tar -xzf helm-v4.3.1-linux-amd64.tar.gz linux-amd64/helm
+          install -m 0755 linux-amd64/helm bin/helm
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64 \
+            --output kind-linux-amd64
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64.sha256sum \
+            --output kind-linux-amd64.sha256sum
+          sha256sum --check kind-linux-amd64.sha256sum
+          install -m 0755 kind-linux-amd64 bin/kind
+          curl --fail --silent --show-error --location --retry 3 \
+            https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl \
+            --output kubectl
+          curl --fail --silent --show-error --location --retry 3 \
+            https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl.sha256 \
+            --output kubectl.sha256
+          IFS= read -r task_kubectl_digest < kubectl.sha256 || test -n "$task_kubectl_digest"
+          [[ "$task_kubectl_digest" =~ ^[0-9a-f]{64}$ ]]
+          printf '%s  kubectl\n' "$task_kubectl_digest" | sha256sum --check -
+          install -m 0755 kubectl bin/kubectl
+          printf '%s\n' "$task_tools_dir/bin" >> "$GITHUB_PATH"
+          printf 'ELVEN_HELM_BINARY=%s/bin/helm\n' "$task_tools_dir" >> "$GITHUB_ENV"
+          bin/helm version --short
+          bin/kind version
+          bin/kubectl version --client
+      - name: Clean install, coexistence, mTLS, delivery, failure recovery, upgrade and rollback
+        run: >-
+          python scripts/test-kind.py
+          --development-images
+          --node-image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+      - name: Preserve reports, never certificates, keys or kubeconfigs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elven-disposable-kubernetes
+          include-hidden-files: true
+          path: |
+            .artifacts/kind-*/report.json
+            .artifacts/kind-*/diagnostics.txt
+          if-no-files-found: warn
+          retention-days: 7

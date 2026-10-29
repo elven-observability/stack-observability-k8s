@@ -1,275 +1,108 @@
-# Stack de Observabilidade para Clientes Elven
+# Elven Observability Distribution
 
-Template de instalacao da stack Kubernetes que envia telemetria para o SaaS LGTM da Elven Observability.
+Distribuição Kubernetes da Elven para receber e coletar telemetria com componentes próprios, isolamento por release e segurança por padrão. O caminho atual usa a CLI `./elven` e o chart `charts/elven-observability`.
 
-Componentes instalados:
+Não requer o gateway, Prometheus, Alloy ou Operator do cliente. Não instala CRDs, webhooks, cert-manager ou SDKs nas aplicações. O baseline é um gateway OTLP com mTLS, exportação HTTPS autenticada e filas persistentes. Logs de containers, métricas Kubernetes/kubelet, eBPF e profiles são módulos explícitos, não uma coleta global implícita.
 
-- `cert-manager`, como dependencia padrao upstream
-- `elven-prometheus`, com `kube-prometheus-stack` e `remoteWrite` para Mimir
-- `elven-logs-collector`, com Grafana Alloy coletando logs stdout dos pods para Loki
-- `elven-otel-collector`, recebendo OTLP e scrape generico de pods anotados
-- `elven-instrumentation-operator`, aplicando auto-instrumentacao
-- `elven-collector-fe`
-- `elven-mysql`, preparado como opcional para MySQL dentro do Kubernetes
-- `elven-beyla`, preparado como opcional e desligado por padrao
+**Candidato da linha 1.0 — instalação de produção bloqueada até publicação, assinatura e promoção verificadas das imagens Elven.** O lock desta revisão está `not-published`; a CLI recusa `preflight`, `install` e `upgrade` de produção nesse estado e também recusa imagens que não coincidam com repository/digest promovidos. Não há fallback automático para a imagem contrib completa: seu scan identificou uma dependência High e motivou o Collector Elven mínimo corrigido. Ver [supply chain](docs/supply-chain.md).
 
-Logs de backend e frontend usam TLS verificado no endpoint canonico
-`https://loki.elvenobservability.com`. O bootstrap migra automaticamente a
-Secret do collector-fe quando encontra o hostname legado
-`logs.elvenobservability.com`; desabilitar a verificacao TLS e proibido.
+Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir o [relatório de validação e artefatos](docs/validation-2026-10-29.md) e [suporte/gates de release](docs/support.md). Um artefato OCI local não é uma imagem publicada/assinada para produção.
 
-## Instalar
+## Instalação mínima após promoção da release
 
-Pre-requisitos locais:
+Este é o caminho de produção **depois** que o mantenedor concluir publicação/assinatura/verificação/promoção do lock e dos defaults do chart. Na revisão candidata atual, interromper no render offline ou usar somente o ensaio isolado descrito abaixo; não contornar o gate para instalar em cliente.
 
-- `kubectl` apontando para o cluster correto
-- `helm`
-- `helmfile`
+Pré-requisitos: Python 3.11+, `kubectl` compatível com o cluster, Helm 4.3.1+ (preferido) ou 3.22.1+ para compatibilidade, OpenSSL para gerar/verificar PKI e Kubernetes 1.35–1.37. É necessário StorageClass selecionado/default para o PVC do gateway, autorização de instalação e liberação dos destinos HTTPS. Não é necessário Helmfile, pip, Prometheus ou Operator do cliente.
 
-Primeira instalacao:
+1. Confirme contexto e UID do cluster; não use o contexto ativo implicitamente:
 
 ```bash
-export ELVEN_TENANT_ID="seu-tenant"
-export ELVEN_API_TOKEN="<SEU_API_TOKEN>"
-
-helmfile apply
+kubectl config get-contexts
+kubectl --context "CONTEXTO_CONFIRMADO" get namespace kube-system -o jsonpath='{.metadata.uid}'
+./elven version
 ```
 
-Depois da primeira instalacao, as secrets ficam no cluster. Para reconciliar novamente:
+2. Copie [`examples/minimal.yaml`](examples/minimal.yaml) para um arquivo local privado e revise os CIDRs reais de `networkPolicy.exportCIDRs`, a identidade lógica do cluster e o storage. O exemplo vem com egress fechado: isso é um bloqueio seguro, não uma instalação pronta para ignorar a rede. Os nomes em maiúsculas e os caminhos `/caminho/privado/...` abaixo são placeholders e devem ser substituídos.
 
 ```bash
-helmfile apply
+ELVEN_CONTEXT="CONTEXTO_CONFIRMADO"
+ELVEN_CLUSTER_NAME="NOME_REAL_DO_CLUSTER"
+ELVEN_CLUSTER_UID="UID_CONFERIDO_NO_COMANDO_ANTERIOR"
+ELVEN_VALUES="/caminho/privado/elven/customer.yaml"
 ```
 
-O `helmfile apply` e o unico comando de instalacao esperado. Ele cria o namespace, cria/atualiza as secrets, renderiza valores derivados da secret, instala os charts Helm e aplica os manifests locais.
+Prepare tenant e token em arquivos privados, com permissões 0600 ou 0400, fora do Git. Não coloque o token em values ou como argumento literal. Para usar credenciais/PKI previamente gerenciadas, veja [segurança](docs/security.md).
 
-## Variaveis de bootstrap
-
-Obrigatorias apenas quando a secret central ainda nao existe:
-
-- `ELVEN_TENANT_ID`
-- `ELVEN_API_TOKEN`
-
-Opcionais:
-
-- `ELVEN_NAMESPACE`, default `monitoring`
-- `COLLECTOR_FE_LOKI_URL`, default `https://loki.elvenobservability.com`
-- `COLLECTOR_FE_ALLOW_ORIGINS`, default `https://*.elvenobservability.com`
-- `COLLECTOR_FE_JWT_ISSUER`, default `elven-observability`
-- `COLLECTOR_FE_SECRET_KEY`, default gerado automaticamente e reaproveitado nas proximas execucoes
-- `ELVEN_ROLLOUT_TIMEOUT`, default `1800s`, para DaemonSets em clusters grandes
-- `INSTRUMENTATION_TARGET_NAMESPACES`, lista separada por virgula para limitar onde o `Instrumentation` sera aplicado
-
-Existe um exemplo em `bootstrap/env.example`.
-
-## O que o Helmfile faz
-
-Durante `prepare`:
-
-- valida `kubectl` e `helm`
-- cria o namespace `monitoring`
-- cria ou atualiza `elven-observability-credentials`
-- cria ou atualiza `elven-collector-fe-env-secret`, sem secret fixa versionada no repo
-- renderiza `elven-prometheus/values-prometheus.rendered.yaml` com o tenant atual
-
-Durante a instalacao:
-
-- instala release `cert-manager`
-- instala release `elven-prometheus`
-- instala release `elven-logs-collector`
-- instala release `elven-collector-fe`
-- mantem release opcional `elven-mysql`, desligada por padrao
-- mantem release opcional `elven-beyla`, desligada por padrao
-
-Durante `cleanup` de `apply`/`sync`:
-
-- aplica o `ClusterIssuer`
-- aplica a `kustomization.yaml`
-- sobe o `OpenTelemetry Collector`
-- sobe o `elven-instrumentation-operator`
-- espera a CRD e o controller do Operator
-- aplica o `Instrumentation` nos namespaces elegiveis
-- reinicia os componentes locais para garantir convergencia com secrets/configs atuais
-
-## Contrato operacional
-
-### Releases e nomes esperados
-
-| Camada | Release/manifests | Workloads principais |
-| --- | --- | --- |
-| Certificados | `cert-manager` | `cert-manager`, `cert-manager-webhook`, `cert-manager-cainjector` |
-| Prometheus | `elven-prometheus` | `elven-prometheus-operator`, `elven-prometheus-kube-state-metrics`, `elven-prometheus-node-exporter` |
-| Logs | `elven-logs-collector` | `elven-logs-collector` |
-| OTLP | manifests locais | `elven-otel-collector` |
-| Auto-instrumentacao | manifests locais | `elven-instrumentation-operator-controller-manager` |
-| Frontend collector | `elven-collector-fe` | `elven-collector-fe` |
-| MySQL opcional | `elven-mysql` | `elven-mysql` |
-| eBPF opcional | `elven-beyla` | `elven-beyla` |
-
-Os componentes da stack Elven usam prefixo `elven-*`. A excecao intencional e `cert-manager`, que mantem os nomes upstream para evitar surpresa operacional.
-
-Para habilitar Beyla, altere a release `elven-beyla` no `helmfile.yaml` de `installed: false` para `installed: true` e rode `helmfile apply`.
-
-### MySQL no Kubernetes
-
-`elven-mysql` monitora MySQL via `prometheus-mysql-exporter` e `ServiceMonitor`. A release fica desligada por padrao porque cada cliente tem host, namespace e senha proprios.
-
-Fluxo recomendado:
+3. Renderize/revise, faça preflight e instale:
 
 ```bash
-export ELVEN_MYSQL_PASSWORD="<MYSQL_EXPORTER_PASSWORD>"
-./elven-mysql/create-secret.sh
+./elven render --cluster-name "$ELVEN_CLUSTER_NAME" \
+  --values "$ELVEN_VALUES" --output elven-reviewed.yaml
+
+./elven preflight --context "$ELVEN_CONTEXT" \
+  --cluster-name "$ELVEN_CLUSTER_NAME" --expect-cluster-uid "$ELVEN_CLUSTER_UID" \
+  --values "$ELVEN_VALUES"
+
+./elven install --context "$ELVEN_CONTEXT" \
+  --cluster-name "$ELVEN_CLUSTER_NAME" --expect-cluster-uid "$ELVEN_CLUSTER_UID" \
+  --values "$ELVEN_VALUES" \
+  --tenant-file /caminho/privado/elven/tenant \
+  --token-file /caminho/privado/elven/token
 ```
 
-Depois ajuste `elven-mysql/values.yaml` com o Service DNS do MySQL:
+O render é offline e não contém valores de Secrets; o arquivo de saída é privado e não é sobrescrito. Preflight é somente leitura, não faz server-side apply/dry-run nem gera certificados. A instalação valida a identidade, aplica somente recursos próprios, provisiona Secrets separadamente do Helm quando necessário e aguarda a reconciliação da release.
 
-```yaml
-mysql:
-  host: mysql.default.svc.cluster.local
-  port: 3306
-  user: exporter
-```
-
-Habilite a release no `helmfile.yaml`:
-
-```yaml
-- name: elven-mysql
-  installed: true
-```
-
-E aplique:
+Os defaults são `--release elven` e `--namespace elven-observability`. Para mudá-los, forneça os mesmos parâmetros em todos os comandos. `--values` pode ser repetido; mantenha os arquivos/revisão utilizados como parte do registro de instalação, sem credenciais. Não reaplique uma configuração parcial sem revisar quais valores serão removidos ou voltarão ao padrão.
 
 ```bash
-helmfile apply
+./elven status --context "$ELVEN_CONTEXT"
 ```
 
-As metricas chegam ao Mimir pelo `remoteWrite` do `elven-prometheus`, com `job="elven-mysql"` e labels como `elven_component="mysql"`, `db_system="mysql"` e `scrape_source="serviceMonitor"`.
+`status`, Pods Ready e sucesso do Helm não comprovam recebimento no tenant. Siga os [testes de coleta e entrega](docs/operations.md#aceite-de-coleta-e-entrega).
 
-O exporter desativa `prometheus.io/scrape` no pod para evitar scrape duplicado pelo `elven-otel-collector`; o scrape oficial e somente pelo `ServiceMonitor`.
+### Ensaio descartável antes da publicação
 
-Permissao sugerida para o usuario do exporter:
+`--development-images` é uma exceção explícita somente para laboratório controlado; não é um modo GA, não aprova uma imagem e não ignora os guards de cluster, ownership, configuração, TLS ou rede. Construa o Collector Elven mínimo corrigido e use o artefato OCI/local e os values correspondentes da execução de teste, conforme [supply chain](docs/supply-chain.md). Não use a imagem upstream vulnerável por conveniência, nem substitua digests por `latest`.
 
-```sql
-CREATE USER 'exporter'@'%' IDENTIFIED BY '<MYSQL_EXPORTER_PASSWORD>' WITH MAX_USER_CONNECTIONS 3;
-GRANT PROCESS, SELECT ON *.* TO 'exporter'@'%';
-FLUSH PRIVILEGES;
-```
-
-O scraper de replication status fica desligado por padrao para nao exigir `REPLICATION CLIENT`. Se o cliente precisar dessas metricas, habilite `collectors.slave_status: true` e conceda `REPLICATION CLIENT` ao usuario do exporter.
-
-### Prometheus
-
-- coleta metricas de infra e Kubernetes
-- envia metricas para Mimir via `remoteWrite`
-- usa `X-Scope-OrgID` renderizado a partir da secret central
-
-### OpenTelemetry Collector
-
-- recebe OTLP em `4317` e `4318`
-- exporta traces para Tempo
-- exporta metricas para Mimir
-- faz scrape generico de pods anotados com:
-
-```yaml
-metadata:
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/port: "8080"
-    prometheus.io/path: "/metrics"
-    prometheus.io/scheme: "http"
-```
-
-### OpenTelemetry Operator
-
-- usa o deployment `elven-instrumentation-operator-controller-manager`
-- aplica `Instrumentation` moderno com OTLP HTTP/protobuf em `4318`
-- preserva imagens custom da Elven para `Node.js` e `Python`
-- usa `inject-sdk` como fallback para `Ruby`, `Rust` e workloads com SDK proprio
-
-### Alloy
-
-- substitui Promtail no baseline
-- coleta logs stdout dos pods Kubernetes
-- envia para Loki usando `Bearer` token e `X-Scope-OrgID` da secret central
-
-Filtros de namespace ficam em `elven-logs-collector/values-alloy.yaml`:
-
-```yaml
-logs:
-  namespaces:
-    include: []
-    includeRegex: ".+"
-    exclude:
-      - kube-system
-      - monitoring
-      - cert-manager
-    excludeRegex: "^(mgk-.*|sentinel)$"
-```
-
-Regras simples:
-
-- `include: []` coleta todos os namespaces que nao cairem no deny-list.
-- `include: ["app", "worker"]` coleta somente esses namespaces.
-- `exclude` remove nomes exatos de namespace.
-- `excludeRegex` remove padroes avancados, como `mgk-*`.
-
-Exemplo para coletar somente `app` e `worker`:
-
-```yaml
-logs:
-  namespaces:
-    include:
-      - app
-      - worker
-    exclude: []
-    excludeRegex: ""
-```
-
-## Verificacoes rapidas
+Depois de preparar um cluster isolado, seus endpoints sintéticos e o artefato/values corretos:
 
 ```bash
-helmfile list
-kubectl get pods -n monitoring
-kubectl get secret elven-observability-credentials elven-collector-fe-env-secret -n monitoring
-kubectl get instrumentations -A
-kubectl get deploy,daemonset,statefulset -n monitoring | grep elven
-kubectl get servicemonitor,prometheusrule -n monitoring | grep elven
-kubectl logs -n monitoring deploy/elven-otel-collector --since=2m
-kubectl logs -n monitoring deploy/elven-instrumentation-operator-controller-manager --since=2m
+./elven preflight --development-images --context "$ELVEN_CONTEXT" \
+  --cluster-name "$ELVEN_CLUSTER_NAME" --expect-cluster-uid "$ELVEN_CLUSTER_UID" \
+  --values "$ELVEN_VALUES"
 ```
 
-Esperado:
+Para ensaiar a instalação nesse mesmo laboratório, o `install` exige novamente `--development-images` e todos os demais argumentos de identidade/credenciais do exemplo anterior. Não copiar esse override para configurações de cliente, automações ou procedimento de produção.
 
-- pods de `monitoring` em `Running`
-- secrets de bootstrap presentes
-- pelo menos um `Instrumentation` nos namespaces elegiveis
-- collector sem erro de exportacao
-- operator pronto e sem erro de admission/injection
+## Escolha o escopo
 
-## Remover
+| Perfil/módulo | Finalidade |
+|---|---|
+| [`examples/minimal.yaml`](examples/minimal.yaml) | Gateway OTLP com mTLS e storage; sem acesso ao host, injeção ou descoberta automática de aplicações. |
+| [`examples/kubernetes.yaml`](examples/kubernetes.yaml) | Ponto de partida para coleta Kubernetes selecionada. Revisar namespaces, APIs/kubelet, CAs, CIDRs e aprovação de logs antes de habilitar. |
+| eBPF/Beyla | Opcional, workloads e permissões de host explícitos; não oferece spans internos/de negócio completos nem propagação de headers por padrão. |
+| [`examples/profiles.yaml`](examples/profiles.yaml) | Profiles de alvos pprof HTTPS/mTLS existentes e aprovados; não instala nem ativa pprof na aplicação. |
 
-```bash
-helmfile destroy
-```
+As versões/digests selecionados estão em [versões e compatibilidade](docs/versions.md); builds, SBOM, scans, proveniência, assinatura e registry estão em [supply chain](docs/supply-chain.md). O Collector Elven usa build mínimo OCB com componentes explícitos; Beyla/Alloy preservam seus runtimes upstream. Licenças e rastreabilidade são mantidas, sem atribuir à Elven a autoria do código upstream.
 
-Esse fluxo remove:
+## Operação segura
 
-- releases Helm da stack
-- `ClusterIssuer`
-- manifests locais do collector e do operator
-- `Instrumentation` aplicado pela stack
-- secret de config do collector
-- secret de env do `collector-fe`
+- Gateway: uma réplica, PVC padrão de 2Gi e fila de 20Mi de payload serializado por sinal OTLP, com `fsync`. Há overhead adicional e capacidade finita.
+- Módulos de host/eBPF/profiles: desativados por padrão. Namespace próprio não elimina os riscos de acesso ao node.
+- Portas configuráveis sem hostPort/hostNetwork no baseline; mTLS exige CA e SAN corretos, não `insecure_skip_verify`.
+- Sem adoção/remoção automática de recursos do cliente. Não importar posições de seus agents nem usar annotations genéricas para descobrir alvos.
+- Uninstall retém namespace, Secrets de credenciais/TLS e PVCs. Drene as filas antes de remover; não há garantia de perda zero ou exactly-once.
 
-Ele nao remove:
+## Documentação
 
-- namespace `monitoring`
-- secret central `elven-observability-credentials`
+- [Arquitetura, módulos, portas e coexistência](docs/architecture.md)
+- [Segurança, RBAC, mTLS, credenciais e riscos](docs/security.md)
+- [Dimensionamento, instalação, diagnóstico e ciclo operacional](docs/operations.md)
+- [Migração e rollback do template anterior](docs/migration.md)
+- [Suporte, matriz e gates de validação](docs/support.md)
+- [Diagnóstico que orientou a refatoração](docs/audit-baseline.md)
+- [Histórico de mudanças](CHANGELOG.md)
 
-Isso evita apagar credenciais e recursos adicionais do cliente por acidente.
+## Instalações antigas
 
-## Documentacao complementar
-
-- `bootstrap/README.md`
-- `elven-otel-operator/README.md`
-- `elven-otel-collector/README.md`
+O template anterior está em [`legacy/v0/`](legacy/v0/UNSUPPORTED.md). Não existe atualização automática do antigo `helmfile apply` para esta distribuição. O `helmfile.yaml` da raiz é apenas uma sentinela, sem releases nem hooks: não instala, migra ou remove recursos. Os scripts shell legados são bloqueados por padrão; a exceção explícita `ELVEN_ALLOW_UNSUPPORTED_LEGACY=1` existe somente para recuperação histórica revisada, não para novas instalações nem migração automática. Não execute o destroy legado para “limpar” um cluster antes de migrar.

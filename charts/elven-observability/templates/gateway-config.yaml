@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elven.fullname" . }}-gateway
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+data:
+  collector.yaml: |
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:{{ .Values.ports.health }}
+      file_storage/exports:
+        directory: /var/lib/elven/exports
+        create_directory: true
+        directory_permissions: "0700"
+        fsync: true
+        compaction:
+          directory: /var/lib/elven/exports
+          on_rebound: true
+          cleanup_on_start: true
+          rebound_needed_threshold_mib: 64
+          rebound_trigger_threshold_mib: 16
+    receivers:
+      {{- if .Values.selfMonitoring.enabled }}
+      prometheus/self:
+        config:
+          scrape_configs:
+            - job_name: elven-gateway
+              scrape_interval: {{ .Values.selfMonitoring.interval }}
+              static_configs:
+                - targets: ["127.0.0.1:{{ .Values.ports.metrics }}"]
+                  labels: {elven_instance: "${env:ELVEN_POD_NAME}"}
+      {{- end }}
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:{{ .Values.ports.otlpGrpc }}
+            max_recv_msg_size_mib: 4
+            tls:
+              cert_file: /etc/elven/tls/tls.crt
+              key_file: /etc/elven/tls/tls.key
+              client_ca_file: /etc/elven/tls/ca.crt
+              min_version: "1.2"
+          http:
+            endpoint: 0.0.0.0:{{ .Values.ports.otlpHttp }}
+            max_request_body_size: 4194304
+            tls:
+              cert_file: /etc/elven/tls/tls.crt
+              key_file: /etc/elven/tls/tls.key
+              client_ca_file: /etc/elven/tls/ca.crt
+              min_version: "1.2"
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      resource/identity:
+        attributes:
+          - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
+          - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
+          - {key: elven.distribution.version, value: {{ .Chart.AppVersion | quote }}, action: upsert}
+      transform/privacy:
+        error_mode: propagate
+        log_statements:
+          - context: resource
+            statements:
+              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
+          - context: scope
+            statements:
+              - 'keep_keys(attributes, [])'
+          - context: log
+            statements:
+              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "error.type"])'
+              - 'set(severity_text, "")'
+              {{- if eq .Values.privacy.logBodyMode "strict" }}
+              - 'set(body, "[REDACTED]")'
+              {{- else }}
+              - 'replace_pattern(body, "(?i)bearer[[:space:]]+[A-Za-z0-9._~+/=-]+", "[REDACTED]") where IsString(body)'
+              - 'replace_pattern(body, "(?i)(password|passwd|token|secret|api[_-]?key|authorization)[\"'']?[[:space:]]*[:=][[:space:]]*[\"'']?[^,[:space:]}]+", "[REDACTED]") where IsString(body)'
+              - 'replace_pattern(body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[REDACTED]") where IsString(body)'
+              - 'set(body, "[REDACTED:non-string]") where not IsString(body)'
+              {{- end }}
+        trace_statements:
+          - context: resource
+            statements:
+              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
+          - context: scope
+            statements:
+              - 'keep_keys(attributes, [])'
+          - context: span
+            statements:
+              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "rpc.system", "rpc.service", "rpc.method", "db.system", "messaging.system", "messaging.operation.type", "error.type"])'
+              - 'set(name, "operation")'
+              - 'set(name, Concat(["HTTP", attributes["http.request.method"]], " ")) where IsString(attributes["http.request.method"])'
+              - 'set(status.message, "")'
+              {{- if not .Values.privacy.preserveSpanLinks }}
+              - 'set(links, nil)'
+              {{- end }}
+          - context: spanevent
+            statements:
+              - 'set(name, "event")'
+              - 'keep_keys(attributes, ["exception.type", "error.type"])'
+        metric_statements:
+          - context: resource
+            statements:
+              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
+          - context: scope
+            statements:
+              - 'keep_keys(attributes, [])'
+          - context: datapoint
+            statements:
+              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "rpc.system", "rpc.method", "rpc.service", "db.system", "messaging.system", "messaging.operation.type", "error.type", "exporter", "receiver", "processor", "connector", "transport", "data_type", "state", "type", "condition", "phase", "reason", "status", "outcome", "cpu", "mode", "direction", "protocol", "resource", "unit", "job", "instance", "elven_instance", "service.name", "service.namespace", "service.instance.id", "k8s.namespace.name", "k8s.node.name", "k8s.pod.name", "k8s.container.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.replicaset.name", "k8s.job.name", "k8s.cronjob.name", "k8s.volume.name", "k8s.persistentvolumeclaim.name", "container.name", "container.image.name", "namespace", "node", "pod", "container", "deployment", "le", "quantile", "method", "code"])'
+              - 'replace_all_patterns(attributes, "value", "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}", "[REDACTED]")'
+              - 'replace_all_patterns(attributes, "value", "eyJ[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+", "[REDACTED]")'
+    exporters:
+      {{- range $signal := list "logs" "metrics" "traces" }}
+      otlp_http/{{ $signal }}:
+        {{ $signal }}_endpoint: {{ index $.Values.endpoints $signal | quote }}
+        headers:
+          Authorization: Bearer ${env:ELVEN_API_TOKEN}
+          X-Scope-OrgID: ${env:ELVEN_TENANT_ID}
+        tls:
+          min_version: "1.2"
+          {{- if $.Values.exportTLS.existingCASecret }}
+          ca_file: /etc/elven/export-ca/ca.crt
+          {{- end }}
+        timeout: 10s
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 0s
+        sending_queue:
+          enabled: true
+          num_consumers: 1
+          sizer: bytes
+          queue_size: {{ $.Values.gateway.queueSizeBytes }}
+          block_on_overflow: true
+          storage: file_storage/exports
+          batch:
+            sizer: items
+            min_size: 256
+            max_size: 512
+            flush_timeout: 1s
+      {{- end }}
+    service:
+      extensions: [health_check, file_storage/exports]
+      telemetry:
+        logs: {level: error}
+        metrics:
+          level: normal
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: {{ .Values.ports.metrics }}
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource/identity, transform/privacy]
+          exporters: [otlp_http/logs]
+        metrics:
+          receivers: [otlp{{ if .Values.selfMonitoring.enabled }}, prometheus/self{{ end }}]
+          processors: [memory_limiter, resource/identity, transform/privacy]
+          exporters: [otlp_http/metrics]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resource/identity, transform/privacy]
+          exporters: [otlp_http/traces]
