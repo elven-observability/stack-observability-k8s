@@ -79,6 +79,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: elven-validation-python-${{ matrix.python-version }}
+          include-hidden-files: true
           path: .artifacts/validation-*/report.json
           if-no-files-found: warn
           retention-days: 7
@@ -153,6 +154,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: elven-disposable-kubernetes
+          include-hidden-files: true
           path: |
             .artifacts/kind-*/report.json
             .artifacts/kind-*/diagnostics.txt

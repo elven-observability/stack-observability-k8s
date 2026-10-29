@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build-and-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,11 +34,17 @@ jobs:
         with:
           version: v29.9.2
           daemon-config: '{"features":{"containerd-snapshotter":true}}'
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - id: builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
           version: v0.76.1
+      - name: Inspect disposable CI runner storage before building
+        run: |
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          docker system df
       - name: Validate locks and build both architectures without publishing
+        timeout-minutes: 30
         env:
           RELEASE_REF: ${{ github.ref }}
         run: |
@@ -48,6 +54,27 @@ jobs:
             version="${RELEASE_REF#refs/tags/}"
           fi
           python3 scripts/images-release.py build --version "$version" --platform linux/amd64,linux/arm64
+      - name: Reclaim only this disposable CI builder cache and verify preserved OCI archives
+        if: success()
+        env:
+          ELVEN_CI_BUILDER: ${{ steps.builder.outputs.name }}
+        run: |
+          test -n "$ELVEN_CI_BUILDER"
+          test -s artifacts/images/release.json
+          docker buildx prune --builder "$ELVEN_CI_BUILDER" --all --force
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          directory = pathlib.Path("artifacts/images")
+          manifest = json.loads((directory / "release.json").read_text())
+          assert set(manifest["images"]) == {"collector", "beyla", "alloy"}, "Missing OCI exports"
+          for name, image in manifest["images"].items():
+              with (directory / image["archive"]).open("rb") as source:
+                  digest = hashlib.file_digest(source, "sha256").hexdigest()
+              assert digest == image["archiveSha256"], f"{name}: OCI archive changed during cache cleanup"
+          print("All three exported OCI archives preserved with unchanged SHA-256")
+          PY
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
+          docker system df
       - name: Gate every runtime/architecture on HIGH and CRITICAL vulnerabilities
         run: python3 scripts/images-release.py scan
       - name: Load the exact scanned Collector and profiler archives and select immutable references
@@ -90,6 +117,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: elven-runtime-evidence
+          include-hidden-files: true
           path: |
             .artifacts/validation-*/report.json
             .artifacts/kind-*/report.json

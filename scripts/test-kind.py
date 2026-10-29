@@ -523,12 +523,24 @@ class Lab:
             if process.poll() is None:
                 process.kill()
             log.close()
-        if self.created and not self.keep:
-            # Exact synthetic cluster name, never an environment-derived target.
-            execute(["kind", "delete", "cluster", "--name", self.name], timeout=180)
-        self.report["cluster_retained"] = self.created and self.keep
-        (self.directory / "report.json").write_text(json.dumps(self.report, indent=2) + "\n")
-        print("Evidence:", self.directory / "report.json", flush=True)
+        self.report["cluster_retained"] = self.created
+        try:
+            if self.created and not self.keep:
+                # Kind also edits kubeconfig during deletion. Pass the same
+                # private file used at creation, never $KUBECONFIG or ~/.kube/config.
+                # CI deliberately sets KUBECONFIG=/dev/null, whose adjacent lock
+                # file is not writable by an unprivileged runner.
+                execute(["kind", "delete", "cluster", "--name", self.name,
+                         "--kubeconfig", self.kubeconfig], timeout=180)
+                self.report["cluster_retained"] = False
+        except Exception as error:
+            self.report["cleanup_error"] = str(error)
+            raise
+        finally:
+            # Preserve functional results even when teardown fails. The exception
+            # still fails CI, and retained=True records incomplete cleanup.
+            (self.directory / "report.json").write_text(json.dumps(self.report, indent=2) + "\n")
+            print("Evidence:", self.directory / "report.json", flush=True)
 
 
 def main():

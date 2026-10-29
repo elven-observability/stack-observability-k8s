@@ -4,7 +4,7 @@
   "runtime_requested": true,
   "schema_requested": true,
   "tests": {
-    "run": 82,
+    "run": 95,
     "failures": 0,
     "errors": 0,
     "skipped": 0
@@ -42,7 +42,7 @@
     {
       "test": "profiles HTTPS scrape and export",
       "result": "passed",
-      "output": "{\"result\": \"PASS\", \"image\": \"docker.io/elvenobservability/elven-profiler:1.0.0-dev@sha256:53fa99c19d5587a468c0a4da18f8728059e3b26f14d675d5f9671363095442f5\", \"scrapes\": 4, \"posts\": 1, \"payload_bytes\": 417, \"authenticated_posts\": 1, \"mutual_tls_scrapes\": 4, \"network\": \"internal Docker bridge; no published ports or host networking\", \"not_proven\": [\"durable retention/WAL\", \"NetworkPolicy\", \"client workloads\", \"real tenant\"]}"
+      "output": "{\"result\": \"PASS\", \"image\": \"docker.io/elvenobservability/elven-profiler:1.0.0-dev@sha256:53fa99c19d5587a468c0a4da18f8728059e3b26f14d675d5f9671363095442f5\", \"scrapes\": 1, \"posts\": 1, \"payload_bytes\": 419, \"authenticated_posts\": 1, \"mutual_tls_scrapes\": 1, \"network\": \"internal Docker bridge; no published ports or host networking\", \"not_proven\": [\"durable retention/WAL\", \"NetworkPolicy\", \"client workloads\", \"real tenant\"]}"
     }
   ]
 }

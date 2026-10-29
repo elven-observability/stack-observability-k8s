@@ -6,7 +6,7 @@ Candidato `1.0.0-rc.1` implementado, com imagens Elven construídas localmente e
 
 Evidências sanitizadas:
 
-- [82 testes, schemas e runtimes reais](evidence/2026-10-29/validation.json).
+- [95 testes, schemas e runtimes reais](evidence/2026-10-29/validation.json).
 - [25 verificações Kubernetes reais no índice final](evidence/2026-10-29/kind.json).
 - [Builds, SBOMs, scans, hashes e licenças](../images/validation-2026-10-29.json).
 - [Versões oficiais, compatibilidade e advisories](versions.md).
@@ -51,7 +51,7 @@ Govulncheck 1.9.0 passou nos dois binários mínimos. O alerta OpenPGP no invent
 
 | Verificação | Resultado |
 |---|---|
-| Contratos chart/CLI, PKI, probe, gates de imagem e legado | **82 aprovados; zero falhas/erros/skips.** |
+| Contratos chart/CLI, PKI, probe, gates de imagem, CI e legado | **95 aprovados; zero falhas/erros/skips.** |
 | Schemas Kubernetes estritos | **23/23 recursos válidos em cada minor 1.35, 1.36 e 1.37.** |
 | Configs gateway, node e cluster-reader | Aceitas pelo binário Elven final **02347…**, sem rede, cap-drop e rootfs read-only. |
 | Profiler próprio | Config aceita; scrape pprof mTLS e POST autenticado positivos. |
@@ -72,6 +72,8 @@ A rodada Kind comprovou:
 - Duas releases, sentinela e spec/UID de aplicação anterior preservados; uninstall retém os dois PVCs.
 
 Clusters descartáveis e túneis foram encerrados. Não houve alteração de kernel/sysctl, execução eBPF no host Desktop ou interação com kubeconfig ativo de cliente.
+
+A primeira rodada Linux amd64 passou pelos 25 checks funcionais, mas falhou no teardown: Kind tentou gravar `/dev/null.lock` devido ao `KUBECONFIG` defensivo da CI. A correção usa o kubeconfig privado explicitamente também na remoção e preserva o relatório mesmo se o teardown falhar; seis regressões cobrem essa fronteira. A CI também inclui explicitamente os relatórios em diretórios ocultos, sem enviar chaves/kubeconfigs. O build descarta somente o cache do builder descartável próprio, verificando novamente os hashes dos três archives. A conclusão da CI da revisão corrigida deve ser conferida no PR; o primeiro job com falha não conta como CI verde.
 
 ## Instalação e migração
 
