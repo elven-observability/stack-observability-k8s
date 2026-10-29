@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-10-29",
+  "distribution": {
+    "name": "Elven Observability Distribution",
+    "version": "1.0.0",
+    "repository": "https://github.com/elven-observability/stack-observability-k8s",
+    "registry": "docker.io/elvenobservability",
+    "publicationStatus": "not-published",
+    "platforms": ["linux/amd64", "linux/arm64"]
+  },
+  "images": {
+    "collector": {
+      "upstream": {"repository": "docker.io/otel/opentelemetry-collector-contrib", "tag": "0.164.0", "digest": "sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b", "sourceVersion": "0.164.1", "source": "https://github.com/open-telemetry/opentelemetry-collector-contrib", "release": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0", "license": "Apache-2.0"},
+      "distribution": {"repository": "docker.io/elvenobservability/elven-collector", "digest": null, "status": "not-published"},
+      "dockerfile": "images/collector/Dockerfile",
+      "sourceBuild": {"type": "ocb-minimal", "builderVersion": "0.164.0", "coreVersion": "0.164.0", "contribVersion": "0.164.1", "manifest": "images/collector/builder-config.yaml", "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9", "securityOverrides": {"github.com/go-jose/go-jose/v4": "4.1.6", "golang.org/x/net": "0.62.0"}, "reason": "Official full contrib runtime contains CVE-2026-116587; remove unused components and pin patched dependencies instead of waiving scan findings. x/net 0.62.0 also corrects CVE-2026-78661 and CVE-2026-97045."}
+    },
+    "beyla": {
+      "upstream": {"repository": "docker.io/grafana/beyla", "tag": "3.40.0", "digest": "sha256:59e31947a79178f7228e3886d061e1261f792e84ea7365b8b54113232437a8b4", "sourceVersion": "3.40.0", "source": "https://github.com/grafana/beyla", "release": "https://github.com/grafana/beyla/releases/tag/v3.40.0", "license": "Apache-2.0"},
+      "distribution": {"repository": "docker.io/elvenobservability/elven-ebpf", "digest": null, "status": "not-published"},
+      "dockerfile": "images/ebpf/Dockerfile"
+    },
+    "alloy": {
+      "upstream": {"repository": "docker.io/grafana/alloy", "tag": "v1.21.3", "digest": "sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4", "sourceVersion": "1.21.3", "source": "https://github.com/grafana/alloy", "release": "https://github.com/grafana/alloy/releases/tag/v1.21.3", "license": "Apache-2.0"},
+      "distribution": {"repository": "docker.io/elvenobservability/elven-profiler", "digest": null, "status": "not-published"},
+      "dockerfile": "images/profiler/Dockerfile"
+    }
+  },
+  "tools": {
+    "helm": "4.3.1",
+    "helm3Compatibility": "3.22.1",
+    "trivy": "0.76.1",
+    "cosign": "3.1.4",
+    "govulncheck": "1.9.0",
+    "ciDocker": "29.9.2",
+    "crane": {"version": "0.22.1", "linuxAmd64": {"url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz", "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0"}},
+    "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315"
+  },
+  "support": {
+    "kubernetes": {"maintainedMinors": ["1.35", "1.36", "1.37"], "latestPatches": ["1.35.10", "1.36.6", "1.37.2"], "legacyPolicy": "Explicit exception; upstream EOL is not distribution validation."},
+    "beyla": {"minimumKernel": "5.11", "upstreamMinimumKernel": "5.8", "btfRequired": true, "headerContextPropagationMinimumKernel": "5.17", "contextPropagationDefault": "disabled"}
+  }
+}

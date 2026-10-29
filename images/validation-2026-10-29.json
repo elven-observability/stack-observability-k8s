@@ -1,0 +1,255 @@
+{
+  "candidateVersion": "1.0.0-dev",
+  "ebpfCapture": "not-executed",
+  "images": {
+    "alloy": {
+      "archiveSha256": "98e3e1ac54ce648c808313c2894cea20b08f92af51edd8caf5cbe76a685d1d68",
+      "artifactDirectory": "artifacts/images-wrappers-final",
+      "digest": "sha256:53fa99c19d5587a468c0a4da18f8728059e3b26f14d675d5f9671363095442f5",
+      "dirtySource": true,
+      "inputsSha256": {
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "images/profiler/Dockerfile": "cd72cc6949724f4f1991c531c7e2922d471e0efe72d079ad2b61600e457f82d6",
+        "images/profiler/Dockerfile.dockerignore": "6a8902f1016ce1e673eb26e493d64aa64eee4e1f1c759b967c7ddb7a21014b0a",
+        "images/profiler/LICENSING.md": "05439b18aa05160fadbccd1d74324f0d4fdfb7ddcdd6489f4f10932b45c21390",
+        "images/profiler/NOTICE": "914f18a4c5cb9d4a20415fe13acb87dbbbfedacef5446a57962caf785f69d807"
+      },
+      "metadataSha256": "ed745eb8f4596d4d0b02c3459bfd3d58fad3ccb9b20298e2e77ca39964bab82c",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "ee7d2afb9718f8c874ae8ffa618abadb865f0bad7522fc6d5be89a617a4ce9cb",
+          "sbomSha256": "9632ca7b8a7536d089365af86d0caa726aea87475b4dd509faff9b01f2653251",
+          "scannedAt": "2026-10-29T15:24:28.714278+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "LOW": 4,
+            "MEDIUM": 22,
+            "UNKNOWN": 3
+          },
+          "status": "passed",
+          "unknownIds": [
+            "CVE-2026-78661",
+            "CVE-2026-97045",
+            "GO-2026-5932"
+          ]
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "e0f372c4c984c2a6d9b9287501c4f90920db03202829ec27b1a07b429cb07a73",
+          "sbomSha256": "62990bae9215cd4db54f0ae45e616f801520d08c0e33360168208be0fa628a2e",
+          "scannedAt": "2026-10-29T15:24:29.091019+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "LOW": 4,
+            "MEDIUM": 22,
+            "UNKNOWN": 3
+          },
+          "status": "passed",
+          "unknownIds": [
+            "CVE-2026-78661",
+            "CVE-2026-97045",
+            "GO-2026-5932"
+          ]
+        }
+      },
+      "sourceRevision": "f9168a12669ac7a46f46782047ad78175dd3a9c9",
+      "tag": "docker.io/elvenobservability/elven-profiler:1.0.0-dev"
+    },
+    "beyla": {
+      "archiveSha256": "2fa7f7d109adb7825eaf797e3ffd6bde8f1606462051a4102f9a38bb018701c9",
+      "artifactDirectory": "artifacts/images-wrappers-final",
+      "digest": "sha256:a792fc040ad08cb1921984d9dda29bda19240c258ac31f396b6a808a7da11071",
+      "dirtySource": true,
+      "inputsSha256": {
+        "images/ebpf/Dockerfile": "9f7ddd1d0a8874d34504268d1ce543bbb495627a2992314622a373332a25531e",
+        "images/ebpf/Dockerfile.dockerignore": "5b2e0f4a017f7089ba463eb6316ffa40723acf41ec46a74ef0b94463f6f75829",
+        "images/ebpf/NOTICE": "c8ac7c78f8e39f28c46dde269f85dd68e1bdb650b66f068fec364b649398cba2",
+        "images/ebpf/UPSTREAM-NOTICE": "e8c996722d16593a93edfe67900cc7463f8f52ff3d2e141a0722cced135e72d3",
+        "images/ebpf/third_party_licenses.csv": "473632a2158440384b9543f38121ab2e9672ae115b030204ee26104c6cb68b1e",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "metadataSha256": "388f284056a7523c003852198d4128d20229eb14f1082a0da9f41102c187c045",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "7df815ad6b3e9bb2af8d49c4fdd763d94d789f92399529bc84b2ad271bfb5ac2",
+          "sbomSha256": "ea91ae142b5e251ff793e9464a5de2f5b57d38116d394697ff4ff0aa1938bebc",
+          "scannedAt": "2026-10-29T15:24:25.795700+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "UNKNOWN": 3
+          },
+          "status": "passed",
+          "unknownIds": [
+            "CVE-2026-78661",
+            "CVE-2026-97045",
+            "GO-2026-5932"
+          ]
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "af44bb33946d881cf16cdd3f9e15e2598147d603d55bdec92bd2f63587e841d1",
+          "sbomSha256": "adf48b76315a74e2f3bfddc5763dc7de3c1e1236f0e08b23651b94ce8babcbbc",
+          "scannedAt": "2026-10-29T15:24:26.008790+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "UNKNOWN": 3
+          },
+          "status": "passed",
+          "unknownIds": [
+            "CVE-2026-78661",
+            "CVE-2026-97045",
+            "GO-2026-5932"
+          ]
+        }
+      },
+      "sourceRevision": "f9168a12669ac7a46f46782047ad78175dd3a9c9",
+      "tag": "docker.io/elvenobservability/elven-ebpf:1.0.0-dev"
+    },
+    "collector": {
+      "archiveSha256": "eb29580a804d2f0ff5b5e10ebe26265f768977e895f4b59bc53c562bc78c36a1",
+      "artifactDirectory": "artifacts/images-minimal-licensed",
+      "binaryUnchangedFromPreviousTestedCandidate": true,
+      "digest": "sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+      "dirtySource": true,
+      "govulncheck": {
+        "linux/amd64": {
+          "binarySha256": "09df5f5eb7c5af46f27e09d899171d48fa3a4913afe54d7fd7d739fe2cd02ac4",
+          "exitCode": 0,
+          "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+          "mode": "binary-symbol-analysis-not-native-execution",
+          "report": "collector.linux-amd64.govulncheck.json",
+          "reportSha256": "b992aec07eedbd6bf2c91c889ba5de3fdbfb153f9af473fbb5178adffafdb752",
+          "scannedAt": "2026-10-29T15:48:27.126642+00:00",
+          "status": "passed",
+          "tool": "govulncheck/1.9.0"
+        },
+        "linux/arm64": {
+          "binarySha256": "80ec82e493d6f437c44ff4f253e615b9bbbc59f6bc72effdc628d257d84d7196",
+          "exitCode": 0,
+          "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+          "mode": "binary-symbol-analysis-not-native-execution",
+          "report": "collector.linux-arm64.govulncheck.json",
+          "reportSha256": "e5a46229ca479877cb1b8a12adbe3ad87a13fcc795de7b568c1e66dd57ac21c0",
+          "scannedAt": "2026-10-29T15:48:27.128571+00:00",
+          "status": "passed",
+          "tool": "govulncheck/1.9.0"
+        }
+      },
+      "inputsSha256": {
+        "images/collector/Dockerfile": "bddfac70f694dca03d917b61ae5754aaca6fc54726869824ca6f7b204a748966",
+        "images/collector/Dockerfile.dockerignore": "946de9fc4661bc19929ad6a7329b666fe47b273adfa4b61f191a7f6196eaa2c2",
+        "images/collector/NOTICE": "0012d61c968bb9662f0e890b0a321f74b627f3e7f0048f1ea69598299ad411bb",
+        "images/collector/builder-config.yaml": "606856600927dcee56b0d9bfa90456e9505b0bbeaab8546f512abfa40112ad92",
+        "images/collector/license-bundle.go": "c146eafcf166c8c9d360e9fcdf088ef5b389cdca59c2c67ff797fecc1c78edca",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      },
+      "licenseBundles": {
+        "linux/amd64": {
+          "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+          "modulesWithNotices": 480,
+          "report": "collector.linux-amd64.licenses.json",
+          "reportSha256": "de92a28178239592d5df3200d9b52b6f71eabb9519da05879586ad432c7feaf2",
+          "status": "passed",
+          "verifiedNoticeCount": 571
+        },
+        "linux/arm64": {
+          "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+          "modulesWithNotices": 480,
+          "report": "collector.linux-arm64.licenses.json",
+          "reportSha256": "de92a28178239592d5df3200d9b52b6f71eabb9519da05879586ad432c7feaf2",
+          "status": "passed",
+          "verifiedNoticeCount": 571
+        }
+      },
+      "metadataSha256": "2a3026fb888919e9212c2b6dc88ba3f20b3296d23b71e3eaabba3784bb759e05",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "previousCandidateDigest": "sha256:e434eedf0274edd9e834ae737288b080d7503be0c369ef85123d0d54775b1e3d",
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "09d345a1ba06121b050627f59e15a9e5a5c5dc7d01f929c797dc0534a3be29a8",
+          "sbomSha256": "8829879edfbd23674d15627d376ae1212b97c05409852bf35ee5eddf296825b5",
+          "scannedAt": "2026-10-29T15:47:42.740809+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "UNKNOWN": 1
+          },
+          "status": "passed",
+          "unknownIds": [
+            "GO-2026-5932"
+          ]
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-10-29T13:09:46.269823229Z",
+          "highCriticalCount": 0,
+          "reportSha256": "14ff94e9acece7965e75ca410e0ca902abead376549dd30b5a09e1f1d2f302b8",
+          "sbomSha256": "ad15183f9b2da84f7b618fc61e5bd2b7cb8cc6b85182c9b486dffb43234dbd19",
+          "scannedAt": "2026-10-29T15:47:43.038141+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "UNKNOWN": 1
+          },
+          "status": "passed",
+          "unknownIds": [
+            "GO-2026-5932"
+          ]
+        }
+      },
+      "sourceBuild": {
+        "builderVersion": "0.164.0",
+        "contribVersion": "0.164.1",
+        "coreVersion": "0.164.0",
+        "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9",
+        "manifest": "images/collector/builder-config.yaml",
+        "reason": "Official full contrib runtime contains CVE-2026-116587; remove unused components and pin patched dependencies instead of waiving scan findings. x/net 0.62.0 also corrects CVE-2026-78661 and CVE-2026-97045.",
+        "securityOverrides": {
+          "github.com/go-jose/go-jose/v4": "4.1.6",
+          "golang.org/x/net": "0.62.0"
+        },
+        "type": "ocb-minimal"
+      },
+      "sourceRevision": "f9168a12669ac7a46f46782047ad78175dd3a9c9",
+      "tag": "docker.io/elvenobservability/elven-collector:1.0.0-dev"
+    }
+  },
+  "initialFailure": {
+    "advisory": "CVE-2026-116587",
+    "component": "full-upstream-collector-wrapper",
+    "fixedVersion": "4.1.6",
+    "highCriticalCount": 1,
+    "installedVersion": "4.1.5",
+    "package": "github.com/go-jose/go-jose/v4",
+    "platform": "linux/arm64",
+    "reportDirectory": "artifacts/images"
+  },
+  "limitations": [
+    "Local development images built from dirty sources; not eligible for publication or GA.",
+    "No images were published, remotely signed, or promoted.",
+    "No native amd64 runtime or host Beyla capture was executed in this workstation.",
+    "UNKNOWN, Medium and Low findings remain visible; zero HIGH/CRITICAL is not zero vulnerabilities."
+  ],
+  "nativeAmd64Execution": "not-executed-locally-required-by-release-ci",
+  "promotionStatus": "not-executed",
+  "publicationStatus": "not-published",
+  "schemaVersion": 1,
+  "signingStatus": "not-executed",
+  "verifiedOn": "2026-10-29"
+}

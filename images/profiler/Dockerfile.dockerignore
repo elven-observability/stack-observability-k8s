@@ -1,0 +1,8 @@
+**
+!images
+!images/licenses
+!images/licenses/**
+!images/profiler
+!images/profiler/Dockerfile
+!images/profiler/NOTICE
+!images/profiler/LICENSING.md

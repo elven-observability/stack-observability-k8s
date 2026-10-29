@@ -1,0 +1,8 @@
+Elven eBPF is a distribution of Grafana Beyla 3.40.0.
+Upstream copyright Grafana Labs and the contributors identified in UPSTREAM-NOTICE.
+Elven packaging copyright Elven Observability contributors, licensed Apache-2.0.
+
+Upstream binary and all upstream image files are preserved without modification.
+Source: https://github.com/grafana/beyla/tree/v3.40.0
+Upstream NOTICE and third_party_licenses.csv are included unchanged alongside this file.
+This packaging does not imply endorsement by Grafana Labs or OpenTelemetry.
