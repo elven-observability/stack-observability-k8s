@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${ELVEN_ALLOW_UNSUPPORTED_LEGACY:-}" != "1" ]]; then
+  printf '%s\n' 'legacy/v0: deprecated and unsupported; execution blocked. Read UNSUPPORTED.md and review ownership risks before explicitly setting ELVEN_ALLOW_UNSUPPORTED_LEGACY=1.' >&2
+  exit 78
+fi
+
 NAMESPACE="${ELVEN_NAMESPACE:-monitoring}"
 SECRET_NAME="${ELVEN_MYSQL_PASSWORD_SECRET:-elven-mysql-exporter}"
 SECRET_KEY="${ELVEN_MYSQL_PASSWORD_SECRET_KEY:-password}"
