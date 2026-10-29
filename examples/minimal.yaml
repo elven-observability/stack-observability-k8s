@@ -1,0 +1,18 @@
+# REVIEW TEMPLATE, not a production-specific configuration.
+# ./elven supplies the actual cluster identity and release-scoped Secret names.
+# No credential value belongs in this file. All host modules stay disabled.
+cluster:
+  environment: production
+gateway:
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: "" # Select a real class or confirm the cluster default.
+privacy:
+  logBodyMode: strict
+collection:
+  namespaces: [] # Explicitly approved OTLP source namespaces; no discovery.
+networkPolicy:
+  enabled: true
+  exportCIDRs: [] # REQUIRED before install: approved, current SaaS IP ranges.
+

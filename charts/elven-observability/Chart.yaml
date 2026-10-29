@@ -1,0 +1,13 @@
+apiVersion: v2
+name: elven-observability
+description: Elven-owned, CRD-free Kubernetes telemetry distribution
+type: application
+version: 1.0.0-rc.1
+appVersion: "1.0.0-rc.1"
+kubeVersion: ">=1.35.0-0 <1.38.0-0"
+home: https://github.com/elven-observability/stack-observability-k8s
+sources:
+  - https://github.com/open-telemetry/opentelemetry-collector-contrib
+  - https://github.com/grafana/beyla
+  - https://github.com/grafana/alloy
+keywords: [elven, observability, opentelemetry, metrics, logs, traces]

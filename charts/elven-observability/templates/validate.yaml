@@ -1,0 +1,105 @@
+{{- /* Cross-field invariants complement the strict JSON Schema. No cluster I/O. */ -}}
+{{- $aliasNames := dict -}}
+{{- range .Values.nodeAgent.hostAliases -}}
+{{- range .hostnames -}}
+{{- if hasKey $aliasNames . -}}{{ fail (printf "nodeAgent.hostAliases duplicates hostname %s" .) }}{{- end -}}
+{{- $_ := set $aliasNames . true -}}
+{{- end -}}
+{{- end -}}
+{{- range $annotation, $_ := .Values.podAnnotations -}}
+{{- if hasPrefix "checksum/" $annotation -}}
+{{- fail "podAnnotations checksum/* keys are reserved for deterministic distribution rollouts" -}}
+{{- end -}}
+{{- end -}}
+{{- if lt (int (trimSuffix "Gi" .Values.gateway.persistence.ephemeralSizeLimit)) 1 -}}
+{{- fail "gateway.persistence.ephemeralSizeLimit must be at least 1Gi; queues, indexes and compaction need separate headroom" -}}
+{{- end -}}
+{{- range $selector := list .Values.nodeSelector .Values.nodeAgent.nodeSelector -}}
+{{- if and (hasKey $selector "kubernetes.io/os") (ne (get $selector "kubernetes.io/os") "linux") -}}
+{{- fail "Only Linux nodes are supported: nodeSelector kubernetes.io/os must be linux" -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.privacy.preserveSpanLinks (not .Values.privacy.spanLinkAttributesApproved) -}}
+{{- fail "privacy.preserveSpanLinks requires privacy.spanLinkAttributesApproved: link attributes are not sanitized by the pinned Collector transform processor" -}}
+{{- end -}}
+{{- if and .Values.modules.clusterMetrics.enabled (empty .Values.collection.namespaces) (not .Values.modules.clusterMetrics.clusterWideApproved) -}}
+{{- fail "Cluster-wide Kubernetes state collection requires modules.clusterMetrics.clusterWideApproved=true; otherwise select collection.namespaces" -}}
+{{- end -}}
+{{- $ports := dict -}}
+{{- range $key, $port := .Values.ports -}}
+{{- $id := printf "%v" $port -}}
+{{- if hasKey $ports $id -}}{{ fail (printf "ports.%s duplicates %s (%v); all listeners must have distinct ports" $key (get $ports $id) $port) }}{{- end -}}
+{{- $_ := set $ports $id $key -}}
+{{- end -}}
+{{- range $signal, $endpoint := .Values.endpoints -}}
+{{- $url := urlParse $endpoint -}}
+{{- $authority := get $url "host" | default "" -}}
+{{- if or (eq $authority "localhost") (hasPrefix "localhost:" $authority) (hasPrefix "127." $authority) (hasPrefix "0.0.0.0" $authority) (contains ".." $authority) -}}
+{{- fail (printf "endpoints.%s must use a real HTTPS destination, not a local or malformed host" $signal) -}}
+{{- end -}}
+{{- $endpointPort := 443 -}}
+{{- if contains ":" $authority -}}{{- $endpointPort = (last (splitList ":" $authority) | int) -}}{{- end -}}
+{{- if or (lt $endpointPort 1) (gt $endpointPort 65535) -}}{{ fail (printf "endpoints.%s must use a valid port" $signal) }}{{- end -}}
+{{- if $.Values.networkPolicy.enabled -}}
+{{- $allowedPort := false -}}
+{{- range $.Values.networkPolicy.exportPorts -}}{{- if eq (printf "%v" .) (printf "%v" $endpointPort) -}}{{- $allowedPort = true -}}{{- end -}}{{- end -}}
+{{- if not $allowedPort -}}{{ fail (printf "endpoints.%s port %v is absent from networkPolicy.exportPorts" $signal $endpointPort) }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $nodeCollection := or .Values.modules.logs.enabled .Values.modules.kubeletMetrics.enabled .Values.modules.ebpf.enabled -}}
+{{- if and $nodeCollection (empty .Values.collection.namespaces) -}}
+{{- fail "collection.namespaces must contain explicit approved namespaces before enabling node collection" -}}
+{{- end -}}
+{{- range $namespace := .Values.collection.namespaces -}}
+{{- if or (eq $namespace $.Release.Namespace) (has $namespace (list "kube-system" "kube-public" "kube-node-lease")) -}}
+{{- fail (printf "collection.namespaces cannot include distribution/system namespace %s" $namespace) -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.modules.logs.enabled (not .Values.modules.logs.hostAccessApproved) -}}
+{{- fail "modules.logs.hostAccessApproved must be true after reviewing read-only host log access" -}}
+{{- end -}}
+{{- if .Values.modules.ebpf.enabled -}}
+{{- if not .Values.modules.ebpf.hostAccessApproved -}}{{ fail "modules.ebpf.hostAccessApproved must be true after reviewing hostPID, eBPF capabilities and kernel support" }}{{- end -}}
+{{- if and (not (empty .Values.modules.ebpf.additionalCapabilities)) (not .Values.modules.ebpf.additionalCapabilitiesApproved) -}}
+{{- fail "modules.ebpf.additionalCapabilitiesApproved must be true before adding SYS_ADMIN/SYS_RESOURCE; review the specific platform need, never enable a generic privileged fallback" -}}
+{{- end -}}
+{{- if empty .Values.modules.ebpf.workloads -}}{{ fail "modules.ebpf.workloads must select explicit namespace/deployment pairs" }}{{- end -}}
+{{- range $workload := .Values.modules.ebpf.workloads -}}
+{{- if not (has $workload.namespace $.Values.collection.namespaces) -}}{{ fail (printf "eBPF workload namespace %s is not in collection.namespaces" $workload.namespace) }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.networkPolicy.enabled -}}
+{{- if and (or .Values.modules.clusterMetrics.enabled .Values.modules.ebpf.enabled) (empty .Values.networkPolicy.apiServerCIDRs) -}}
+{{- fail "networkPolicy.apiServerCIDRs must contain reviewed API destinations (including effective post-DNAT addresses) for Kubernetes readers" -}}
+{{- end -}}
+{{- if and .Values.modules.kubeletMetrics.enabled (empty .Values.networkPolicy.kubeletCIDRs) -}}
+{{- fail "networkPolicy.kubeletCIDRs must contain reviewed node destinations before enabling kubelet metrics" -}}
+{{- end -}}
+{{- if and .Values.modules.profiles.enabled (empty .Values.networkPolicy.profileCIDRs) -}}
+{{- fail "networkPolicy.profileCIDRs must contain reviewed pprof destinations before enabling profiles" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.modules.profiles.enabled -}}
+{{- if not .Values.modules.profiles.dataPolicyApproved -}}
+{{- fail "modules.profiles.dataPolicyApproved must be true after approving pprof frames/labels: profiles bypass OTLP sanitization and have no durable WAL" -}}
+{{- end -}}
+{{- if empty .Values.modules.profiles.targets -}}{{ fail "modules.profiles.targets must contain explicit HTTPS/mTLS pprof targets" }}{{- end -}}
+{{- $targetNames := dict -}}
+{{- range $target := .Values.modules.profiles.targets -}}
+{{- if hasKey $targetNames $target.name -}}{{ fail (printf "duplicate profile target name %s" $target.name) }}{{- end -}}
+{{- $_ := set $targetNames $target.name true -}}
+{{- $parts := splitList ":" $target.address -}}
+{{- $host := first $parts -}}
+{{- if or (eq $host "localhost") (hasPrefix "127." $host) (eq $host "0.0.0.0") (contains ".." $host) -}}{{ fail (printf "profile target %s must identify an approved non-local HTTPS destination" $target.name) }}{{- end -}}
+{{- $port := last $parts | int -}}
+{{- if or (lt $port 1) (gt $port 65535) -}}{{ fail (printf "profile target %s must use a valid port" $target.name) }}{{- end -}}
+{{- if $.Values.networkPolicy.enabled -}}
+{{- /* Numeric representations differ in Go YAML; compare their canonical text. */ -}}
+{{- $allowed := false -}}{{- range $.Values.networkPolicy.profilePorts -}}{{- if eq (printf "%v" .) (printf "%v" $port) -}}{{- $allowed = true -}}{{- end -}}{{- end -}}
+{{- if not $allowed -}}{{ fail (printf "profile target %s port %v is absent from networkPolicy.profilePorts" $target.name $port) }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.gateway.pdb.enabled (lt (int .Values.gateway.replicas) 2) -}}
+{{- fail "gateway.pdb.enabled requires gateway.replicas >= 2; a singleton PDB does not provide high availability" -}}
+{{- end -}}

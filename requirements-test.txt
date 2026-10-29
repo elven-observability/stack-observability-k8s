@@ -1,0 +1,6 @@
+# Maintainer/CI dependencies only; ./elven does not import these packages.
+PyYAML==6.0.3
+jsonschema==4.26.0
+opentelemetry-proto==1.45.1
+protobuf==7.36.2
+

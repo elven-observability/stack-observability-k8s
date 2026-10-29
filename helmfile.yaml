@@ -1,0 +1,5 @@
+# Compatibility sentinel: intentionally no releases and no hooks.
+# The old `helmfile apply` must never silently migrate or uninstall a client
+# installation. Use ./elven for UID/ownership/PKI/image-promotion gates.
+# Historical recovery is opt-in under legacy/v0/UNSUPPORTED.md.
+releases: []

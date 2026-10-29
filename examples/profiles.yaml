@@ -1,0 +1,20 @@
+# REVIEW TEMPLATE: pprof endpoints must already exist and be authorized.
+# This module does not install profiling packages or change applications.
+modules:
+  profiles:
+    enabled: false
+    dataPolicyApproved: false # Frames/labels are not sanitized by the gateway.
+    targets: []
+    # After confirming destination, mTLS and service coverage:
+    # targets:
+    #   - name: approved-service
+    #     address: approved-service.applications.svc.cluster.local:443
+    #     scheme: https
+    #     path: /debug/pprof
+    #     secretName: approved-pprof-client
+    # Secret keys: ca.crt, client.crt, client.key; provision outside Helm/Git.
+networkPolicy:
+  exportCIDRs: []
+  profileCIDRs: []
+  profilePorts: [443]
+
