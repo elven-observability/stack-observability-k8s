@@ -17,4 +17,3 @@ networkPolicy:
   exportCIDRs: []
   profileCIDRs: []
   profilePorts: [443]
-

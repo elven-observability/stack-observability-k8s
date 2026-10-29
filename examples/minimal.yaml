@@ -15,4 +15,3 @@ collection:
 networkPolicy:
   enabled: true
   exportCIDRs: [] # REQUIRED before install: approved, current SaaS IP ranges.
-
