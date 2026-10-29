@@ -6,7 +6,7 @@ Não requer o gateway, Prometheus, Alloy ou Operator do cliente. Não instala CR
 
 **Candidato da linha 1.0 — instalação de produção bloqueada até publicação, assinatura e promoção verificadas das imagens Elven.** O lock desta revisão está `not-published`; a CLI recusa `preflight`, `install` e `upgrade` de produção nesse estado e também recusa imagens que não coincidam com repository/digest promovidos. Não há fallback automático para a imagem contrib completa: seu scan identificou uma dependência High e motivou o Collector Elven mínimo corrigido. Ver [supply chain](docs/supply-chain.md).
 
-Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir [suporte e gates de release](docs/support.md) e os resultados da revisão. Um artefato OCI local não é uma imagem publicada/assinada para produção.
+Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir o [relatório de validação e artefatos](docs/validation-2026-10-29.md) e [suporte/gates de release](docs/support.md). Um artefato OCI local não é uma imagem publicada/assinada para produção.
 
 ## Instalação mínima após promoção da release
 
