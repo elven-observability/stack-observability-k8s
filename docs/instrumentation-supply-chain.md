@@ -51,7 +51,7 @@ Imagem, SPDX e metadados de build recebem assinatura GitHub OIDC. Verificação 
 
 Além da verificação criptográfica, os dois SPDX assinados e os metadados devem corresponder aos hashes semânticos da evidência aprovada. Essa política fica persistida no lock promovido, com subject digest e tipos exatos; `verify` posterior não depende do diretório local de build. Ver o [formato de verificação e o pacote instalável pós-promoção](supply-chain.md#fonte-de-build-versus-pacote-instalável). O comando combinado `./elven install --instrumentation-values ...` continua exigindo os dois locks verificados; não acrescenta `--development-images` implicitamente.
 
-**Estado desta revisão:** builds e scans locais executados; publicação, assinatura remota e promoção não executadas. O lock continua `not-published`, sem digests Elven inventados. A instalação normal/injeção de produção permanece bloqueada até a promoção verificável; `--development-images` é uma opção explícita de laboratório. Nenhum cluster de cliente foi acessado.
+**Estado da release 1.0.0:** os cinco componentes foram publicados e assinados; o comando oficial de promoção conferiu novamente ambos SPDX, metadata e labels remotos e gerou o lock promovido usado nesta revisão. Os defaults agora coincidem com esses digests reais. O [registro da release](release-v1.0.0.md) preserva as falhas de revalidação de CI, a promoção completa verificada pelo mantenedor e a verificação pública independente por componente. Instalação normal não requer `--development-images`; isso não habilita runtimes/namespaces implicitamente. Nenhum cluster de cliente foi acessado.
 
 ## Privacidade e limites da granularidade
 

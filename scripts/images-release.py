@@ -35,10 +35,42 @@ APPROVED_REPOSITORIES = {
 }
 
 
+def verification_diagnostic(stderr):
+    """Classify errors without echoing headers, credentials, URLs or payloads."""
+    diagnostic = (stderr or "").lower()
+    markers = []
+    for label, terms in (
+        ("registry_rate_limit", ("toomanyrequests", "too many requests")),
+        ("registry_authentication", ("unauthorized", "authentication required")),
+        ("registry_denied", ("denied", "forbidden")),
+        ("manifest_missing", ("manifest_unknown", "name_unknown")),
+        ("network_timeout", ("context deadline exceeded", "timed out", "i/o timeout")),
+        ("network_transport", ("connection reset", "connection refused", "unexpected eof")),
+        ("tls_validation", ("x509", "certificate signed by unknown authority", "tls handshake")),
+        ("signature_or_attestation_missing", ("no matching signatures", "no matching attestations")),
+        ("signer_identity", ("certificate identity", "certificate oidc issuer")),
+    ):
+        if any(term in diagnostic for term in terms):
+            markers.append(label)
+    codes = re.findall(r"(?:status(?: code)?|http(?:/[0-9.]+)?)[:\s]+([45][0-9]{2})\b", diagnostic)
+    return ",".join([*markers, *("http_" + code for code in sorted(set(codes)))]) or "details_suppressed"
+
+
 def run(command, capture=False, **kwargs):
-    result = subprocess.run(command, text=True, capture_output=capture, **kwargs)
+    tool = Path(str(command[0])).name
+    verb = str(command[1]) if len(command) > 1 else ""
+    readonly = ((tool == "cosign" and verb in ("version", "verify", "verify-attestation"))
+                or (tool == "crane" and verb in ("digest", "config", "manifest", "validate")))
+    if readonly and "timeout" not in kwargs:
+        kwargs["timeout"] = 180
+    try:
+        result = subprocess.run(command, text=True, capture_output=capture, **kwargs)
+    except subprocess.TimeoutExpired:
+        state = "read-only verification" if readonly else "completion UNKNOWN"
+        raise RuntimeError(f"Command timed out: {tool} {verb}; {state}. Output suppressed.") from None
     if result.returncode:
-        raise RuntimeError(f"Command failed (exit {result.returncode}): {command[0]} {command[1] if len(command) > 1 else ''}")
+        diagnostic = "; " + verification_diagnostic(result.stderr) if readonly and capture else ""
+        raise RuntimeError(f"Command failed (exit {result.returncode}): {tool} {verb}{diagnostic}")
     return result.stdout.strip() if capture else None
 
 

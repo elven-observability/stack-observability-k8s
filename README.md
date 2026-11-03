@@ -4,15 +4,17 @@ Distribuição Kubernetes da Elven para receber e coletar telemetria com compone
 
 Não requer gateway, agentes ou Operator do cliente. O baseline não instala CRDs, webhooks, cert-manager ou SDKs nas aplicações: é um gateway OTLP com mTLS, exportação HTTPS autenticada e filas persistentes. Logs de containers, métricas Kubernetes/kubelet, eBPF e profiles são módulos explícitos. O módulo opcional **Elven Instrumentation Operator** acrescenta um webhook próprio, sem CRDs e sem acesso à API pelo runtime, para injetar SDKs somente nos Pods/containers autorizados.
 
-**Candidato da linha 1.0 — instalação de produção bloqueada até publicação, assinatura e promoção verificadas das imagens Elven.** O lock desta revisão está `not-published`; a CLI recusa `preflight`, `install` e `upgrade` de produção nesse estado e também recusa imagens que não coincidam com repository/digest promovidos. Não há fallback automático para a imagem contrib completa: seu scan identificou uma dependência High e motivou o Collector Elven mínimo corrigido. Ver [supply chain](docs/supply-chain.md).
+**Release 1.0.0 — oito imagens Elven públicas, assinadas por GitHub OIDC e fixadas por digest nos dois locks promovidos.** A instalação normal não usa `--development-images`; a CLI continua recusando imagens que não coincidam com os locks. Não há fallback para upstream ou `latest`. Consulte o [registro da release](docs/release-v1.0.0.md) e a [cadeia de fornecimento](docs/supply-chain.md).
 
 Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir o [hardening de 03/11 e seus gates](docs/hardening-2026-11-03.md), o [histórico de validação de 29/10](docs/validation-2026-10-29.md) e [suporte/gates de release](docs/support.md). Um artefato OCI local não é uma imagem publicada/assinada para produção.
 
-## Instalação mínima após promoção da release
+## Instalação de produção
 
-Este é o caminho de produção **depois** que o mantenedor concluir publicação/assinatura/verificação/promoção do lock e dos defaults do chart. Na revisão candidata atual, interromper no render offline ou usar somente o ensaio isolado descrito abaixo; não contornar o gate para instalar em cliente.
+Use o asset **`elven-observability-v1.0.0.tar.gz`** da [release](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.0), confira seu SHA-256 e extraia o pacote, ou use a revisão pós-promoção indicada no manifest. O arquivo automático **Source code** da tag de build não é esse pacote: a tag é imutável e foi criada antes dos locks promovidos.
 
 Pré-requisitos: Python 3.11+, `kubectl` compatível com o cluster, Helm 4.3.1+ (preferido) ou 3.22.1+ para compatibilidade, OpenSSL para gerar/verificar PKI e Kubernetes 1.35–1.37. É necessário StorageClass selecionado/default para o PVC do gateway, autorização de instalação e liberação dos destinos HTTPS. Não é necessário Helmfile, pip, Prometheus ou Operator do cliente.
+
+Pull público não significa quota ilimitada: revise os limites do Docker Hub e o volume inicial de pulls por NAT/node. O PAT de publicação da Elven **não** pertence ao cliente. Rate limits não autorizam desabilitar assinatura/TLS nem substituir digests; use uma política de acesso/cache do registry aprovada pelo administrador da infraestrutura se o ambiente exigir.
 
 1. Confirme contexto e UID do cluster; não use o contexto ativo implicitamente:
 
@@ -74,13 +76,13 @@ Depois de ambos os locks e os defaults das imagens serem publicados, assinados, 
   --token-file /caminho/privado/elven/token
 ```
 
-O arquivo do Operator é separado do perfil do núcleo. Ele precisa declarar `enabled: true`, namespaces de aplicações aprovados, runtimes necessários, gateway correspondente à release/namespace/porta/domain escolhidos e CIDRs reais do apiserver, conforme o [guia de injeção](charts/elven-instrumentation/README.md). Todos os namespaces de injeção também precisam estar explicitamente autorizados em `collection.namespaces` do núcleo. Não colocar tenant, token ou chaves privadas em nenhum dos dois values. Os nomes de contexto/cluster, CIDRs, storage e escopo não são adivinhados pela CLI.
+O arquivo do Operator é separado do perfil do núcleo. Use [examples/instrumentation.yaml](examples/instrumentation.yaml) como roteiro de revisão: ele precisa declarar namespaces de aplicações aprovados, runtimes necessários, gateway correspondente à release/namespace/porta/domain escolhidos e CIDRs reais do apiserver, conforme o [guia de injeção](charts/elven-instrumentation/README.md). Todos os namespaces de injeção também precisam estar explicitamente autorizados em `collection.namespaces` do núcleo. Não colocar tenant, token ou chaves privadas em nenhum dos dois values. Os nomes de contexto/cluster, CIDRs, storage e escopo não são adivinhados pela CLI. O comando `install` já inclui validação/preflight; render e preflight separados são opções adicionais de revisão, não outras instalações obrigatórias.
 
 `--values` e `--instrumentation-values` podem ser repetidos para camadas revisadas, mantendo a ordem. O perfil efetivo do Operator é renderizado, validado contra seu lock e congelado em arquivo temporário privado **antes de qualquer escrita do núcleo**. As duas fases usam o mesmo contexto, UID esperado, namespace, kubeconfig e timeout. As releases Helm precisam ter nomes diferentes; o padrão do Operator é `elven-operator`. Para atualizar as duas fases, use `./elven upgrade` com os mesmos perfis completos revisados e argumentos de identidade.
 
 Essa operação não é uma transação atômica entre releases. O preflight online de ownership/permissões/PKI do Operator ocorre depois que o gateway existe. Se a segunda fase falhar ou expirar, a CLI retorna erro de estado parcial/UNKNOWN e preserva núcleo, Secrets e PVCs; não executa limpeza destrutiva, não reinicia aplicações e não trata essa situação como sucesso completo. Inspecione `./elven status` e `python3 scripts/instrumentation.py status` com o mesmo contexto, namespace e respectivas releases antes de repetir o comando. A instalação do Operator **não** seleciona ou reinicia workloads: o opt-in e o aceite real de sinais continuam explícitos.
 
-### Ensaio descartável antes da publicação
+### Desenvolvimento isolado de futuras imagens
 
 `--development-images` é uma exceção explícita somente para laboratório controlado; não é um modo GA, não aprova uma imagem e não ignora os guards de cluster, ownership, configuração, TLS ou rede. Construa o Collector Elven mínimo corrigido e use o artefato OCI/local e os values correspondentes da execução de teste, conforme [supply chain](docs/supply-chain.md). Não use a imagem upstream vulnerável por conveniência, nem substitua digests por `latest`.
 

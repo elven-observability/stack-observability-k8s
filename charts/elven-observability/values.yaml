@@ -6,22 +6,21 @@ cluster:
 fullnameOverride: ""
 images:
   collector:
-    # Real multiarch CI development archive, not a published registry release. The
-    # supported CLI blocks production until the verified promotion updates pins.
-    # A laboratory must load the exact archive or use its own verified build pins.
-    repository: docker.io/elvenobservability/elven-collector
-    tag: "1.0.0-dev"
-    digest: sha256:34c6be1ccf08bbb6c81224c327f1b4ff77548b08602265896f3c05e3938d986b
+    # Public signed Elven release; exact source, digests and predicates are locked.
+    # Never substitute upstream or unverified development images.
+    repository: "docker.io/elvenobservability/elven-collector"
+    tag: "v1.0.0"
+    digest: "sha256:87f81a2b66be0d0b50ab8c1604843f2cc701d8c74b8c43d2d5d6ca425fe2125e"
     pullPolicy: IfNotPresent
   beyla:
-    repository: docker.io/elvenobservability/elven-ebpf
-    tag: "1.0.0-dev"
-    digest: sha256:24b00c0db72d0085819254720f5cf1e6042429aebc3095288945c2df40bd7544
+    repository: "docker.io/elvenobservability/elven-ebpf"
+    tag: "v1.0.0"
+    digest: "sha256:be51d39658483814b3739f35a9ef876fc39a7f72892d7cc36daf496dfc77ab7f"
     pullPolicy: IfNotPresent
   alloy:
-    repository: docker.io/elvenobservability/elven-profiler
-    tag: 1.0.0-dev
-    digest: sha256:ea1ef3d1fd91f9d6f584ac18fb1bfaa0b9cc1f7451f62ec2886b8924b154d275
+    repository: "docker.io/elvenobservability/elven-profiler"
+    tag: "v1.0.0"
+    digest: "sha256:6cd5a07c5523dc42bc1abdf5d1de1f35a3f2800fcaee34023bad547cd80bf57d"
     pullPolicy: IfNotPresent
 imagePullSecrets: []
 credentials:

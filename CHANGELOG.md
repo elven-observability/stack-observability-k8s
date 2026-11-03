@@ -1,11 +1,12 @@
 # Changelog
 
-## 1.0.0 — preparação da release
+## 1.0.0 — imagens assinadas e promovidas
 
 - Instalação opcional do núcleo e Operator por um único `./elven install/upgrade --instrumentation-values ...`, com validação local antes das escritas e estado parcial explícito em falha da segunda fase.
 - Exemplo mínimo alinhado à privacidade seletiva; `strict` permanece uma escolha explícita.
 - Verificação exata dos dois SPDX e do metadata assinados, persistida nos locks promovidos; publicador recusa repos/tag estrangeiros antes do primeiro push.
-- Tag de build imutável separada da revisão/pacote de instalação com locks promovidos. Esta entrada de preparação não declara publicação ou promoção concluída.
+- Oito imagens públicas assinadas por GitHub OIDC, ambos locks e defaults promovidos. Tag de build imutável separada da revisão/pacote instalável; detalhes e limitações em `docs/release-v1.0.0.md`.
+- Verificação pública independente por imagem e diagnóstico sem dados sensíveis para limites/erros do registry; histórico das revalidações de CI preservado, sem alegar que uma execução falha passou.
 
 ## Unreleased — distribuição Elven modular
 

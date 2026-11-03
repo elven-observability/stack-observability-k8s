@@ -52,7 +52,15 @@ class InstrumentationChartTests(unittest.TestCase):
         settings = json.loads(rendered[0]["data"]["settings.json"])
         self.assertFalse(settings["enabled"])
         self.assertEqual(settings["namespaces"], [])
-        self.assertTrue(all(not image["digest"] for image in settings["images"].values()))
+        lock = json.loads((ROOT / "instrumentation.lock.json").read_text())
+        for name, image in settings["images"].items():
+            approved = lock["images"][name]["distribution"]
+            self.assertEqual(image["repository"], approved["repository"])
+            if approved["status"] == "verified":
+                self.assertEqual(image["digest"], approved["digest"])
+                self.assertEqual(image["tag"], approved["tag"])
+            else:
+                self.assertFalse(image["digest"])
 
     def test_lint_and_supported_minor_matrix(self):
         result = subprocess.run(["helm", "lint", str(CHART), "--strict", "--kube-version", "1.37.0"], text=True, capture_output=True)
