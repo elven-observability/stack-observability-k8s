@@ -19,9 +19,6 @@
 {{- fail "Only Linux nodes are supported: nodeSelector kubernetes.io/os must be linux" -}}
 {{- end -}}
 {{- end -}}
-{{- if and .Values.privacy.preserveSpanLinks (not .Values.privacy.spanLinkAttributesApproved) -}}
-{{- fail "privacy.preserveSpanLinks requires privacy.spanLinkAttributesApproved: link attributes are not sanitized by the pinned Collector transform processor" -}}
-{{- end -}}
 {{- if and .Values.modules.clusterMetrics.enabled (empty .Values.collection.namespaces) (not .Values.modules.clusterMetrics.clusterWideApproved) -}}
 {{- fail "Cluster-wide Kubernetes state collection requires modules.clusterMetrics.clusterWideApproved=true; otherwise select collection.namespaces" -}}
 {{- end -}}

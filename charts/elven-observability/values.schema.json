@@ -108,7 +108,19 @@
         }
       }
     },
-    "privacy": {"type": "object", "additionalProperties": false, "required": ["logBodyMode", "preserveSpanLinks", "spanLinkAttributesApproved"], "properties": {"logBodyMode": {"type": "string", "enum": ["strict", "redact"]}, "preserveSpanLinks": {"type": "boolean"}, "spanLinkAttributesApproved": {"type": "boolean"}}},
+    "privacy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["logBodyMode", "preserveSpanLinks", "spanLinkAttributesApproved", "maxDepth", "maxStringBytes", "maxCollectionItems"],
+      "description": "Recursive selective masking before persistence. Known-pattern detection is not a universal PII guarantee; invalid or over-budget subtrees are masked without a raw fallback.",
+      "properties": {
+        "logBodyMode": {"type": "string", "enum": ["selective", "strict", "redact"], "description": "selective preserves useful operational text and sanitized structures; strict replaces complete log bodies; redact is a legacy alias for selective."},
+        "preserveSpanLinks": {"type": "boolean", "description": "Preserve link IDs after recursively sanitizing their attributes. False removes complete links."},
+        "spanLinkAttributesApproved": {"type": "boolean", "description": "Deprecated compatibility field. Never bypasses link attribute sanitization."},
+        "maxDepth": {"type": "integer", "minimum": 1, "maximum": 24, "description": "Bounded to keep nested AnyValue maps and the complete OTLP envelope below common 100-level protobuf recursion limits."},
+        "maxStringBytes": {"type": "integer", "minimum": 256, "maximum": 1048576},
+        "maxCollectionItems": {"type": "integer", "minimum": 1, "maximum": 16384}
+      }
+    },
     "networkPolicy": {
       "type": "object", "additionalProperties": false, "required": ["enabled", "dnsNamespace", "dnsPort", "dnsPodLabels", "dnsCIDRs", "exportCIDRs", "exportPorts", "apiServerCIDRs", "apiServerPorts", "kubeletCIDRs", "profileCIDRs", "profilePorts"],
       "properties": {

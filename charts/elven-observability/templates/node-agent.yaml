@@ -55,6 +55,12 @@ data:
             parse_from: attributes.application.severity
             if: 'attributes.application != nil and attributes.application.severity != nil'
             on_error: send_quiet
+          # This copy is only for severity extraction. Keep the useful JSON
+          # body, not a second full payload in Loki structured metadata.
+          - type: remove
+            id: remove_temporary_application
+            field: attributes.application
+            if: 'attributes.application != nil'
       {{- end }}
       {{- if .Values.modules.kubeletMetrics.enabled }}
       kubelet_stats/usage:
@@ -101,18 +107,15 @@ data:
           - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
           - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
       {{- if .Values.modules.logs.enabled }}
-      transform/log_privacy:
-        error_mode: propagate
-        log_statements:
-          - context: log
-            statements:
-              {{- if eq .Values.privacy.logBodyMode "strict" }}
-              - set(body, "[REDACTED]")
-              {{- else }}
-              - 'replace_pattern(body, "(?i)(password|passwd|token|authorization|api[_-]?key)[[:space:]]*[:=][[:space:]]*[^ ,;]+", "[REDACTED]") where IsString(body)'
-              - 'replace_pattern(body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[REDACTED_EMAIL]") where IsString(body)'
-              {{- end }}
-              - keep_keys(attributes, ["log.iostream"])
+      # Apply the same recursive policy at source and again before gateway WAL.
+      # Partial regex replacement here could erase a credential's key while
+      # leaving an unrecognizable suffix for the downstream sanitizer.
+      elven_privacy:
+        log_body_mode: {{ if eq .Values.privacy.logBodyMode "redact" }}selective{{ else }}{{ .Values.privacy.logBodyMode }}{{ end }}
+        preserve_span_links: {{ .Values.privacy.preserveSpanLinks }}
+        max_depth: {{ .Values.privacy.maxDepth }}
+        max_string_bytes: {{ .Values.privacy.maxStringBytes }}
+        max_collection_items: {{ .Values.privacy.maxCollectionItems }}
       {{- end }}
       {{- if .Values.modules.kubeletMetrics.enabled }}
       filter/metric_scope:
@@ -159,7 +162,7 @@ data:
         {{- if .Values.modules.logs.enabled }}
         logs:
           receivers: [file_log/containers]
-          processors: [memory_limiter, resource/identity, transform/log_privacy]
+          processors: [memory_limiter, resource/identity, elven_privacy]
           exporters: [otlp_http/gateway]
         {{- end }}
         {{- if .Values.modules.kubeletMetrics.enabled }}

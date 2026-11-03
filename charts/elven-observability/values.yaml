@@ -6,19 +6,22 @@ cluster:
 fullnameOverride: ""
 images:
   collector:
-    repository: otel/opentelemetry-collector-contrib
-    tag: "0.164.0"
-    digest: sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+    # Real local development archive, not a published registry release. The
+    # supported CLI blocks production until the verified promotion updates pins.
+    # Other development platforms must use their own built/CI values override.
+    repository: docker.io/elvenobservability/elven-collector
+    tag: "1.0.0-dev"
+    digest: sha256:bd2eb81f5b3139164dc95cde8b3024a2bf25d09a0ec6fec7f90e567f6d8517ce
     pullPolicy: IfNotPresent
   beyla:
-    repository: grafana/beyla
-    tag: "3.40.0"
-    digest: sha256:59e31947a79178f7228e3886d061e1261f792e84ea7365b8b54113232437a8b4
+    repository: docker.io/elvenobservability/elven-ebpf
+    tag: "1.0.0-dev"
+    digest: sha256:24b00c0db72d0085819254720f5cf1e6042429aebc3095288945c2df40bd7544
     pullPolicy: IfNotPresent
   alloy:
-    repository: grafana/alloy
-    tag: v1.21.3
-    digest: sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    repository: docker.io/elvenobservability/elven-profiler
+    tag: 1.0.0-dev
+    digest: sha256:ea1ef3d1fd91f9d6f584ac18fb1bfaa0b9cc1f7451f62ec2886b8924b154d275
     pullPolicy: IfNotPresent
 imagePullSecrets: []
 credentials:
@@ -102,12 +105,20 @@ modules:
     dataPolicyApproved: false
     targets: []
 privacy:
-  # strict drops arbitrary log text. redact is opt-in and is not a PII guarantee.
-  logBodyMode: strict
-  # Collector's transform processor cannot sanitize attributes inside span links.
-  # Link IDs and attributes are therefore removed together unless approved.
-  preserveSpanLinks: false
+  # Selective masking preserves useful text, JSON and sanitized SQL structure.
+  # It detects known patterns, not arbitrary PII. Review your source-data policy.
+  # strict replaces complete log bodies; legacy redact aliases selective.
+  logBodyMode: selective
+  # Link attributes pass through the same recursive sanitizer; IDs are retained.
+  preserveSpanLinks: true
+  # Deprecated compatibility field; no longer bypasses link sanitization.
   spanLinkAttributesApproved: false
+  # Exceeding a bound masks the affected subtree instead of forwarding it raw.
+  # AnyValue maps add several protobuf nesting levels per logical level.
+  # Keep the complete exported envelope below common 100-level wire limits.
+  maxDepth: 24
+  maxStringBytes: 262144
+  maxCollectionItems: 4096
 networkPolicy:
   enabled: true
   dnsNamespace: kube-system

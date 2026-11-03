@@ -1,5 +1,6 @@
 // Copyright Elven Observability contributors. SPDX-License-Identifier: Apache-2.0
-// Collect license texts from checksum-verified modules; no network or secrets.
+// Collect license texts from checksum-verified upstream modules and identified
+// first-party source modules; no network or secrets.
 package main
 
 import (
@@ -19,13 +20,41 @@ import (
 type module struct {
 	Path, Version, Dir string
 	Replace            *module
+	Main               bool
 }
 type notice struct {
-	Module, Version, File, SHA256 string
+	Module, Version, File, SHA256, Origin string
 }
 
 func die(err error) { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
-func copyNotice(dir, relative, root, path, version string, entries *[]notice) error {
+
+// Keep first-party module identities, rather than publishing a physical Docker
+// build path as a purported upstream dependency. Versioned replacements retain
+// the checksum-verified replacement identity (for example a security patch).
+func moduleIdentity(item module) (module, string, error) {
+	const elvenPrefix = "github.com/elven-observability/stack-observability-k8s/"
+	origin := "upstream-module"
+	if item.Main {
+		if !strings.HasPrefix(item.Path, elvenPrefix) {
+			return module{}, "", fmt.Errorf("unexpected local main module %q", item.Path)
+		}
+		origin = "elven-source"
+	}
+	if item.Replace != nil {
+		if item.Replace.Version == "" {
+			if !strings.HasPrefix(item.Path, elvenPrefix) || item.Replace.Dir == "" {
+				return module{}, "", fmt.Errorf("unapproved or missing local source replacement for %q", item.Path)
+			}
+			item.Dir = item.Replace.Dir
+			origin = "elven-source"
+		} else {
+			item = *item.Replace
+		}
+	}
+	return item, origin, nil
+}
+
+func copyNotice(dir, relative, root, path, version, origin string, entries *[]notice) error {
 	data, err := os.ReadFile(filepath.Join(dir, relative))
 	if err != nil {
 		return err
@@ -39,7 +68,7 @@ func copyNotice(dir, relative, root, path, version string, entries *[]notice) er
 		return err
 	}
 	digest := sha256.Sum256(data)
-	*entries = append(*entries, notice{path, version, relative, hex.EncodeToString(digest[:])})
+	*entries = append(*entries, notice{path, version, relative, hex.EncodeToString(digest[:]), origin})
 	return nil
 }
 func main() {
@@ -57,8 +86,9 @@ func main() {
 		} else if err != nil {
 			die(err)
 		}
-		if item.Replace != nil {
-			item = *item.Replace
+		item, origin, identityErr := moduleIdentity(item)
+		if identityErr != nil {
+			die(identityErr)
 		}
 		if item.Dir == "" {
 			continue
@@ -80,7 +110,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			return copyNotice(item.Dir, relative, root, item.Path, item.Version, &entries)
+			return copyNotice(item.Dir, relative, root, item.Path, item.Version, origin, &entries)
 		})
 		if err != nil {
 			die(err)
@@ -89,7 +119,7 @@ func main() {
 	if count < 10 || len(entries) < 10 {
 		die(fmt.Errorf("incomplete Go module/license inventory: %d modules, %d notices", count, len(entries)))
 	}
-	if err := copyNotice(runtime.GOROOT(), "LICENSE", root, "go-stdlib", runtime.Version(), &entries); err != nil {
+	if err := copyNotice(runtime.GOROOT(), "LICENSE", root, "go-stdlib", runtime.Version(), "go-toolchain", &entries); err != nil {
 		die(err)
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -105,5 +135,5 @@ func main() {
 	if err := os.WriteFile(filepath.Join(root, "MANIFEST.json"), append(data, '\n'), 0444); err != nil {
 		die(err)
 	}
-	fmt.Fprintf(os.Stderr, "Bundled %d license/notice texts from %d verified modules and Go stdlib\n", len(entries), count)
+	fmt.Fprintf(os.Stderr, "Bundled %d license/notice texts from %d source modules and Go stdlib; origins recorded\n", len(entries), count)
 }

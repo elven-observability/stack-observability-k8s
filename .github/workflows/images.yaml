@@ -2,7 +2,7 @@ name: Elven OCI supply chain
 
 on:
   pull_request:
-    paths: ['images/**', 'scripts/images-*.py', 'scripts/images-*.sh', 'versions.lock.json', '.github/workflows/images.yaml']
+    paths: ['images/**', 'processor/**', 'charts/elven-observability/**', 'tests/**', 'elven', 'scripts/validate.py', 'scripts/test-kind.py', 'scripts/images-*.py', 'scripts/images-*.sh', 'versions.lock.json', '.github/workflows/images.yaml']
   push:
     tags: ['v1.*']
   workflow_dispatch:
@@ -36,6 +36,9 @@ jobs:
           daemon-config: '{"features":{"containerd-snapshotter":true}}'
       - id: builder
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          version: v0.38.1
+          driver-opts: image=docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
           version: v0.76.1
@@ -97,6 +100,8 @@ jobs:
           bash scripts/images-install-ci-tools.sh
       - name: Validate the actual Elven binary with rendered configurations and HTTPS profiling
         run: python3 scripts/validate.py --runtime
+      - name: Verify selective PII and SQL sanitization and sanitized WAL with the exact Elven binary
+        run: python3 tests/privacy-runtime.py
       - name: Native amd64 install, delivery, outage/replay, coexistence, upgrade and rollback of the scanned image
         run: >-
           python3 scripts/test-kind.py
@@ -112,6 +117,16 @@ jobs:
           path: artifacts/images
           if-no-files-found: error
           retention-days: 7
+      - name: Preserve the exact Collector archive separately for bounded native validation downloads
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elven-collector-candidate
+          path: |
+            artifacts/images/collector.oci.tar
+            artifacts/images/release.json
+          if-no-files-found: error
+          retention-days: 7
       - name: Preserve sanitized runtime and lifecycle evidence separately
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -120,6 +135,7 @@ jobs:
           include-hidden-files: true
           path: |
             .artifacts/validation-*/report.json
+            .artifacts/privacy-*/report.json
             .artifacts/kind-*/report.json
             .artifacts/kind-*/diagnostics.txt
           if-no-files-found: warn

@@ -109,6 +109,53 @@ def load_manifest(directory):
     return json.loads((directory / "release.json").read_text())
 
 
+def build_input_files(image):
+    """Hash copied local Go modules as well as their builder recipe and notices."""
+    files = [ROOT / "versions.lock.json", ROOT / "images/licenses/APACHE-2.0.txt",
+             *sorted((ROOT / image["dockerfile"]).parent.rglob("*"))]
+    for relative in image.get("sourceBuild", {}).get("localModules", []):
+        if not isinstance(relative, str):
+            raise ValueError("Local source modules must be repository-relative paths")
+        module = (ROOT / relative).resolve()
+        if not module.is_relative_to(ROOT.resolve()) or not module.is_dir():
+            raise ValueError("Local source modules must exist inside this repository")
+        for path in sorted(module.rglob("*")):
+            if not path.is_file():
+                continue
+            name = path.name.upper()
+            allowed = (path.suffix == ".go" or path.name in ("go.mod", "go.sum")
+                       or name.startswith(("LICENSE", "LICENCE", "NOTICE", "COPYING", "README")))
+            if not allowed:
+                continue
+            if not path.resolve().is_relative_to(module):
+                raise ValueError("Local source input escapes its declared module")
+            files.append(path)
+    return sorted(set(path for path in files if path.is_file()))
+
+
+def verify_local_license_origins(inventory, image):
+    """A local processor must carry its own verified copyright/license texts."""
+    verified = []
+    for relative in image.get("sourceBuild", {}).get("localModules", []):
+        folder = (ROOT / relative).resolve()
+        if not folder.is_relative_to(ROOT.resolve()):
+            raise ValueError("Local license source escapes repository")
+        declaration = re.search(r"^module\s+(\S+)\s*$", (folder / "go.mod").read_text(), re.MULTILINE)
+        if not declaration:
+            raise ValueError("Local source module has no canonical Go module identity")
+        module = declaration.group(1)
+        notices = [path.name for path in folder.iterdir() if path.is_file()
+                   and path.name.upper().startswith(("LICENSE", "LICENCE", "NOTICE"))]
+        if not any(name.upper().startswith(("LICENSE", "LICENCE")) for name in notices):
+            raise ValueError("Local source module is missing a distributable license")
+        for name in notices:
+            if not any(entry.get("Module") == module and entry.get("Origin") == "elven-source"
+                       and entry.get("File") == name for entry in inventory):
+                raise ValueError(f"Local source license/notice omitted from Collector image: {module}/{name}")
+        verified.append(module)
+    return verified
+
+
 @contextlib.contextmanager
 def evidence_lock(args):
     # Avoid associating one build's scan with an archive concurrently rebuilt
@@ -138,7 +185,7 @@ def build(args, lock):
     env = {**os.environ, "SOURCE_DATE_EPOCH": epoch, "BUILDX_METADATA_PROVENANCE": "max"}
     for name in components(args, lock):
         image = lock["images"][name]
-        context_files = [ROOT / "images/licenses/APACHE-2.0.txt", *sorted((ROOT / image["dockerfile"]).parent.rglob("*"))]
+        context_files = build_input_files(image)
         input_hashes = {str(path.relative_to(ROOT)): sha256(path) for path in context_files if path.is_file()}
         recipe_digest = sha256(ROOT / image["sourceBuild"]["manifest"]) if image.get("sourceBuild") else None
         archive, metadata = directory / f"{name}.oci.tar", directory / f"{name}.metadata.json"
@@ -151,7 +198,8 @@ def build(args, lock):
                    "--metadata-file", str(metadata),
                    "--output", f"type=oci,dest={archive},rewrite-timestamp=true", "."]
         run(command, cwd=ROOT, env=env)
-        if any(not (ROOT / path).is_file() or sha256(ROOT / path) != digest for path, digest in input_hashes.items()):
+        after_hashes = {str(path.relative_to(ROOT)): sha256(path) for path in build_input_files(image)}
+        if after_hashes != input_hashes:
             raise ValueError(f"{name}: build inputs changed during execution; retry before claiming source provenance")
         build_metadata = json.loads(metadata.read_text())
         digest = build_metadata.get("containerimage.digest", "")
@@ -252,10 +300,12 @@ def govulncheck(args, lock):
                     modules.add(entry["Module"])
                 if len(inventory) < 10 or len(modules) < 10 or "go-stdlib" not in modules:
                     raise ValueError("Collector dependency license bundle is incomplete")
+                local_modules = verify_local_license_origins(inventory, image)
                 report = directory / f"collector.{name}.licenses.json"
                 shutil.copyfile(inventory_path, report)
                 license_bundles[platform] = {"status": "passed", "image": image_ref,
                     "verifiedNoticeCount": len(inventory), "modulesWithNotices": len(modules),
+                    "localSourceModules": local_modules,
                     "report": report.name, "reportSha256": sha256(report)}
             finally:
                 run(["docker", "rm", container], capture=True)
@@ -339,6 +389,53 @@ def unpack_layout(archive_path, folder, expected_digest):
     (Path(folder) / "index.json").write_bytes(raw)
 
 
+def remote_tag_state(tag, expected_digest, result):
+    """Classify a crane digest result without treating lookup failures as absence."""
+    if not DIGEST.fullmatch(expected_digest):
+        raise ValueError(f"{tag}: invalid expected publication digest")
+    if result.returncode == 0:
+        digest = result.stdout.strip()
+        if not DIGEST.fullmatch(digest):
+            raise RuntimeError(f"{tag}: registry returned an invalid digest; publication blocked")
+        if digest != expected_digest:
+            raise ValueError(f"{tag}: immutable release tag already identifies a different digest")
+        return "existing"
+
+    diagnostic = "\n".join((result.stdout or "", result.stderr or ""))
+    # These failures never prove tag absence, including a misleading missing-tag
+    # marker embedded in an authentication, transport, or upstream error.
+    failed_lookup = re.search(
+        r"\b(?:UNAUTHORIZED|DENIED|FORBIDDEN|TOOMANYREQUESTS|TLS|X509|TIMEOUT)\b"
+        r"|\b(?:401|403|408|429|5[0-9]{2})\b"
+        r"|timed out|connection (?:refused|reset)|no such host|unexpected EOF",
+        diagnostic, re.IGNORECASE)
+    manifest_unknown = re.search(r"\bMANIFEST_UNKNOWN\b", diagnostic)
+    # A bare '404' or 'not found' can come from a proxy, login endpoint, or local
+    # file. Only an explicit registry manifest request with HTTP 404 is absent.
+    manifest_404 = re.search(
+        r"\b(?:GET|HEAD)\s+https?://[^\s]+/manifests/[^\s]+:\s*"
+        r"(?:unexpected status code\s+)?404(?:\s|:|$)", diagnostic)
+    if not failed_lookup and (manifest_unknown or manifest_404):
+        return "missing"
+    raise RuntimeError(f"{tag}: registry lookup did not confirm tag absence; publication blocked")
+
+
+def preflight_remote_tags(images):
+    """Check the complete release before allowing its first registry mutation."""
+    existing, errors = set(), []
+    for name, image in images.items():
+        try:
+            result = subprocess.run(["crane", "digest", image["tag"]],
+                                    text=True, capture_output=True, check=False)
+            if remote_tag_state(image["tag"], image["digest"], result) == "existing":
+                existing.add(name)
+        except (OSError, ValueError, RuntimeError) as error:
+            errors.append(f"{name}: {error}")
+    if errors:
+        raise ValueError("Immutable release tag preflight failed: " + "; ".join(errors))
+    return existing
+
+
 def publish(args, lock):
     directory = evidence(args)
     manifest = load_manifest(directory)
@@ -375,6 +472,8 @@ def publish(args, lock):
                         or licenses.get("verifiedNoticeCount", 0) < 10
                         or sha256(directory / licenses["report"]) != licenses["reportSha256"]):
                     raise ValueError("Collector requires a verified dependency license payload from the exact OCI image")
+                if image.get("sourceBuild", {}).get("localModules"):
+                    verify_local_license_origins(json.loads((directory / licenses["report"]).read_text()), image)
                 go_audit = image.get("govulncheck", {}).get(platform, {})
                 if go_audit.get("status") != "passed" or go_audit.get("tool") != "govulncheck/" + lock["tools"]["govulncheck"]:
                     raise ValueError("Collector requires successful current govulncheck symbol analysis on both binaries")
@@ -384,10 +483,12 @@ def publish(args, lock):
                     raise ValueError("Collector Go audit is stale; rerun before publication")
                 if sha256(directory / go_audit["report"]) != go_audit["reportSha256"]:
                     raise ValueError("Collector govulncheck report checksum mismatch")
+    existing = preflight_remote_tags(manifest["images"])
     for name, image in manifest["images"].items():
-        with tempfile.TemporaryDirectory(prefix="elven-oci-", dir=directory) as folder:
-            unpack_layout(directory / image["archive"], folder, image["digest"])
-            run(["crane", "push", "--index", folder, image["tag"]])
+        if name not in existing:
+            with tempfile.TemporaryDirectory(prefix="elven-oci-", dir=directory) as folder:
+                unpack_layout(directory / image["archive"], folder, image["digest"])
+                run(["crane", "push", "--index", folder, image["tag"]])
         repository = lock["images"][name]["distribution"]["repository"]
         digest = run(["crane", "digest", image["tag"]], capture=True)
         if digest != image["digest"]:

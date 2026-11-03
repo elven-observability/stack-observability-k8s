@@ -61,59 +61,24 @@ data:
           - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
           - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
           - {key: elven.distribution.version, value: {{ .Chart.AppVersion | quote }}, action: upsert}
-      transform/privacy:
+      # The Elven processor recursively sanitizes structured values and SQL
+      # before any exporter can persist a record. Unsupported/over-budget
+      # subtrees are masked; errors never select an unsanitized fallback.
+      elven_privacy:
+        log_body_mode: {{ if eq .Values.privacy.logBodyMode "redact" }}selective{{ else }}{{ .Values.privacy.logBodyMode }}{{ end }}
+        preserve_span_links: {{ .Values.privacy.preserveSpanLinks }}
+        max_depth: {{ .Values.privacy.maxDepth }}
+        max_string_bytes: {{ .Values.privacy.maxStringBytes }}
+        max_collection_items: {{ .Values.privacy.maxCollectionItems }}
+      # Sanitization is not cardinality control. Keep the reviewed operational
+      # datapoint labels after recursive masking; numeric measurements and
+      # sanitized exemplars remain intact.
+      transform/cardinality:
         error_mode: propagate
-        log_statements:
-          - context: resource
-            statements:
-              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
-          - context: scope
-            statements:
-              - 'keep_keys(attributes, [])'
-          - context: log
-            statements:
-              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "error.type"])'
-              - 'set(severity_text, "")'
-              {{- if eq .Values.privacy.logBodyMode "strict" }}
-              - 'set(body, "[REDACTED]")'
-              {{- else }}
-              - 'replace_pattern(body, "(?i)bearer[[:space:]]+[A-Za-z0-9._~+/=-]+", "[REDACTED]") where IsString(body)'
-              - 'replace_pattern(body, "(?i)(password|passwd|token|secret|api[_-]?key|authorization)[\"'']?[[:space:]]*[:=][[:space:]]*[\"'']?[^,[:space:]}]+", "[REDACTED]") where IsString(body)'
-              - 'replace_pattern(body, "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", "[REDACTED]") where IsString(body)'
-              - 'set(body, "[REDACTED:non-string]") where not IsString(body)'
-              {{- end }}
-        trace_statements:
-          - context: resource
-            statements:
-              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
-          - context: scope
-            statements:
-              - 'keep_keys(attributes, [])'
-          - context: span
-            statements:
-              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "rpc.system", "rpc.service", "rpc.method", "db.system", "messaging.system", "messaging.operation.type", "error.type"])'
-              - 'set(name, "operation")'
-              - 'set(name, Concat(["HTTP", attributes["http.request.method"]], " ")) where IsString(attributes["http.request.method"])'
-              - 'set(status.message, "")'
-              {{- if not .Values.privacy.preserveSpanLinks }}
-              - 'set(links, nil)'
-              {{- end }}
-          - context: spanevent
-            statements:
-              - 'set(name, "event")'
-              - 'keep_keys(attributes, ["exception.type", "error.type"])'
         metric_statements:
-          - context: resource
-            statements:
-              - 'keep_keys(attributes, ["service.name", "service.namespace", "service.version", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.node.name", "deployment.environment.name", "elven.distribution.version"])'
-          - context: scope
-            statements:
-              - 'keep_keys(attributes, [])'
           - context: datapoint
             statements:
               - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "rpc.system", "rpc.method", "rpc.service", "db.system", "messaging.system", "messaging.operation.type", "error.type", "exporter", "receiver", "processor", "connector", "transport", "data_type", "state", "type", "condition", "phase", "reason", "status", "outcome", "cpu", "mode", "direction", "protocol", "resource", "unit", "job", "instance", "elven_instance", "service.name", "service.namespace", "service.instance.id", "k8s.namespace.name", "k8s.node.name", "k8s.pod.name", "k8s.container.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.replicaset.name", "k8s.job.name", "k8s.cronjob.name", "k8s.volume.name", "k8s.persistentvolumeclaim.name", "container.name", "container.image.name", "namespace", "node", "pod", "container", "deployment", "le", "quantile", "method", "code"])'
-              - 'replace_all_patterns(attributes, "value", "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]{2,}", "[REDACTED]")'
-              - 'replace_all_patterns(attributes, "value", "eyJ[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+", "[REDACTED]")'
     exporters:
       {{- range $signal := list "logs" "metrics" "traces" }}
       otlp_http/{{ $signal }}:
@@ -160,13 +125,13 @@ data:
       pipelines:
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, resource/identity, transform/privacy]
+          processors: [memory_limiter, resource/identity, elven_privacy]
           exporters: [otlp_http/logs]
         metrics:
           receivers: [otlp{{ if .Values.selfMonitoring.enabled }}, prometheus/self{{ end }}]
-          processors: [memory_limiter, resource/identity, transform/privacy]
+          processors: [memory_limiter, resource/identity, elven_privacy, transform/cardinality]
           exporters: [otlp_http/metrics]
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, resource/identity, transform/privacy]
+          processors: [memory_limiter, resource/identity, elven_privacy]
           exporters: [otlp_http/traces]

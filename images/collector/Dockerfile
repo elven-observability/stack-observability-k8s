@@ -6,13 +6,18 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=1.0.0-dev
 ARG SOURCE_DATE_EPOCH
-ENV CGO_ENABLED=0 GOMAXPROCS=2 GOGC=50 GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOTOOLCHAIN=local
+ENV CGO_ENABLED=0 GOMAXPROCS=2 GOGC=50 GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOTOOLCHAIN=local GOTELEMETRY=off
 WORKDIR /src
-COPY images/collector/builder-config.yaml images/collector/license-bundle.go /src/
+COPY images/collector/builder-config.yaml images/collector/license-bundle.go images/collector/license-bundle_test.go /src/
+COPY images/licenses/APACHE-2.0.txt /src/LICENSE
+COPY processor/elvenprivacyprocessor /src/elvenprivacyprocessor/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-    go install go.opentelemetry.io/collector/cmd/builder@v0.164.0 && \
+    go test /src/license-bundle.go /src/license-bundle_test.go && \
+    cd /src/elvenprivacyprocessor && go mod verify && go test ./... && \
+    cd /src && go install go.opentelemetry.io/collector/cmd/builder@v0.164.0 && \
     sed "s/^  version:.*/  version: ${VERSION#v}/" builder-config.yaml > build.yaml && \
     /go/bin/builder --config=/src/build.yaml --skip-compilation && \
+    cp /src/LICENSE /src/_build/LICENSE && \
     cd /src/_build && go mod verify && \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o /out/elven-collector . && \
     go version -m /out/elven-collector > /out/build-info.txt && \
@@ -35,6 +40,7 @@ LABEL org.opencontainers.image.title="Elven Collector" \
       org.opencontainers.image.base.name="scratch" \
       org.elvenobservability.collector.core="0.164.0" \
       org.elvenobservability.collector.contrib="0.164.1" \
+      org.elvenobservability.collector.privacy="elven_privacy" \
       org.elvenobservability.ca-source.digest="sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"
 COPY --from=certificates /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/elven-collector /elven-collector

@@ -7,3 +7,11 @@
 !images/collector/NOTICE
 !images/collector/builder-config.yaml
 !images/collector/license-bundle.go
+!images/collector/license-bundle_test.go
+!processor
+!processor/elvenprivacyprocessor
+!processor/elvenprivacyprocessor/*.go
+!processor/elvenprivacyprocessor/go.mod
+!processor/elvenprivacyprocessor/go.sum
+!processor/elvenprivacyprocessor/LICENSE
+!processor/elvenprivacyprocessor/NOTICE
