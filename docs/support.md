@@ -1,6 +1,6 @@
 # Suporte, compatibilidade e critérios de release
 
-Data de referência: 29/10/2026. A distribuição é um candidato da linha 1.0. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes.
+Data da rodada de hardening: 03/11/2026. A distribuição é um candidato da linha 1.0. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes. Evidência de 29/10 é histórica e não valida automaticamente o novo processor ou Operator.
 
 **Não está liberada para instalação de produção enquanto a publicação/assinatura/promoção das imagens Elven permanecer pendente.** A CLI exige lock `verified` e correspondência dos repository/digests selecionados; não faz fallback para contrib upstream ou `latest`. `--development-images` existe somente para ensaio explicitamente aceito e não amplia o suporte declarado. Recuperação de uma release já instalada não depende desse gate nem da disponibilidade do SaaS.
 
@@ -16,12 +16,13 @@ Data de referência: 29/10/2026. A distribuição é um candidato da linha 1.0. 
 | Storage | StorageClass/CSI que ofereça o PVC RWO e permissões necessárias ao gateway | Validar persistência, fsync, expansão, recuperação e retenção no CSI real. |
 | NetworkPolicy | CNI com enforcement e destinos/portas efetivos revisados | Objeto aceito não demonstra enforcement, DNS/DNAT ou ausência de bypass pela plataforma. |
 | Profiles | Alvos pprof HTTPS/mTLS explícitos | Não instrumenta automaticamente Java/Python/Node nem instala pprof na aplicação. |
+| Elven Instrumentation Operator | Java 17/21, Node.js 22.15+ e Python compatível, Linux amd64/arm64 conforme SDK | Opt-in e canary obrigatórios. Node.js 20 exige perfil legado EOL explícito; Python auto-instrumentation segue beta. Nem toda biblioteca/método/statement é suportado; ver matriz do módulo. |
 
 AKS, EKS, GKE, RKE2, OKE, OpenShift, Fargate, nodes ARM, hardening corporativo e meshes têm particularidades. Não tratar essa lista como provedores já homologados. Fargate/serverless e clusters sem acesso a arquivos/processos do host não suportam os módulos de host apenas porque aceitam o gateway.
 
 As versões de componentes, datas de release, digests e exceções upstream são registradas em [versions.md](versions.md). As exceções de imagens/mirrors, publicação, assinatura e advisories ficam em [supply-chain.md](supply-chain.md).
 
-O runtime Collector entregue é uma distribuição mínima construída por OCB, com componentes selecionados e dependências pinadas/corrigidas; não oferece todo receiver/exporter/processador do pacote contrib completo. Copiar uma configuração antiga pode falhar por componente ausente ou nome canônico alterado. A validação precisa usar o binário Elven exato, incluindo os nomes `file_log`, `kubelet_stats` e `otlp_http` quando aplicáveis.
+O runtime Collector entregue é uma distribuição mínima construída por OCB, com componentes selecionados e dependências pinadas/corrigidas; não oferece todo receiver/exporter/processador do pacote contrib completo. Copiar uma configuração antiga pode falhar por componente ausente ou nome canônico alterado. A validação precisa usar o binário Elven exato, incluindo os nomes `file_log`, `kubelet_stats`, `otlp_http` e o processor próprio `elven_privacy`. Imagens upstream completas não contêm esse processor e não são fallback para executar as novas configurações.
 
 ## Evidência: o que pode ser afirmado
 
@@ -35,7 +36,7 @@ O runtime Collector entregue é uma distribuição mínima construída por OCB, 
 
 No diagnóstico do legado foram executados apenas `bash -n` dos scripts e montagem local por Kustomize. Os novos testes precisam registrar comandos, revisão/digest, resultados, plataforma e limitações. Workflows escritos, jobs que não iniciaram por billing/permissão, testes skipped e builds planejados não contam como sucesso.
 
-Uma atualização deve manter os exemplos compatíveis com os templates/schema, incluir testes de parâmetros inválidos e preservar a fronteira de ownership. A revisão não deve importar resultados históricos de Cappta, EmiteAI, WeHandle ou outro cliente como evidência da distribuição nova.
+Uma atualização deve manter os exemplos compatíveis com os templates/schema, incluir testes de parâmetros inválidos e preservar a fronteira de ownership. A revisão não deve importar resultados históricos de outras instalações como evidência da distribuição Elven atual.
 
 ## Gates para GA/publicação de produção
 

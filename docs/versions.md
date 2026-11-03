@@ -1,6 +1,6 @@
 # Versões, compatibilidade e suporte
 
-Pesquisa executada em **29/10/2026**, com releases oficiais, manifests OCI e advisories públicos. A fonte consumível por automação é [`versions.lock.json`](../versions.lock.json). Tags nunca substituem os digests no deployment. Não usar `latest`.
+Seleção inicial do núcleo em **29/10/2026**; hardening de SDKs, Operator, tooling e novos scans em **03/11/2026**, com releases oficiais, manifests OCI e advisories públicos. As fontes consumíveis por automação são [`versions.lock.json`](../versions.lock.json) e o lock independente [`instrumentation.lock.json`](../instrumentation.lock.json). Tags nunca substituem os digests no deployment. Não usar `latest`.
 
 ## Runtimes selecionados
 
@@ -12,7 +12,24 @@ Pesquisa executada em **29/10/2026**, com releases oficiais, manifests OCI e adv
 
 Os três manifests OCI upstream foram consultados anonimamente, incluindo `linux/amd64` e `linux/arm64`; seus digests estão no lock. **Isso não é execução nativa em ambas as arquiteturas.** Beyla/Alloy preservam os runtimes upstream. O Collector passa a ser build mínimo próprio devido ao achado de segurança, com receita pública/revisável, componentes pinados e informações de build incluídas na imagem.
 
-Até a publicação/verificação real, os defaults de imagem permanecem upstream por digest e **não constituem uma release Elven aprovada para produção**. O runtime Collector completo continua afetado pelo achado abaixo; não confundir disponibilidade do quickstart com aprovação de segurança. Os repositórios preparados são `docker.io/elvenobservability/elven-collector`, `elven-ebpf` e `elven-profiler`. `digest: null`/`not-published` no lock é intencional: não há digest Elven inventado nem dependência de credenciais de registry no cliente.
+Os defaults da rodada de hardening apontam para **artefatos OCI Elven de desenvolvimento realmente construídos**, não para imagens upstream nem para uma release publicada. O Collector upstream não contém o processor próprio `elven_privacy` e não é fallback compatível. Os repositórios preparados são `docker.io/elvenobservability/elven-collector`, `elven-ebpf` e `elven-profiler`. `digest: null`/`not-published` no lock de promoção continua intencional: produção permanece bloqueada até publicação, assinatura e verificação; um digest de archive local não prova disponibilidade anônima no registry.
+
+## SDKs e Operator Elven opcionais — 03/11/2026
+
+O webhook de injeção é código Elven mínimo, sem CRDs/controllers externos ou cliente da API no runtime. As imagens SDK Elven preservam payloads, licenças e rastreabilidade dos agentes upstream pinados no lock independente:
+
+| Perfil | Agente selecionado | Compatibilidade/limite |
+|---|---|---|
+| Java | 2.33.1-2, SDK 1.67.0 | Java 17/21; [release oficial](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1). Bibliotecas suportadas, não todos os métodos de negócio. |
+| Node.js atual | 0.82.0-3, SDK 3.x | Node >=22.15; [release oficial](https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.82.0). Não usar essa imagem em Node 20. |
+| Node.js legado | 0.81.2-1, SDK 2.x | Node 20 >=20.6 somente com aprovação EOL explícita e imagem Elven separada. Não amplia suporte upstream ao runtime. |
+| Python | 0.66b2-2, SDK 1.45.2 | Auto-instrumentation beta, libc/versão/bibliotecas devem ser validadas; desabilitado por padrão. |
+
+O upstream Operator 0.162.0 foi pesquisado como referência de compatibilidade, não é instalado como dependência do módulo Elven. [Release e limitações oficiais](https://github.com/open-telemetry/opentelemetry-operator/releases/tag/v0.162.0). Injeção por si só não prova spans/queries úteis nem preservação das aplicações; conferir a evidência por runtime/digest.
+
+BuildKit **0.34.2**, pinado por digest, incorpora as correções de segurança publicadas em 03/11. [Release oficial](https://github.com/moby/buildkit/releases/tag/v0.34.2). Cada builder de laboratório é isolado; a limpeza nunca usa prune global do Docker.
+
+Nos scans SDK de 03/11, os dois perfis Node mantêm achados Medium **CVE-2026-118773** (`glob` 10.5.0) e **CVE-2026-118764** (`minimatch` 9.0.9). Permanecem visíveis, sem ignorelist ou override de majors npm não testado. O gate High/Critical não torna esses achados inexistentes; triagem/patch upstream e revalidação continuam necessários. Contagens, scanner/DB e demais achados ficam nos recibos da rodada.
 
 ## Mudanças upstream que afetam a arquitetura
 

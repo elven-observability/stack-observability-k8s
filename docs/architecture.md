@@ -2,7 +2,7 @@
 
 ## Fronteira de responsabilidade
 
-A distribuição instala os seus próprios componentes de coleta/processamento/exportação no namespace escolhido. Não depende de um gateway, Alloy, Prometheus, Beyla ou Operator do cliente. Não instala Prometheus, cert-manager, CRDs ou webhooks, não altera Deployments de aplicações e não injeta SDKs automaticamente.
+A distribuição instala os seus próprios componentes de coleta/processamento/exportação no namespace escolhido. Não depende de agentes ou Operator do cliente. O baseline não instala Prometheus, cert-manager, CRDs ou webhooks e não altera Deployments de aplicações. O módulo separado Elven Instrumentation Operator oferece injeção opt-in de SDKs em novos Pods por webhook próprio, sem CRDs, descoberta por API ou mutação/reinício automático dos workloads existentes.
 
 Kubernetes, rede, DNS, armazenamento e permissões aprovadas continuam sendo dependências da plataforma. Um endpoint pprof precisa existir na aplicação; OTLP de aplicação exige instrumentação configurada por seu responsável. eBPF oferece uma alternativa para operações/protocolos suportados, não uma promessa de tracing completo de qualquer aplicação.
 
@@ -39,6 +39,7 @@ Não usar o hostname legado `logs.elvenobservability.com` nem desabilitar TLS pa
 | Métricas kubelet | `modules.kubeletMetrics.enabled` | Receiver por node, TLS com CA validada e RBAC específico. Não desabilitar verificação quando o certificado do kubelet não corresponder ao endereço usado. |
 | eBPF | `modules.ebpf.enabled`, `hostAccessApproved`, workloads explícitos | Beyla separado, com privilégios de host documentados. Não instala SDKs; context propagation por alteração de headers fica desabilitada. |
 | Profiles pprof | `modules.profiles.enabled`, targets explícitos | Alloy não-root faz scrape de endpoints HTTPS/mTLS aprovados. Não ativa pprof na aplicação e não equivale a profiler eBPF ou injeção Java/Python. |
+| Elven Instrumentation Operator | Chart/CLI separados; namespaces e label de runtime explícitos | Injeta imagens SDK Elven por digest em containers selecionados. Bibliotecas suportadas produzem granularidade interna; eBPF não substitui esse mecanismo. Sem CRDs/RBAC de runtime ou dependência do Operator do cliente. |
 
 `collection.namespaces` é uma allow-list da coleta em escopo. Não é uma descoberta automática por `prometheus.io/scrape`, nem autorização para ampliar o piloto a todos os namespaces. Os módulos que necessitam escopo devem falhar quando habilitados sem seleção válida. O coletor de estado usa Roles nos namespaces selecionados, sem leitura de Nodes/PVs nesse modo; coleta de estado cluster-wide sem allow-list exige `modules.clusterMetrics.clusterWideApproved: true` e revisão do RBAC ampliado.
 
@@ -78,6 +79,8 @@ O gateway usa PVC de 2Gi por padrão, com mínimo validado de 1Gi. Cada sinal OT
 Falhas transitórias de exportação usam retry sem expiração automática e backpressure. Isso protege dados já admitidos nas filas dentro de seus limites; não assegura perda zero. Rotação de logs antes da leitura, buffers upstream, rejeições permanentes, limites do backend, PVC cheio/corrompido, perda do volume e confirmações perdidas precisam ser considerados. Retentativas podem causar duplicação quando o backend ingere mas a confirmação não chega.
 
 Storage local do agent e buffers de profiles não devem ser confundidos com a fila durável do gateway. Recriar um Pod com `emptyDir` remove seu estado local. O módulo profiles não oferece a mesma retenção/replay OTLP do gateway.
+
+Em particular, checkpoints de leitura CRI do node agent são efêmeros e `start_at: end` não garante recuperar registros ainda não confirmados depois de recriar o agent durante uma indisponibilidade. A prova de replay do PVC do gateway não cobre essa janela. Não habilitar escrita em diretórios do host ou importar posições de outro collector como correção implícita; a durabilidade da origem exige desenho e autorização próprios.
 
 O gateway e a coleta de estado Kubernetes têm contrato singleton nesta revisão. Uma réplica evita dupla coleta e não constitui alta disponibilidade. PDB, várias réplicas, dois collectors ou outro backend de storage não devem ser habilitados como um atalho para HA: demandam desenho de eleição/sharding, ordenação, deduplicação, capacidade e testes próprios.
 

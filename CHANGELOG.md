@@ -2,6 +2,14 @@
 
 ## Unreleased — distribuição Elven modular
 
+### Hardening de 03/11/2026
+
+- Processor Elven recursivo com sanitização seletiva de PII/credenciais e valores SQL antes da WAL, sem substituir por padrão todo o log. Links/correlação preservados após sanitização; strict segue disponível.
+- Elven Instrumentation Operator opcional: webhook CRD-free, sem acesso de runtime à API, imagens SDK Elven por digest, namespaces/containers opt-in e prevenção de dupla instrumentação. SDKs não recebem tenant/token SaaS.
+- Reserva atômica e recibo de identidade de PVC para impedir adoção/replay de WAL estrangeiro ou troca implícita de tenant; falhas preservam o volume.
+- Publicação com proteção de tags imutáveis; BuildKit pinado após correções de segurança; metadados de arquitetura de laboratório deixam de presumir amd64 ausente.
+- Identidade de produto exclusivamente Elven; exemplos de clientes anonimizados. Licenças, fontes e atribuições upstream obrigatórias preservadas.
+
 ### Arquitetura e segurança
 
 - Novo caminho de instalação por CLI e chart próprio, com identidade de cluster, ownership por release e configurações modulares.
@@ -17,7 +25,7 @@
 - O template anterior está em `legacy/v0/`, apenas como histórico. O comando antigo `helmfile apply` não é o instalador da nova distribuição.
 - O Helmfile da raiz não possui releases/hooks; scripts shell legados exigem opt-in explícito e não são mecanismo de migração.
 - Não há atualização automática sobre releases/recursos legados nem adoção de CRDs, operadores, posições ou storage de terceiros.
-- Não há criação automática de Instrumentation em namespaces ou injeção de SDK nas aplicações. eBPF e integração OTLP não equivalem a spans internos/de negócio completos.
+- Não há criação de CRDs Instrumentation nem injeção global implícita. A injeção Elven é opcional e selecionada; eBPF/SDKs não garantem spans internos/de negócio completos de qualquer aplicação.
 - Logs, métricas de host e profiles não são coletados de aplicações/nodes não selecionados no perfil. Profiles pprof exigem endpoints disponibilizados explicitamente.
 
 ### Evidência e release

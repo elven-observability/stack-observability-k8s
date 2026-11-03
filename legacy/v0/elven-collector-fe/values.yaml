@@ -79,7 +79,7 @@ ingress:
   ingressClassName: ""
   annotations: {}
   hosts:
-    - host: example.domain.io
+    - host: frontend.elven.invalid
       paths:
         - path: /
           pathType: Prefix

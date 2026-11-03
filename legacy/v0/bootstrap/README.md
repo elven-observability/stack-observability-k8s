@@ -3,7 +3,7 @@
 A stack e instalada pelo Helmfile. Na primeira instalacao, informe as credenciais do tenant por variaveis de ambiente:
 
 ```bash
-export ELVEN_TENANT_ID="seu-tenant"
+export ELVEN_TENANT_ID="ELVEN_TENANT_PLACEHOLDER"
 export ELVEN_API_TOKEN="<SEU_API_TOKEN>"
 helmfile apply
 ```

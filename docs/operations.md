@@ -15,11 +15,13 @@
 
 Operações online usam `--context` explícito. Operações mutantes exigem `--expect-cluster-uid`, conferido pelo UID de `kube-system`; instalação/upgrade usam também `--cluster-name`. O nome lógico serve para identificar a telemetria; não substitui o UID como proteção contra contexto incorreto. `--kubeconfig` pode selecionar um arquivo específico. Não use comandos antigos como fallback automático para falha do preflight.
 
-`status`, `rollback` e `uninstall` obtêm a configuração da ConfigMap de settings da release instalada, verificando ownership Helm; não dependem do arquivo values original, do render atual, da disponibilidade dos backends ou de Secrets válidos. O nome lógico instalado é recuperado; se um `--cluster-name` for fornecido e divergir, a CLI rejeita. Isso preserva o caminho de recuperação mesmo com o SaaS indisponível ou a PKI expirada.
+`status`, `rollback` e `uninstall` obtêm a configuração da ConfigMap de settings da release instalada, verificando ownership Helm; não dependem do arquivo values original, do render atual ou da disponibilidade dos backends. O nome lógico instalado é recuperado; se um `--cluster-name` for fornecido e divergir, a CLI rejeita. `status` e `uninstall` não precisam de Secrets válidos. O rollback não exige PKI ainda válida nem imagens novas promovidas, mas precisa comprovar a identidade da ingestão/storage e a compatibilidade da revisão alvo para não reabrir um WAL antigo em outro tenant.
 
 Nesta revisão candidata, `publicationStatus` ainda não é `verified`: `preflight/install/upgrade` de produção permanecem bloqueados. O mantenedor precisa concluir a promoção de imagens assinadas descrita em [supply chain](supply-chain.md), com repository/digest selecionados iguais aos aprovados. O `helmfile.yaml` da raiz não contém releases ou hooks; não é uma segunda via de instalação sem esse gate.
 
 Use `--help` para a interface completa. Os exemplos abaixo usam release `elven`, namespace `elven-observability`, domínio `cluster.local` e as variáveis preparadas no README. Se alterar esses parâmetros, ajuste comandos, certificados, clientes e consultas de diagnóstico.
+
+Comandos externos e checagens de autorização têm deadline padrão de 120 segundos. Operações Helm de instalação/upgrade/rollback/uninstall com `--timeout` recebem o prazo solicitado mais 90 segundos de margem; um rollout de 600s não é encerrado pelo limite genérico de 120s. Timeout suprime argumentos/stdout/stderr e deixa a conclusão **UNKNOWN**: uma escrita pode ter sido efetivada antes da perda de resposta. A CLI não tenta limpar ou adotar recursos nesse caso; confirme o estado antes de repetir, especialmente se uma reserva de PVC ficou pendente.
 
 ## Preparação e perfis
 
@@ -51,12 +53,14 @@ O contrato completo está em `charts/elven-observability/values.yaml` e no schem
 | Recursos opcionais | `nodeAgent.resources`, `clusterMetrics.resources`, `profiles.resources`, selectors/tolerations e `nodeAgent.hostAliases` revisados. |
 | Rede/portas | `ports`, `modules.kubeletMetrics.port`, `networkPolicy.*CIDRs`, `apiServerPorts`, `profilePorts`. |
 | TLS kubelet | `modules.kubeletMetrics.endpointAddress` (`ip` ou `hostname`), `caFile`, `caSecretName`; o endereço precisa coincidir com SAN e resolver corretamente. |
-| Privacidade | `privacy.logBodyMode`: `strict` por padrão; `redact` é exceção revisada, não garantia de PII zero. `privacy.preserveSpanLinks` exige aprovação separada de atributos de links. |
+| Privacidade | `privacy.logBodyMode`: `selective` por padrão; `strict` remove o corpo inteiro; `redact` é alias legado de seletivo. Links preservados são sanitizados recursivamente. Nenhum modo garante detectar qualquer PII de negócio. |
 | Telemetria interna | `selfMonitoring.enabled/interval` para os Collectors; verificar séries locais e no tenant. O endpoint operacional Alloy profiles não implica exportação automática de seus próprios indicadores. |
 
 A CLI rejeita `fullnameOverride` para manter o contrato de nomes/PKI. Nomes externos de Secrets usam `--credentials-secret`/`--tls-secret` com `--use-existing-secrets`; não usá-los nem mudar o domínio do cluster para contornar colisões sem conferir ownership/SANs. Para instalações paralelas, preferir outra release/namespace e PKI/Secrets próprios; não compartilhar WAL, PVC ou posições de agents.
 
 A inspeção de claims das releases Elven detecta sobreposição em DaemonSets/Deployments identificados e falha se não conseguir conferir esse inventário. `--allow-overlapping-collection` só deve ser usado após revisão explícita de fontes, destinos e duplicação, como em um ensaio de coexistência; não é deduplicação ou garantia de descobrir agentes de terceiros. `--allow-unrestricted-network` é uma exceção explícita para política de rede externa revisada, não a correção recomendada para egress ausente.
+
+Kubelet tem escopo de node: `kubelet_stats` também emite métricas globais do node, mesmo quando os namespaces das aplicações são distintos. Duas releases com coleta kubelet ativa são tratadas conservadoramente como sobrepostas; namespaces separados não liberam essa combinação. Use uma autoridade kubelet por conjunto de nodes ou, somente após revisar placement real, destinos e duplicação, reconheça a exceção com `--allow-overlapping-collection`. Selectors de nodes aparentemente distintos também exigem essa revisão explícita; a CLI não comprova que o placement será disjunto. Os demais sinais com escopo por namespace mantêm sua regra de separação.
 
 ## Dimensionamento inicial
 
@@ -168,6 +172,20 @@ Antes de desinstalar: interromper/adaptar os produtores em escopo, registrar o b
 
 Namespace, Secrets de ingestão/TLS e PVCs do gateway são retidos. Isso protege dados/credenciais e impede remoção acidental de recursos adicionais; não é limpeza completa de dados pessoais. A remoção definitiva desses itens exige inventário de ownership, política de retenção e aprovação separada. Não excluir CRDs, operadores ou namespaces do cliente, e não executar destroy legado.
 
+### Identidade do PVC e recuperação de filas
+
+A CLI reserva o claim exato `data-<release>-gateway-0` por **create-only antes do Helm**. Se outro claim aparecer entre o preflight e a criação, a operação falha; não há fallback para reutilizar, adotar ou excluir esse volume. O instalador precisa de `get/create/patch` em PVCs, além das permissões Helm. Isso não concede acesso Kubernetes adicional ao Collector em execução.
+
+Depois da reconciliação, um patch compare-and-swap vincula a anotação `elven.observability/storage-identity` aos UIDs reais do cluster, PVC, StatefulSet e Secret de ingestão, à release/namespace, ao nome lógico do cluster e ao SHA-256 do tenant. **Token e tenant em claro não são incluídos nesse recibo.** Uma atualização normal exige o mesmo recibo e os recursos vivos com ownership correto. Rotação do token no mesmo Secret/tenant é permitida; trocar tenant, recriar o Secret ou StatefulSet, ou reutilizar o nome de um PVC não comprova a identidade anterior da fila.
+
+Falha do Helm ou da gravação CAS retém PVCs/Secrets e pode deixar o recibo `reserved`. Claims retidos sem StatefulSet vivo, claims instalados diretamente com Helm e instalações RC anteriores sem recibo são bloqueados para novo install/upgrade; não existe override de adoção. `status` e `uninstall` continuam disponíveis com os guards de contexto/UID/ownership próprios, sem exigir esse novo recibo. **Sucesso do Helm seguido de falha do recibo é falha de confirmação de storage, não rollback automático.**
+
+O rollback de um gateway persistente também exige recibo atual válido: reiniciar um Collector após alguém alterar o tenant no Secret poderia exportar o WAL para o destino errado. Antes do `helm rollback`, a CLI lê os values da revisão explicitamente escolhida e recusa mudanças de cluster lógico, nome do Secret, modo persistente/efêmero ou fullname. Expiração da PKI, indisponibilidade do SaaS e gate de promoção de imagens não são usados para bloquear esse caminho de recuperação; a identidade da fila não é dispensada. Se essa prova faltar, preserve dados e faça recuperação manual, em vez de forçar rollback.
+
+Para recuperar: preserve o volume/WAL original, registre os UIDs e a origem de tenant com acesso administrativo restrito, e confirme a identidade e compatibilidade do formato sem publicar dados brutos. Drene com a configuração de origem comprovada enquanto houver um caminho de recuperação autorizado; uma mudança de tenant exige release/PVC novos e validação separada. Não copie um recibo, remova a anotação, altere labels ou apague dados para contornar o guard. Recuperação de uma instalação interrompida ou de um claim antigo exige revisão manual e procedimento específico; esta CLI não tenta inferir o dono do WAL.
+
+O recibo é uma verificação de identidade nas fronteiras da CLI, não assinatura imutável contra o administrador do cluster. Controle quem pode alterar Secrets e PVCs. Uma alteração externa de credenciais em workloads já em execução continua exigindo processo próprio de rotação/isolamento; o preflight não impede mutações administrativas concorrentes fora da CLI.
+
 ## Troubleshooting
 
 | Sintoma | Checagens e ação segura |
@@ -176,6 +194,7 @@ Namespace, Secrets de ingestão/TLS e PVCs do gateway são retidos. Isso protege
 | Imagens não promovidas | Produção está bloqueada até publicação/assinatura/verificação e atualização conjunta de lock/defaults. Não usar `--development-images` em cliente. |
 | Secret de outro dono | Use nome/release próprio ou referência externa explícita revisada; não adote/aplique por cima. |
 | PVC Pending | StorageClass, quota, capacidade, topologia e provisionador. Não trocar silenciosamente por storage efêmero. |
+| Identidade do PVC ausente/divergente ou `reserved` | Preserve WAL, PVC e Secrets. Confirme origem/UIDs e o estado da reconciliação; faça revisão manual de recuperação. Não adote volume pelo nome nem copie/remova o recibo para forçar replay. |
 | Collector não inicia | Eventos, mounts, chaves/CA dos Secrets, schema e validação da configuração com a versão pinada; não imprimir Secret. |
 | TLS/SAN incorreto | DNS real do Service/destino, CA, validade e certificado de cliente; nunca `insecure_skip_verify`. |
 | 401/403 no SaaS | Tenant/token, escopo, endpoint e origem segura da credencial; readiness não valida autenticação. |

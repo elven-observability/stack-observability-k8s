@@ -2,11 +2,11 @@
 
 Distribuição Kubernetes da Elven para receber e coletar telemetria com componentes próprios, isolamento por release e segurança por padrão. O caminho atual usa a CLI `./elven` e o chart `charts/elven-observability`.
 
-Não requer o gateway, Prometheus, Alloy ou Operator do cliente. Não instala CRDs, webhooks, cert-manager ou SDKs nas aplicações. O baseline é um gateway OTLP com mTLS, exportação HTTPS autenticada e filas persistentes. Logs de containers, métricas Kubernetes/kubelet, eBPF e profiles são módulos explícitos, não uma coleta global implícita.
+Não requer gateway, agentes ou Operator do cliente. O baseline não instala CRDs, webhooks, cert-manager ou SDKs nas aplicações: é um gateway OTLP com mTLS, exportação HTTPS autenticada e filas persistentes. Logs de containers, métricas Kubernetes/kubelet, eBPF e profiles são módulos explícitos. O módulo opcional **Elven Instrumentation Operator** acrescenta um webhook próprio, sem CRDs e sem acesso à API pelo runtime, para injetar SDKs somente nos Pods/containers autorizados.
 
 **Candidato da linha 1.0 — instalação de produção bloqueada até publicação, assinatura e promoção verificadas das imagens Elven.** O lock desta revisão está `not-published`; a CLI recusa `preflight`, `install` e `upgrade` de produção nesse estado e também recusa imagens que não coincidam com repository/digest promovidos. Não há fallback automático para a imagem contrib completa: seu scan identificou uma dependência High e motivou o Collector Elven mínimo corrigido. Ver [supply chain](docs/supply-chain.md).
 
-Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir o [relatório de validação e artefatos](docs/validation-2026-10-29.md) e [suporte/gates de release](docs/support.md). Um artefato OCI local não é uma imagem publicada/assinada para produção.
+Configuração renderizada, reconciliação Helm, scan/build local, testes em laboratório e aceitação no cliente são evidências diferentes. Conferir o [hardening de 03/11 e seus gates](docs/hardening-2026-11-03.md), o [histórico de validação de 29/10](docs/validation-2026-10-29.md) e [suporte/gates de release](docs/support.md). Um artefato OCI local não é uma imagem publicada/assinada para produção.
 
 ## Instalação mínima após promoção da release
 
@@ -82,6 +82,17 @@ Para ensaiar a instalação nesse mesmo laboratório, o `install` exige novament
 | [`examples/kubernetes.yaml`](examples/kubernetes.yaml) | Ponto de partida para coleta Kubernetes selecionada. Revisar namespaces, APIs/kubelet, CAs, CIDRs e aprovação de logs antes de habilitar. |
 | eBPF/Beyla | Opcional, workloads e permissões de host explícitos; não oferece spans internos/de negócio completos nem propagação de headers por padrão. |
 | [`examples/profiles.yaml`](examples/profiles.yaml) | Profiles de alvos pprof HTTPS/mTLS existentes e aprovados; não instala nem ativa pprof na aplicação. |
+| [Elven Instrumentation Operator](charts/elven-instrumentation/README.md) | Injeção opcional de SDKs Elven por namespace/Pod/container explicitamente selecionados; independente de operadores/CRDs do cliente. |
+
+## Instrumentação granular e privacidade seletiva
+
+O Operator Elven injeta imagens próprias fixadas por digest para Java, Node.js e Python. SDKs e eBPF têm coberturas diferentes: bibliotecas HTTP/banco/mensageria suportadas podem produzir spans granulares, mas não existe garantia de instrumentar todo método, statement, log ou fluxo de negócio. Não há reinício, alteração de Deployments ou opt-in global automáticos. Conflitos detectáveis no Pod/namespace são recusados; SDKs e loader flags embutidos no `ENV` da imagem exigem inventário e canary, pois o webhook não consulta o registry.
+
+Java 17/21 usa o mesmo agente compatível. Node.js atual exige 22.15+; o perfil Node.js 20 é legado EOL, separado e exige aprovação explícita. Python permanece opcional e depende de versão, libc e bibliotecas suportadas. O [guia do módulo](charts/elven-instrumentation/README.md) contém a matriz e o procedimento de canary. Tenant/token de ingestão nunca são injetados nas aplicações; SDKs usam mTLS até o gateway.
+
+`privacy.logBodyMode: selective` é o padrão. O processor Elven sanitiza recursivamente o envelope OTLP e preserva texto operacional, estrutura JSON, IDs de correlação e forma das queries. Senhas, tokens, padrões básicos de PII e valores SQL são mascarados **antes da fila persistente**. Exemplo de saída: `Pedido aprovado; email=[REDACTED]; duração=42ms`; query: `SELECT id FROM elven_accounts WHERE email=? AND amount>?`. O arquivo/log original da aplicação não é reescrito.
+
+`strict` continua disponível para retirar o corpo inteiro. Inputs malformados ou acima dos limites recebem máscara no ramo afetado, sem fallback cru. Regras básicas não reconhecem qualquer PII de negócio: valide seu corpus, acrescente controles na origem e revise a [política de dados](docs/security.md#dados-sensíveis). Statements, parâmetros e payloads irrestritos não são habilitados como atalho para granularidade.
 
 As versões/digests selecionados estão em [versões e compatibilidade](docs/versions.md); builds, SBOM, scans, proveniência, assinatura e registry estão em [supply chain](docs/supply-chain.md). O Collector Elven usa build mínimo OCB com componentes explícitos; Beyla/Alloy preservam seus runtimes upstream. Licenças e rastreabilidade são mantidas, sem atribuir à Elven a autoria do código upstream.
 

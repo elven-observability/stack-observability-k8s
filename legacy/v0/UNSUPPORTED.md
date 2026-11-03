@@ -1,6 +1,6 @@
 # Legado v0 — histórico, não executar como nova instalação
 
-Este diretório preserva o template anterior à refatoração, originalmente no commit `3978bcc`. Ele existe para comparação, análise de instalações antigas e preparação de uma migração manual. **Não é o caminho de instalação suportado da nova distribuição.**
+Este diretório preserva a estrutura do template anterior à refatoração, originalmente no commit `3978bcc`, com guards de execução e exemplos/contatos anonimizados para a identidade Elven. Ele existe para comparação, análise de instalações antigas e preparação de uma migração manual. Não é uma cópia byte a byte do commit histórico. **Não é o caminho de instalação suportado da nova distribuição.**
 
 Não execute seus scripts/Helmfile em um cluster para “testar” a migração. Há operações históricas que escrevem até durante `diff`, `template` ou `lint`, e rotinas de remoção que não verificam ownership. O bundle também inclui CRDs e webhooks de alcance global. Ver [diagnóstico](../../docs/audit-baseline.md).
 

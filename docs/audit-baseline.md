@@ -1,6 +1,6 @@
 # Diagnóstico do template anterior
 
-Inspeção local em 29/10/2026, sobre o commit `3978bcc`. Os arquivos originais foram preservados em [`legacy/v0/`](../legacy/v0/), com um guard fail-closed acrescentado no início dos scripts shell. Os números de linha abaixo já incluem esse guard e se referem aos arquivos em `legacy/v0/`, não aos novos templates. A inspeção não envolveu acesso ou alteração de cluster de cliente.
+Inspeção local em 29/10/2026, sobre o commit `3978bcc`. A estrutura anterior foi preservada em [`legacy/v0/`](../legacy/v0/), com um guard fail-closed acrescentado no início dos scripts shell; referências específicas de ambientes e contatos de exemplo foram posteriormente substituídas por placeholders Elven. Os números de linha abaixo já incluem esse guard e se referem aos arquivos em `legacy/v0/`, não aos novos templates. A inspeção não envolveu acesso ou alteração de cluster de cliente.
 
 ## Arquitetura encontrada
 

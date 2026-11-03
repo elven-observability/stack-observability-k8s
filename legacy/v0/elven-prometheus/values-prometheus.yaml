@@ -2542,7 +2542,7 @@ prometheus-node-exporter:
     labels:
       jobLabel: node-exporter
 
-  # Remove tolerations para evitar conflito com políticas do Magalu Cloud
+  # Tolerations explícitas devem respeitar as políticas da plataforma revisada.
   tolerations: []
 
   # Configurar affinity para não tentar rodar em control plane nodes
