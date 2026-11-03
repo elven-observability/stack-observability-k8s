@@ -169,7 +169,11 @@
     "helm": "4.3.1",
     "helm3Compatibility": "3.22.1",
     "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315",
-    "trivy": "0.76.1"
+    "trivy": "0.76.1",
+    "trivyLinuxAmd64": {
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz",
+      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+    }
   },
   "verifiedOn": "2026-10-29"
 }

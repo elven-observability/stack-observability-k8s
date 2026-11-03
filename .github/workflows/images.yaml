@@ -44,9 +44,8 @@ jobs:
           buildkitd-config-inline: |
             [worker.oci]
               max-parallelism = 1
-      - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
-        with:
-          version: v0.76.1
+      - name: Install checksum-pinned Trivy release without a mutable installer
+        run: python3 scripts/images-install-trivy.py --lock versions.lock.json
       - name: Ensure bounded disk margin on the disposable hosted runner
         run: python3 scripts/images-ci-space.py --prepare
       - name: Inspect disposable CI runner storage before building
