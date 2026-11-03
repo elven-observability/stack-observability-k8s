@@ -3,6 +3,7 @@
 import argparse
 import base64
 import hashlib
+import importlib.util
 import ipaddress
 import json
 import os
@@ -16,7 +17,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent
 CHART = ROOT / "charts/elven-observability"
-VERSION = "1.0.0-rc.2"
+VERSION = "1.0.0"
 OWNER = "elven-cli"
 MUTATING = {"install", "upgrade", "rollback", "uninstall"}
 STORAGE_IDENTITY = "elven.observability/storage-identity"
@@ -575,6 +576,104 @@ def require_promoted_images(settings, development=False):
             raise Failure(f"images.{name} does not match the signed/promoted release lock. Promote and review the exact image first; no automatic fallback to upstream or latest.")
 
 
+def instrumentation_module():
+    """Load the existing stdlib-only CLI, not a second implementation of it."""
+    path = ROOT / "scripts/instrumentation.py"
+    if not path.is_file():
+        raise Failure("The Elven instrumentation installer is missing; use a complete verified distribution checkout. No core resources were written.")
+    specification = importlib.util.spec_from_file_location("elven_combined_instrumentation", path)
+    if specification is None or specification.loader is None:
+        raise Failure("The Elven instrumentation installer is missing; nothing was installed.")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def combined_options(args):
+    values = getattr(args, "instrumentation_values", [])
+    release = getattr(args, "instrumentation_release", "elven-operator")
+    if not values:
+        if release != "elven-operator":
+            raise Failure("--instrumentation-release requires --instrumentation-values.")
+        return False
+    if args.command not in ("install", "upgrade"):
+        raise Failure("--instrumentation-values is supported only by install and upgrade; recovery never silently changes the Operator.")
+    identifier(release, "--instrumentation-release", 53)
+    if release == args.release:
+        raise Failure("Core and instrumentation Helm releases must have different names.")
+    if not args.context or not args.expect_cluster_uid:
+        raise Failure("Combined installation requires explicit --context and --expect-cluster-uid.")
+    return True
+
+
+def prepare_instrumentation(args, gateway, folder):
+    """Validate/freeze the optional public profile before any core write.
+
+    Online Operator ownership, API permissions and PKI checks necessarily run
+    after the gateway exists. This is a two-phase reconciliation, not an atomic
+    transaction; a second-phase failure never destroys the first phase.
+    """
+    if not combined_options(args):
+        return None
+    module = instrumentation_module()
+    selected = argparse.Namespace(command="install", release=args.instrumentation_release,
+        namespace=args.namespace, context=args.context, kubeconfig=args.kubeconfig,
+        expect_cluster_uid=args.expect_cluster_uid, values=list(args.instrumentation_values),
+        render_kube_version=args.render_kube_version, development_images=args.development_images,
+        timeout=args.timeout, output=None)
+    target = folder / "instrumentation"
+    target.mkdir(mode=0o700)
+    try:
+        # Validate the same timeout contract before the core can mutate state.
+        module.duration_seconds(args.timeout)
+        _, settings, _ = module.render(selected, target)
+        if not settings.get("enabled"):
+            raise Failure("The supplied instrumentation profile must set enabled: true; omit --instrumentation-values for core-only installation.")
+        module.require_images(settings, args.development_images)
+    except module.Failure:
+        raise Failure("Instrumentation profile or promoted image verification failed before core installation. Review its offline render and signed release lock; no core resources were written.") from None
+    domain = gateway["cluster"].get("domain", "cluster.local")
+    expected = {"sourceRelease": args.release, "sourceNamespace": args.namespace,
+                "endpoint": f"https://{args.release}-gateway.{args.namespace}.svc.{domain}:{gateway['ports']['otlpHttp']}"}
+    source = settings.get("gateway", {})
+    if (settings.get("clusterDomain") != domain or source.get("sourceRelease") != expected["sourceRelease"]
+            or source.get("sourceNamespace") != expected["sourceNamespace"]
+            or source.get("endpoint", "").rstrip("/") != expected["endpoint"]):
+        raise Failure("Instrumentation gateway identity must exactly match this core release, namespace, domain and HTTPS OTLP port; no resources were written.")
+    approved = set(gateway.get("collection", {}).get("namespaces", []))
+    if not set(settings.get("namespaces", [])).issubset(approved):
+        raise Failure("Core collection.namespaces must explicitly authorize every instrumentation namespace before combined installation; no resources were written.")
+    # Only chart-schema-validated public settings are frozen here, never tenant,
+    # ingest token or private PKI. Do not reread a changed profile after phase 1.
+    frozen = target / "reviewed-values.json"
+    with frozen.open("x") as output:
+        json.dump(settings, output)
+    frozen.chmod(0o600)
+    command = ["install", "--release", selected.release, "--namespace", selected.namespace,
+               "--context", selected.context, "--expect-cluster-uid", selected.expect_cluster_uid,
+               "--values", str(frozen), "--render-kube-version", selected.render_kube_version,
+               "--timeout", selected.timeout]
+    if selected.kubeconfig:
+        command += ["--kubeconfig", selected.kubeconfig]
+    if selected.development_images:
+        command.append("--development-images")
+    return {"module": module, "command": command}
+
+
+def reconcile_instrumentation(args, plan):
+    if plan is None:
+        return
+    try:
+        # Keep each existing API/Helm deadline instead of killing an outer
+        # Python subprocess while its Helm child could still be writing.
+        result = plan["module"].main(plan["command"])
+        if result not in (None, 0):
+            raise Failure("Instrumentation returned an unexpected nonzero result.")
+    except (plan["module"].Failure, Failure, OSError, ValueError, KeyError, TypeError, SystemExit):
+        raise Failure(f"Core release {args.release} reconciled in {args.namespace}, but the instrumentation phase failed or has UNKNOWN completion. Core resources, Secrets and PVCs were retained; no automatic cleanup or application restart was attempted. Inspect core and instrumentation status before retrying the same reviewed command.") from None
+    print("Combined Elven installation reconciled. Applications still require explicit reviewed opt-in; verify backend delivery before expanding.")
+
+
 def create_secret(args, name, values):
     obj = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
            "metadata": {"name": name, "namespace": args.namespace, "labels": labels(args)},
@@ -649,7 +748,7 @@ def install(args, namespace, settings, flags, folder, helm_major):
     print("This proves Helm reconciliation, not receipt in the Elven tenant. Follow docs/operations.md acceptance checks.")
 
 
-def main():
+def main(argv=None):
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("version", "render", "preflight", "install", "upgrade", "status", "rollback", "uninstall"))
@@ -660,6 +759,9 @@ def main():
     parser.add_argument("--expect-cluster-uid")
     parser.add_argument("--cluster-name")
     parser.add_argument("--values", action="append", default=[])
+    parser.add_argument("--instrumentation-values", action="append", default=[],
+                        help="Reviewed Operator values; reconcile the optional Operator after core installation, without changing applications")
+    parser.add_argument("--instrumentation-release", default="elven-operator")
     parser.add_argument("--render-kube-version", default="1.37.2")
     parser.add_argument("--tenant-file", default=os.environ.get("ELVEN_TENANT_FILE"))
     parser.add_argument("--token-file", default=os.environ.get("ELVEN_TOKEN_FILE"))
@@ -672,7 +774,8 @@ def main():
     parser.add_argument("--output")
     parser.add_argument("--revision", type=int)
     parser.add_argument("--timeout", default="15m")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    combined_options(args)
     if args.command == "version":
         print(f"Elven Observability Distribution {VERSION}")
         return
@@ -708,6 +811,7 @@ def main():
             manifest, flags = "", []
         else:
             manifest, settings, flags = render(args, folder)
+        instrumentation = prepare_instrumentation(args, settings, folder)
         if args.command == "render":
             if args.output:
                 path = Path(args.output)
@@ -727,6 +831,7 @@ def main():
         if args.command in ("install", "upgrade"):
             require_promoted_images(settings, args.development_images)
             install(args, namespace, settings, flags, folder, helm_major)
+            reconcile_instrumentation(args, instrumentation)
         elif args.command == "status":
             selector = f"app.kubernetes.io/instance={args.release},app.kubernetes.io/part-of=elven-observability"
             print(kube(args, "get", "pods,pvc", "-n", args.namespace, "-l", selector), end="")

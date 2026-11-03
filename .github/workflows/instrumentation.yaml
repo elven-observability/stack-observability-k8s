@@ -2,7 +2,7 @@ name: Elven opt-in SDK supply chain
 
 on:
   pull_request:
-    paths: ['operator/**', 'images/operator/**', 'images/autoinstrumentation/**', 'instrumentation.lock.json', 'charts/elven-instrumentation/**', 'scripts/instrumentation.py', 'scripts/images-instrumentation.py', 'scripts/images-release.py', 'scripts/images-install-ci-tools.sh', 'scripts/validate-instrumentation.py', 'scripts/test-instrumentation-kind.py', 'tests/test_instrumentation*.py', 'tests/instrumentation-fixtures/**', '.github/workflows/instrumentation.yaml']
+    paths: ['operator/**', 'images/operator/**', 'images/autoinstrumentation/**', 'instrumentation.lock.json', 'charts/elven-instrumentation/**', 'scripts/instrumentation.py', 'scripts/images-instrumentation.py', 'scripts/images-release.py', 'scripts/images-attestations.py', 'scripts/images-install-trivy.py', 'scripts/images-install-ci-tools.sh', 'scripts/validate-instrumentation.py', 'scripts/test-instrumentation-kind.py', 'tests/test_instrumentation*.py', 'tests/test_images_attestations.py', 'tests/instrumentation-fixtures/**', '.github/workflows/instrumentation.yaml']
   push:
     tags: ['v1.*']
   workflow_dispatch:
@@ -39,9 +39,8 @@ jobs:
           version: v0.38.1
           driver-opts: image=docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
           buildkitd-flags: --oci-worker-gc
-      - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
-        with:
-          version: v0.76.1
+      - name: Install checksum-pinned Trivy release without a mutable installer
+        run: python3 scripts/images-install-trivy.py --lock instrumentation.lock.json
       - name: Build independent Operator and four SDK images, including pinned Go unit tests
         timeout-minutes: 30
         env:
@@ -96,6 +95,8 @@ jobs:
           bash scripts/images-install-ci-tools.sh
       - name: Validate scoped opt-in contracts, Helm lint and all maintained schemas
         run: python3 scripts/validate-instrumentation.py
+      - name: Verify exact signed-predicate contracts
+        run: python3 -m unittest discover -s tests -p test_images_attestations.py -v
       - name: Check real TLS runtime fixtures without a cluster
         run: python3 -m unittest discover -s tests/instrumentation-fixtures -p test_fixtures.py -v
       - name: Native amd64 injection and actual SDK telemetry with the scanned archives

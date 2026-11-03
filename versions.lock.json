@@ -1,45 +1,179 @@
 {
-  "schemaVersion": 1,
-  "verifiedOn": "2026-10-29",
   "distribution": {
     "name": "Elven Observability Distribution",
-    "version": "1.0.0",
-    "repository": "https://github.com/elven-observability/stack-observability-k8s",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "publicationStatus": "verified",
     "registry": "docker.io/elvenobservability",
-    "publicationStatus": "not-published",
-    "platforms": ["linux/amd64", "linux/arm64"]
+    "repository": "https://github.com/elven-observability/stack-observability-k8s",
+    "version": "1.0.0"
   },
   "images": {
-    "collector": {
-      "upstream": {"repository": "docker.io/otel/opentelemetry-collector-contrib", "tag": "0.164.0", "digest": "sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b", "sourceVersion": "0.164.1", "source": "https://github.com/open-telemetry/opentelemetry-collector-contrib", "release": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0", "license": "Apache-2.0"},
-      "distribution": {"repository": "docker.io/elvenobservability/elven-collector", "digest": null, "status": "not-published"},
-      "dockerfile": "images/collector/Dockerfile",
-      "sourceBuild": {"type": "ocb-minimal", "builderVersion": "0.164.0", "coreVersion": "0.164.0", "contribVersion": "0.164.1", "manifest": "images/collector/builder-config.yaml", "localModules": ["processor/elvenprivacyprocessor"], "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9", "securityOverrides": {"github.com/go-jose/go-jose/v4": "4.1.6", "golang.org/x/net": "0.62.0"}, "reason": "Official full contrib runtime contains CVE-2026-116587; remove unused components and pin patched dependencies instead of waiving scan findings. x/net 0.62.0 also corrects CVE-2026-78661 and CVE-2026-97045."}
+    "alloy": {
+      "distribution": {
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:eee01c7a0a69fb3a11176e192eaf6c5fb03841ee7c56f7c45c548b8f5020647d"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:a00f59a8177b16c3eaa20ad3d443fa2aa7a345fe69d3acce2897e0fca9bb7a36",
+            "linux/arm64": "sha256:e24adfa10fc858dd685519a27cb24b1c6b248aedf1eaed2249daabf2a1290eac"
+          },
+          "subjectDigest": "sha256:6cd5a07c5523dc42bc1abdf5d1de1f35a3f2800fcaee34023bad547cd80bf57d"
+        },
+        "digest": "sha256:6cd5a07c5523dc42bc1abdf5d1de1f35a3f2800fcaee34023bad547cd80bf57d",
+        "repository": "docker.io/elvenobservability/elven-profiler",
+        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "status": "verified",
+        "tag": "v1.0.0",
+        "verifiedAt": "2026-11-03T20:39:38.112699+00:00"
+      },
+      "dockerfile": "images/profiler/Dockerfile",
+      "upstream": {
+        "digest": "sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4",
+        "license": "Apache-2.0",
+        "release": "https://github.com/grafana/alloy/releases/tag/v1.21.3",
+        "repository": "docker.io/grafana/alloy",
+        "source": "https://github.com/grafana/alloy",
+        "sourceVersion": "1.21.3",
+        "tag": "v1.21.3"
+      }
     },
     "beyla": {
-      "upstream": {"repository": "docker.io/grafana/beyla", "tag": "3.40.0", "digest": "sha256:59e31947a79178f7228e3886d061e1261f792e84ea7365b8b54113232437a8b4", "sourceVersion": "3.40.0", "source": "https://github.com/grafana/beyla", "release": "https://github.com/grafana/beyla/releases/tag/v3.40.0", "license": "Apache-2.0"},
-      "distribution": {"repository": "docker.io/elvenobservability/elven-ebpf", "digest": null, "status": "not-published"},
-      "dockerfile": "images/ebpf/Dockerfile"
+      "distribution": {
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:6f3e0192ffcd33485611a1b6a93466695bed0f956ff532b163e74e5ff2cefa32"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:eea845de55a6234dbfeb6e827362e0b8a321b806947501f2f45c5e507eaa809a",
+            "linux/arm64": "sha256:7d6215dc9cd745fa753c526a5b6d02af52f769e1255ed7f4b3020f0348abf782"
+          },
+          "subjectDigest": "sha256:be51d39658483814b3739f35a9ef876fc39a7f72892d7cc36daf496dfc77ab7f"
+        },
+        "digest": "sha256:be51d39658483814b3739f35a9ef876fc39a7f72892d7cc36daf496dfc77ab7f",
+        "repository": "docker.io/elvenobservability/elven-ebpf",
+        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "status": "verified",
+        "tag": "v1.0.0",
+        "verifiedAt": "2026-11-03T20:39:47.787581+00:00"
+      },
+      "dockerfile": "images/ebpf/Dockerfile",
+      "upstream": {
+        "digest": "sha256:59e31947a79178f7228e3886d061e1261f792e84ea7365b8b54113232437a8b4",
+        "license": "Apache-2.0",
+        "release": "https://github.com/grafana/beyla/releases/tag/v3.40.0",
+        "repository": "docker.io/grafana/beyla",
+        "source": "https://github.com/grafana/beyla",
+        "sourceVersion": "3.40.0",
+        "tag": "3.40.0"
+      }
     },
-    "alloy": {
-      "upstream": {"repository": "docker.io/grafana/alloy", "tag": "v1.21.3", "digest": "sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4", "sourceVersion": "1.21.3", "source": "https://github.com/grafana/alloy", "release": "https://github.com/grafana/alloy/releases/tag/v1.21.3", "license": "Apache-2.0"},
-      "distribution": {"repository": "docker.io/elvenobservability/elven-profiler", "digest": null, "status": "not-published"},
-      "dockerfile": "images/profiler/Dockerfile"
+    "collector": {
+      "distribution": {
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:a7b6a5ca31764bb039b6827c4ee144ba89db92f11128a5ada187c6e38cad6be0"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:f8f82b24a7c73e9c0a3fd3636f3a06b21f13898ad7508fd549af77cbc6a86835",
+            "linux/arm64": "sha256:4585f8f9d1ecdf29e4ba2389dd3a0ab5674a15caee28c15a4ecf96825d4a55b4"
+          },
+          "subjectDigest": "sha256:87f81a2b66be0d0b50ab8c1604843f2cc701d8c74b8c43d2d5d6ca425fe2125e"
+        },
+        "digest": "sha256:87f81a2b66be0d0b50ab8c1604843f2cc701d8c74b8c43d2d5d6ca425fe2125e",
+        "repository": "docker.io/elvenobservability/elven-collector",
+        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "status": "verified",
+        "tag": "v1.0.0",
+        "verifiedAt": "2026-11-03T20:39:57.453042+00:00"
+      },
+      "dockerfile": "images/collector/Dockerfile",
+      "sourceBuild": {
+        "builderVersion": "0.164.0",
+        "contribVersion": "0.164.1",
+        "coreVersion": "0.164.0",
+        "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9",
+        "localModules": [
+          "processor/elvenprivacyprocessor"
+        ],
+        "manifest": "images/collector/builder-config.yaml",
+        "reason": "Official full contrib runtime contains CVE-2026-116587; remove unused components and pin patched dependencies instead of waiving scan findings. x/net 0.62.0 also corrects CVE-2026-78661 and CVE-2026-97045.",
+        "securityOverrides": {
+          "github.com/go-jose/go-jose/v4": "4.1.6",
+          "golang.org/x/net": "0.62.0"
+        },
+        "type": "ocb-minimal"
+      },
+      "upstream": {
+        "digest": "sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b",
+        "license": "Apache-2.0",
+        "release": "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0",
+        "repository": "docker.io/otel/opentelemetry-collector-contrib",
+        "source": "https://github.com/open-telemetry/opentelemetry-collector-contrib",
+        "sourceVersion": "0.164.1",
+        "tag": "0.164.0"
+      }
+    }
+  },
+  "schemaVersion": 1,
+  "support": {
+    "beyla": {
+      "btfRequired": true,
+      "contextPropagationDefault": "disabled",
+      "headerContextPropagationMinimumKernel": "5.17",
+      "minimumKernel": "5.11",
+      "upstreamMinimumKernel": "5.8"
+    },
+    "kubernetes": {
+      "latestPatches": [
+        "1.35.10",
+        "1.36.6",
+        "1.37.2"
+      ],
+      "legacyPolicy": "Explicit exception; upstream EOL is not distribution validation.",
+      "maintainedMinors": [
+        "1.35",
+        "1.36",
+        "1.37"
+      ]
     }
   },
   "tools": {
+    "buildkit": {
+      "image": "docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe",
+      "release": "https://github.com/moby/buildkit/releases/tag/v0.34.2",
+      "version": "0.34.2"
+    },
+    "ciDocker": "29.9.2",
+    "cosign": "3.1.4",
+    "crane": {
+      "linuxAmd64": {
+        "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0",
+        "url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz"
+      },
+      "version": "0.22.1"
+    },
+    "govulncheck": "1.9.0",
     "helm": "4.3.1",
     "helm3Compatibility": "3.22.1",
+    "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315",
     "trivy": "0.76.1",
-    "cosign": "3.1.4",
-    "govulncheck": "1.9.0",
-    "ciDocker": "29.9.2",
-    "buildkit": {"version": "0.34.2", "image": "docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe", "release": "https://github.com/moby/buildkit/releases/tag/v0.34.2"},
-    "crane": {"version": "0.22.1", "linuxAmd64": {"url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz", "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0"}},
-    "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315"
+    "trivyLinuxAmd64": {
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz",
+      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+    }
   },
-  "support": {
-    "kubernetes": {"maintainedMinors": ["1.35", "1.36", "1.37"], "latestPatches": ["1.35.10", "1.36.6", "1.37.2"], "legacyPolicy": "Explicit exception; upstream EOL is not distribution validation."},
-    "beyla": {"minimumKernel": "5.11", "upstreamMinimumKernel": "5.8", "btfRequired": true, "headerContextPropagationMinimumKernel": "5.17", "contextPropagationDefault": "disabled"}
-  }
+  "verifiedOn": "2026-10-29"
 }

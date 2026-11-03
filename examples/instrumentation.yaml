@@ -1,0 +1,18 @@
+# REVIEW TEMPLATE: not a ready customer profile. No credentials belong here.
+# Fill namespaces and API CIDRs only after infrastructure/application approval.
+enabled: true
+clusterDomain: cluster.local
+namespaces: [] # REQUIRED: also authorize these in core collection.namespaces.
+gateway:
+  sourceRelease: elven
+  sourceNamespace: elven-observability
+  endpoint: https://elven-gateway.elven-observability.svc.cluster.local:4318
+runtimes:
+  java: true # One compatible SDK for the Java 17/21 validated cases.
+  nodejs: true # Node >=22.15; this image must not be injected into Node 20.
+  nodejs20: false # Explicit legacy EOL exception only.
+  legacyNode20Approved: false # Enable only after accepting that exception.
+  python: false # Beta; requires its own application/libc compatibility canary.
+networkPolicy:
+  enabled: true
+  apiServerCIDRs: [] # REQUIRED: actual apiserver sources as seen by the CNI.

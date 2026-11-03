@@ -9,7 +9,7 @@ gateway:
     size: 2Gi
     storageClass: "" # Select a real class or confirm the cluster default.
 privacy:
-  logBodyMode: strict
+  logBodyMode: selective # Preserve useful text; choose strict explicitly if required.
 collection:
   namespaces: [] # Explicitly approved OTLP source namespaces; no discovery.
 networkPolicy:

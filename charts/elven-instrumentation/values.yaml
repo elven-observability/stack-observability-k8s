@@ -24,25 +24,25 @@ runtimes:
   legacyNode20Approved: false
 images:
   operator:
-    repository: docker.io/elvenobservability/elven-instrumentation-operator
-    tag: 1.0.0-dev
-    digest: ""
+    repository: "docker.io/elvenobservability/elven-instrumentation-operator"
+    tag: "v1.0.0"
+    digest: "sha256:3ec69a046b372dcdba63b84ebc83af42ea231f3f3695eeb6239eb64806ba555a"
   java:
-    repository: docker.io/elvenobservability/elven-auto-java
-    tag: 1.0.0-dev
-    digest: ""
+    repository: "docker.io/elvenobservability/elven-auto-java"
+    tag: "v1.0.0"
+    digest: "sha256:ec2574d99213343efe19ab486673590a0f9af7be0a466fee1cd49a28c962066f"
   nodejs:
-    repository: docker.io/elvenobservability/elven-auto-nodejs
-    tag: 1.0.0-dev
-    digest: ""
+    repository: "docker.io/elvenobservability/elven-auto-nodejs"
+    tag: "v1.0.0"
+    digest: "sha256:932c4acfec934a8fc0048d4b92b1f8ba880c444612ad2f10462aac7d310aa45d"
   python:
-    repository: docker.io/elvenobservability/elven-auto-python
-    tag: 1.0.0-dev
-    digest: ""
+    repository: "docker.io/elvenobservability/elven-auto-python"
+    tag: "v1.0.0"
+    digest: "sha256:9faaadb399238567cea1a941e6d9b2dbb0aaf70a55a9e718c7e6bf641aed6055"
   nodejs20:
-    repository: docker.io/elvenobservability/elven-auto-nodejs20
-    tag: 1.0.0-dev
-    digest: ""
+    repository: "docker.io/elvenobservability/elven-auto-nodejs20"
+    tag: "v1.0.0"
+    digest: "sha256:992cd9dff8972a5da40de66996e3dac2b1229918162d7cc6b1ba018e1c8bef04"
 imagePullSecrets: []
 replicas: 1
 samplingRatio: "1"

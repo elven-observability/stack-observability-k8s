@@ -68,6 +68,9 @@ def read_lock(path=ROOT / "instrumentation.lock.json"):
             raise ValueError(f"{name}: verified requires an actual published digest")
         if published.get("status") == "verified" and not re.fullmatch(r"v1\.[0-9]+\.[0-9]+", published.get("tag", "")):
             raise ValueError(f"{name}: verified requires an exact stable release signing identity")
+        if published.get("status") == "verified":
+            OCI.ATTESTATIONS.validate_policy(published.get("attestations"), published["digest"],
+                                             BUILD_TYPE, lock["distribution"]["platforms"])
     if lock["distribution"]["publicationStatus"] == "verified" and any(
             image["distribution"].get("status") != "verified" for image in lock["images"].values()):
         raise ValueError("Verified SDK distribution requires all five verified component identities")
@@ -180,7 +183,19 @@ def scan(args, lock):
         raise ValueError("SDK publication blocked by HIGH/CRITICAL vulnerabilities: " + ", ".join(failed))
 
 
-def verify_reference(reference, version, lock):
+def verify_reference(reference, version, lock, policy=None):
+    if not isinstance(reference, str) or "@" not in reference:
+        raise ValueError("SDK verification requires an immutable image reference")
+    digest = reference.rsplit("@", 1)[1]
+    if policy is None:
+        approved = next((image["distribution"] for image in lock["images"].values()
+                         if image["distribution"].get("repository", "") + "@"
+                         + str(image["distribution"].get("digest")) == reference), None)
+        if approved is None or approved.get("status") != "verified":
+            raise ValueError("SDK exact signed-predicate hashes are missing from the promoted lock")
+        policy = approved.get("attestations")
+        version = version or approved.get("tag")
+    OCI.ATTESTATIONS.validate_policy(policy, digest, BUILD_TYPE)
     tool = json.loads(OCI.run(["cosign", "version", "--json"], capture=True))
     if tool.get("gitVersion") != "v" + lock["tools"]["cosign"]:
         raise ValueError("Use the independently pinned SDK Cosign version")
@@ -192,7 +207,9 @@ def verify_reference(reference, version, lock):
     with OCI.anonymous_registry() as env:
         OCI.run(["cosign", "verify", *flags, reference], capture=True, env=env)
         for kind in ("spdxjson", BUILD_TYPE):
-            OCI.run(["cosign", "verify-attestation", *flags, "--type", kind, reference], capture=True, env=env)
+            output = OCI.run(["cosign", "verify-attestation", *flags, "--type", kind, reference], capture=True, env=env)
+            predicate_type = OCI.ATTESTATIONS.SPDX_TYPE if kind == "spdxjson" else BUILD_TYPE
+            OCI.ATTESTATIONS.verify_predicates(output, policy, digest, predicate_type, BUILD_TYPE)
 
 
 def verify(args, lock):
@@ -202,7 +219,7 @@ def verify(args, lock):
         image = lock["images"][name]["distribution"]
         if image.get("status") != "verified" or not image.get("digest"):
             raise ValueError(f"{name}: no signed and promoted Elven SDK image")
-        verify_reference(image["repository"] + "@" + image["digest"], image.get("tag"), lock)
+        verify_reference(image["repository"] + "@" + image["digest"], image.get("tag"), lock, image.get("attestations"))
         print(f"Verified independent Elven instrumentation image: {name}")
 
 
@@ -241,6 +258,9 @@ def publish(args, lock):
             for key in ("report", "sbom"):
                 if OCI.sha256(output / entry[key]) != entry[key + "Sha256"]:
                     raise ValueError("SDK scan/SBOM evidence checksum mismatch")
+    policies = {name: OCI.ATTESTATIONS.evidence_policy(output, image, BUILD_TYPE,
+                                                      lock["distribution"]["platforms"])
+                for name, image in state["images"].items()}
     existing = OCI.preflight_remote_tags(state["images"])
     for name, image in state["images"].items():
         if name not in existing:
@@ -257,7 +277,8 @@ def publish(args, lock):
         for entry in image["scans"].values():
             OCI.run(["cosign", "attest", "--yes", "--type", "spdxjson", "--predicate", str(output / entry["sbom"]), reference])
         OCI.run(["cosign", "attest", "--yes", "--type", BUILD_TYPE, "--predicate", str(output / image["metadata"]), reference])
-        verify_reference(reference, state["version"], lock)
+        verify_reference(reference, state["version"], lock, policies[name])
+        image["attestations"] = policies[name]
         image["publicationStatus"] = "verified"
         OCI.write_json(output / MANIFEST, state)
     state["publicationStatus"] = "verified"
@@ -271,7 +292,10 @@ def promote(args, lock):
         raise ValueError("No complete verified SDK publication exists; never invent Elven digests")
     for name, image in state["images"].items():
         reference = REPOSITORIES[name] + "@" + image["digest"]
-        verify_reference(reference, state["version"], lock)
+        policy = OCI.ATTESTATIONS.evidence_policy(output, image, BUILD_TYPE, lock["distribution"]["platforms"])
+        if image.get("attestations") != policy:
+            raise ValueError("Published SDK attestation policy differs from approved evidence")
+        verify_reference(reference, state["version"], lock, policy)
         for platform in lock["distribution"]["platforms"]:
             with OCI.anonymous_registry() as env:
                 config = json.loads(OCI.run(["crane", "config", "--platform", platform, reference], capture=True, env=env))
@@ -280,7 +304,7 @@ def promote(args, lock):
                 raise ValueError("SDK image source revision differs from the approved release")
             if name != "operator" and labels.get("org.opencontainers.image.base.digest") != lock["images"][name]["upstream"]["digest"]:
                 raise ValueError("SDK image upstream base differs from its approved pin")
-        lock["images"][name]["distribution"].update(digest=image["digest"], status="verified", tag=state["version"], sourceRevision=state["revision"], verifiedAt=OCI.now())
+        lock["images"][name]["distribution"].update(digest=image["digest"], status="verified", tag=state["version"], sourceRevision=state["revision"], verifiedAt=OCI.now(), attestations=policy)
     lock["distribution"].update(publicationStatus="verified", version=state["version"].removeprefix("v"))
     OCI.write_json(output / "instrumentation.promoted.lock.json", lock)
     print("Verified independent SDK promotion candidate written; source lock/chart/customer cluster unchanged")

@@ -1,5 +1,6 @@
 """The opt-in SDK publication contract is separate from the core three images."""
 import importlib.util
+import base64
 import json
 from pathlib import Path
 import re
@@ -65,11 +66,29 @@ class SDKSupplyChainTests(unittest.TestCase):
 
     def test_sdk_identity_is_exact_workflow_and_not_the_core_workflow(self):
         calls = []
+        digest = "sha256:" + "a" * 64
+        sboms = [{"SPDXID": "SPDXRef-" + arch} for arch in ("amd64", "arm64")]
+        metadata = {"source": "synthetic"}
+        exact = SDK.OCI.ATTESTATIONS
+        policy = {"schemaVersion": 1, "canonicalization": exact.CANONICALIZATION, "subjectDigest": digest,
+                  "spdx": {platform: exact.canonical_hash(value) for platform, value in zip(("linux/amd64", "linux/arm64"), sboms)},
+                  "build": {"predicateType": SDK.BUILD_TYPE, "sha256": exact.canonical_hash(metadata)}}
         def command(args, **kwargs):
             calls.append(args)
-            return json.dumps({"gitVersion": "v3.1.4"}) if args[:2] == ["cosign", "version"] else "{}"
+            if args[:2] == ["cosign", "version"]:
+                return json.dumps({"gitVersion": "v3.1.4"})
+            if args[:2] == ["cosign", "verify-attestation"]:
+                kind = args[args.index("--type") + 1]
+                predicate_type = exact.SPDX_TYPE if kind == "spdxjson" else SDK.BUILD_TYPE
+                values = sboms if kind == "spdxjson" else [metadata]
+                return "\n".join(json.dumps({"payloadType": "application/vnd.in-toto+json",
+                    "payload": base64.b64encode(json.dumps({"_type": "https://in-toto.io/Statement/v0.1",
+                        "subject": [{"digest": {"sha256": digest.removeprefix("sha256:")}}],
+                        "predicateType": predicate_type, "predicate": value}).encode()).decode(),
+                    "signatures": [{"sig": base64.b64encode(b"synthetic-signature").decode()}]}) for value in values)
+            return "{}"
         with mock.patch.object(SDK.OCI, "run", side_effect=command):
-            SDK.verify_reference("docker.io/elvenobservability/elven-auto-java@sha256:" + "a" * 64, "v1.0.0", SDK.read_lock())
+            SDK.verify_reference("docker.io/elvenobservability/elven-auto-java@" + digest, "v1.0.0", SDK.read_lock(), policy)
         identity = calls[1][calls[1].index("--certificate-identity-regexp") + 1]
         self.assertTrue(re.fullmatch(identity, "https://github.com/elven-observability/stack-observability-k8s/.github/workflows/instrumentation.yaml@refs/tags/v1.0.0"))
         self.assertFalse(re.fullmatch(identity, "https://github.com/elven-observability/stack-observability-k8s/.github/workflows/images.yaml@refs/tags/v1.0.0"))
