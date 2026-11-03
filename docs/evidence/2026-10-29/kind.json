@@ -1,0 +1,155 @@
+{
+  "completed": true,
+  "cluster": "elven-dist-97d819afcb",
+  "node_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+  "fixture_image": "python:3.14.0-slim@sha256:0aecac02dc3d4c5dbb024b753af084cafe41f5416e02193f1ce345d671ec966e",
+  "customer_cluster_access": false,
+  "checks": [
+    {
+      "name": "local Collector OCI archive loaded into only the disposable Kind node",
+      "result": "passed",
+      "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff"
+    },
+    {
+      "name": "isolated Kind boot",
+      "result": "passed",
+      "server": "v1.37.0"
+    },
+    {
+      "name": "synthetic TLS and ingestion Secrets created without argv values",
+      "result": "passed"
+    },
+    {
+      "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+      "result": "passed"
+    },
+    {
+      "name": "Kind kubelet public serving identity trusted with exact SAN/DNS verification",
+      "result": "passed",
+      "certificate_sha256": "8d6406cba7484c1c10949f9af5abda41e112f020da088208d9dc7d55af220a16"
+    },
+    {
+      "name": "existing customer resource with the intended name is rejected, not adopted",
+      "result": "passed"
+    },
+    {
+      "name": "clean Helm install elven-a",
+      "result": "passed",
+      "manifest_sha256": "ce1e214d6774beb7d841d7a5a5d41204b8f9a2916c72612deec7b41d4d28bd3a"
+    },
+    {
+      "name": "actual Elven CLI preflight status and upgrade succeed with explicit context UID and existing mTLS Secrets",
+      "result": "passed"
+    },
+    {
+      "name": "positive OTLP logs metrics traces; privacy and outbound tenant/auth headers verified",
+      "result": "passed"
+    },
+    {
+      "name": "mTLS rejects a client without a certificate",
+      "result": "passed"
+    },
+    {
+      "name": "untrusted server CA fails certificate verification",
+      "result": "passed"
+    },
+    {
+      "name": "synthetic backend rejects invalid Bearer credentials",
+      "result": "passed"
+    },
+    {
+      "name": "own cluster reader exports Kubernetes API metrics without customer Prometheus",
+      "result": "passed"
+    },
+    {
+      "name": "own kubelet collector exports usage metrics with verified TLS, not skip_verify",
+      "result": "passed"
+    },
+    {
+      "name": "node log collector reads actual CRI stdout and exports sanitized data without application SDK",
+      "result": "passed"
+    },
+    {
+      "name": "runtime RBAC denies Secret access and writes; cluster-reader Pod discovery allowed",
+      "result": "passed"
+    },
+    {
+      "name": "original log survives outage longer than 30 seconds without new input",
+      "result": "passed"
+    },
+    {
+      "name": "persistent queue contains sanitized data, not private body/link sentinels or exporter token",
+      "result": "passed"
+    },
+    {
+      "name": "persistent sanitized queue replays after forced Pod recreation with the same PVC",
+      "result": "passed"
+    },
+    {
+      "name": "upgrade with changed chart version and health port succeeds without changing immutable PVC labels",
+      "result": "passed",
+      "previous_chart_version": "1.0.0-rc.1",
+      "new_chart_version": "1.0.1-rc.1"
+    },
+    {
+      "name": "invalid configuration rejected by Helm before apply",
+      "result": "passed"
+    },
+    {
+      "name": "Helm rollback restores the prior revision",
+      "result": "passed"
+    },
+    {
+      "name": "clean Helm install elven-b",
+      "result": "passed",
+      "manifest_sha256": "38bd480c45ade5eef06c7d4356958cfbc7bf963b3a6f648506cc01fe5808c0a9"
+    },
+    {
+      "name": "two releases coexist without overwriting customer-owned sentinel",
+      "result": "passed"
+    },
+    {
+      "name": "uninstall preserves both PVCs and customer-owned sentinel",
+      "result": "passed"
+    }
+  ],
+  "not_proven": [
+    "NetworkPolicy enforcement (Kind default CNI)",
+    "customer network/tenant ingestion",
+    "native amd64 runtime",
+    "eBPF/kernel compatibility",
+    "production scale/HA",
+    "all supported Kubernetes versions live"
+  ],
+  "collector_image_override": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+  "versions": {
+    "clientVersion": {
+      "major": "1",
+      "minor": "37",
+      "gitVersion": "v1.37.0",
+      "gitCommit": "f54c212e3a2f75d674b717a9b29052b20b60aefc",
+      "gitTreeState": "clean",
+      "buildDate": "2026-08-26T10:44:20Z",
+      "goVersion": "go1.27.0",
+      "compiler": "gc",
+      "platform": "darwin/arm64"
+    },
+    "kustomizeVersion": "v5.8.1",
+    "serverVersion": {
+      "major": "1",
+      "minor": "37",
+      "emulationMajor": "1",
+      "emulationMinor": "37",
+      "minCompatibilityMajor": "1",
+      "minCompatibilityMinor": "36",
+      "gitVersion": "v1.37.0",
+      "gitCommit": "f54c212e3a2f75d674b717a9b29052b20b60aefc",
+      "gitTreeState": "clean",
+      "buildDate": "2026-08-26T10:44:25Z",
+      "goVersion": "go1.26.6",
+      "compiler": "gc",
+      "platform": "linux/arm64"
+    }
+  },
+  "cluster_retained": false
+}

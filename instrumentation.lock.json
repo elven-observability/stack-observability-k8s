@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-11-03",
+  "distribution": {
+    "name": "Elven opt-in SDK auto-instrumentation",
+    "version": "1.0.0-rc.1",
+    "repository": "https://github.com/elven-observability/stack-observability-k8s",
+    "registry": "docker.io/elvenobservability",
+    "publicationStatus": "not-published",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ]
+  },
+  "images": {
+    "operator": {
+      "distribution": {
+        "repository": "docker.io/elvenobservability/elven-instrumentation-operator",
+        "digest": null,
+        "status": "not-published"
+      },
+      "dockerfile": "images/operator/Dockerfile",
+      "sourceBuild": {
+        "type": "go-stdlib",
+        "module": "operator",
+        "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9"
+      },
+      "license": "Apache-2.0"
+    },
+    "java": {
+      "upstream": {
+        "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java",
+        "tag": "2.33.1-2",
+        "digest": "sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452",
+        "sourceVersion": "2.33.1",
+        "sdkVersion": "1.67.0",
+        "release": "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1",
+        "license": "Apache-2.0"
+      },
+      "distribution": {
+        "repository": "docker.io/elvenobservability/elven-auto-java",
+        "digest": null,
+        "status": "not-published"
+      },
+      "dockerfile": "images/autoinstrumentation/java/Dockerfile",
+      "payloadPaths": [
+        "/javaagent.jar"
+      ],
+      "compatibility": "Java 17 and 21; upstream agent supports Java 8+",
+      "stability": "stable-release-not-all-integrations-GA"
+    },
+    "nodejs": {
+      "upstream": {
+        "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs",
+        "tag": "0.82.0-3",
+        "digest": "sha256:609216a9e468279bd41b56829c1fd5e73cb29b5b1002ed95921bf59da854e09a",
+        "sourceVersion": "0.82.0",
+        "sdkVersion": "3.x",
+        "release": "https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.82.0",
+        "license": "Apache-2.0"
+      },
+      "distribution": {
+        "repository": "docker.io/elvenobservability/elven-auto-nodejs",
+        "digest": null,
+        "status": "not-published"
+      },
+      "dockerfile": "images/autoinstrumentation/nodejs/Dockerfile",
+      "payloadPaths": [
+        "/autoinstrumentation"
+      ],
+      "compatibility": "Node.js >=22.15.0; Node.js 20 is NOT supported by this image",
+      "stability": "stable-release-not-all-integrations-GA"
+    },
+    "nodejs20": {
+      "upstream": {
+        "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs",
+        "tag": "0.81.2-1",
+        "digest": "sha256:7c5852f71d38ee12ba19df81aa8b7d866a254ce19fd3cf12966201de1efbc283",
+        "sourceVersion": "0.81.2",
+        "sdkVersion": "2.x",
+        "release": "https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.81.2",
+        "license": "Apache-2.0"
+      },
+      "distribution": {
+        "repository": "docker.io/elvenobservability/elven-auto-nodejs20",
+        "digest": null,
+        "status": "not-published"
+      },
+      "dockerfile": "images/autoinstrumentation/nodejs20/Dockerfile",
+      "payloadPaths": ["/autoinstrumentation"],
+      "compatibility": "Explicit legacy exception for Node.js >=20.6.0; runtime Node.js 20 is EOL since 2026-04-30",
+      "stability": "legacy-runtime-requires-explicit-approval"
+    },
+    "python": {
+      "upstream": {
+        "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python",
+        "tag": "0.66b2-2",
+        "digest": "sha256:d3a1dae864158a561a99fd7bb8e4ac1c7c5f2f80a4d9d095b1813866da52693a",
+        "sourceVersion": "0.66b2",
+        "sdkVersion": "1.45.2",
+        "release": "https://github.com/open-telemetry/opentelemetry-python-contrib/releases/tag/v0.66b2",
+        "license": "Apache-2.0"
+      },
+      "distribution": {
+        "repository": "docker.io/elvenobservability/elven-auto-python",
+        "digest": null,
+        "status": "not-published"
+      },
+      "dockerfile": "images/autoinstrumentation/python/Dockerfile",
+      "payloadPaths": [
+        "/autoinstrumentation",
+        "/autoinstrumentation-musl"
+      ],
+      "compatibility": "Python 3.x supported by upstream; optional beta auto-instrumentation; glibc/musl must be selected explicitly",
+      "stability": "beta"
+    }
+  },
+  "tools": {
+    "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9",
+    "trivy": "0.76.1",
+    "cosign": "3.1.4",
+    "ciDocker": "29.9.2",
+    "buildx": "0.38.1",
+    "buildkit": "docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe",
+    "crane": {"version": "0.22.1", "linuxAmd64": {"url": "https://github.com/google/go-containerregistry/releases/download/v0.22.1/go-containerregistry_Linux_x86_64.tar.gz", "sha256": "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0"}},
+    "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315"
+  },
+  "legacyProfiles": {
+    "nodejs20": {
+      "enabledByDefault": false,
+      "packaged": true,
+      "runtimeEOL": "2026-04-30",
+      "minimumRuntime": "20.6.0",
+      "upstream": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.81.2-1@sha256:7c5852f71d38ee12ba19df81aa8b7d866a254ce19fd3cf12966201de1efbc283",
+      "policy": "Distinct Elven legacy image requires legacyNode20Approved=true and a runtime migration plan. Never the default current Node.js profile."
+    }
+  }
+}

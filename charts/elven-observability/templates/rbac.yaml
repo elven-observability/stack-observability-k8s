@@ -1,0 +1,139 @@
+{{- define "elven.clusterMetricsReadRules" -}}
+- apiGroups: [""]
+  resources: [events, persistentvolumeclaims, pods, pods/status, replicationcontrollers, replicationcontrollers/status, resourcequotas, services]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [daemonsets, deployments, replicasets, statefulsets]
+  verbs: [get, list, watch]
+- apiGroups: [batch]
+  resources: [jobs, cronjobs]
+  verbs: [get, list, watch]
+- apiGroups: [autoscaling]
+  resources: [horizontalpodautoscalers]
+  verbs: [get, list, watch]
+{{- end }}
+{{- if eq (include "elven.nodeEnabled" .) "true" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "elven.fullname" . }}-node
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node
+automountServiceAccountToken: false
+{{- if or .Values.modules.kubeletMetrics.enabled .Values.modules.ebpf.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "elven.clustername" . }}-node
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node
+rules:
+  {{- if .Values.modules.kubeletMetrics.enabled }}
+  - apiGroups: [""]
+    resources: [nodes/stats]
+    verbs: [get]
+  {{- end }}
+  {{- if .Values.modules.ebpf.enabled }}
+  - apiGroups: [""]
+    resources: [pods, services, nodes]
+    verbs: [list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets]
+    verbs: [list, watch]
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "elven.clustername" . }}-node
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: node
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "elven.clustername" . }}-node
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "elven.fullname" . }}-node
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}
+{{- if .Values.modules.clusterMetrics.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "elven.fullname" . }}-cluster-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+automountServiceAccountToken: false
+{{- if not .Values.collection.namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "elven.clustername" . }}-cluster-metrics
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, namespaces/status, nodes, nodes/spec, persistentvolumes]
+    verbs: [get, list, watch]
+  {{- include "elven.clusterMetricsReadRules" . | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "elven.clustername" . }}-cluster-metrics
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "elven.clustername" . }}-cluster-metrics
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "elven.fullname" . }}-cluster-metrics
+    namespace: {{ .Release.Namespace }}
+{{- else }}
+{{- range $namespace := .Values.collection.namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "elven.clustername" $ }}-cluster-metrics
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elven.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+rules:
+  {{- include "elven.clusterMetricsReadRules" $ | nindent 2 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "elven.clustername" $ }}-cluster-metrics
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "elven.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: cluster-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "elven.clustername" $ }}-cluster-metrics
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "elven.fullname" $ }}-cluster-metrics
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+{{- end }}

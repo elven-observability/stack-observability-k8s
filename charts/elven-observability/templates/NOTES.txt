@@ -1,0 +1,19 @@
+Elven distribution {{ .Chart.AppVersion }} rendered for {{ .Release.Namespace }}/{{ .Release.Name }}.
+
+OTLP/mTLS: {{ include "elven.gatewayEndpoint" . }}
+Server identity and client CA: Secret {{ .Values.tls.existingSecret }}.
+SaaS authentication: Secret {{ .Values.credentials.existingSecret }} (never put token values in Helm values).
+
+Readiness is NOT proof of delivery. Inspect exporter counters and confirm a synthetic
+record in the intended tenant before declaring collection healthy.
+
+{{- if not .Values.networkPolicy.exportCIDRs }}
+WARNING: networkPolicy.exportCIDRs is empty. When NetworkPolicy is enforced,
+export to SaaS is denied until real reviewed CIDRs are supplied.
+{{- end }}
+{{- if not .Values.gateway.persistence.enabled }}
+WARNING: ephemeral queue. Recreating a Pod or losing its node destroys pending data.
+{{- else }}
+Gateway PVCs are retained on uninstall and downscale. Drain queues before planned
+rollouts; never delete retained PVCs until the delivery/recovery decision is explicit.
+{{- end }}

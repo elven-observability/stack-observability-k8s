@@ -1,0 +1,10 @@
+Elven Java auto-instrumentation packaging
+Copyright The OpenTelemetry Authors and the respective dependency authors.
+Elven packaging copyright Elven Observability contributors, Apache-2.0.
+Upstream auto-instrumentation image and all inherited dependency notices are preserved.
+Official image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1-2@sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452
+Official source/release: https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1
+Packaging source: https://github.com/elven-observability/stack-observability-k8s
+SDK payload paths are not changed by this wrapper: /javaagent.jar.
+Elven branding does not imply upstream endorsement or transfer of third-party ownership.
+Dependencies retain their respective licenses; inspect the inherited notices and SPDX SBOM.

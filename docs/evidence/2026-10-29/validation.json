@@ -1,0 +1,48 @@
+{
+  "completed": true,
+  "cluster_access": "none",
+  "runtime_requested": true,
+  "schema_requested": true,
+  "tests": {
+    "run": 95,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "schemas": {
+    "1.35.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0",
+    "1.36.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0",
+    "1.37.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0"
+  },
+  "runtime": [
+    {
+      "config": "elven-test-cluster-metrics",
+      "config_sha256": "15c46f810962277fc1d44987ad74c347d42afa7b71e4f52cbc957490ae014ada",
+      "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+      "result": "passed"
+    },
+    {
+      "config": "elven-test-gateway",
+      "config_sha256": "fc69e1b963c730d8f511da8433e1c811717b94b0e7e60eedaf63d0a12e1eb305",
+      "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+      "result": "passed"
+    },
+    {
+      "config": "elven-test-node",
+      "config_sha256": "133944dfccd0dc700d353112be454af9674842f72459a3c4b944d1b751bac4c9",
+      "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:02347a34e3ace128dec632e19b0abbb63f92d604dbe453f6ea970c557b872dff",
+      "result": "passed"
+    },
+    {
+      "config": "elven-test-profiles",
+      "config_sha256": "02cd86c3b963d46f487388dfba4c9afb19dcb1a6a0f8490a2997d2466e6935cb",
+      "image": "docker.io/elvenobservability/elven-profiler:1.0.0-dev@sha256:53fa99c19d5587a468c0a4da18f8728059e3b26f14d675d5f9671363095442f5",
+      "result": "passed"
+    },
+    {
+      "test": "profiles HTTPS scrape and export",
+      "result": "passed",
+      "output": "{\"result\": \"PASS\", \"image\": \"docker.io/elvenobservability/elven-profiler:1.0.0-dev@sha256:53fa99c19d5587a468c0a4da18f8728059e3b26f14d675d5f9671363095442f5\", \"scrapes\": 1, \"posts\": 1, \"payload_bytes\": 419, \"authenticated_posts\": 1, \"mutual_tls_scrapes\": 1, \"network\": \"internal Docker bridge; no published ports or host networking\", \"not_proven\": [\"durable retention/WAL\", \"NetworkPolicy\", \"client workloads\", \"real tenant\"]}"
+    }
+  ]
+}

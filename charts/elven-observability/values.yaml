@@ -1,0 +1,141 @@
+# Replace example-cluster. The CLI rejects example identity before installation.
+cluster:
+  name: example-cluster
+  environment: production
+  domain: cluster.local
+fullnameOverride: ""
+images:
+  collector:
+    # Real multiarch CI development archive, not a published registry release. The
+    # supported CLI blocks production until the verified promotion updates pins.
+    # A laboratory must load the exact archive or use its own verified build pins.
+    repository: docker.io/elvenobservability/elven-collector
+    tag: "1.0.0-dev"
+    digest: sha256:34c6be1ccf08bbb6c81224c327f1b4ff77548b08602265896f3c05e3938d986b
+    pullPolicy: IfNotPresent
+  beyla:
+    repository: docker.io/elvenobservability/elven-ebpf
+    tag: "1.0.0-dev"
+    digest: sha256:24b00c0db72d0085819254720f5cf1e6042429aebc3095288945c2df40bd7544
+    pullPolicy: IfNotPresent
+  alloy:
+    repository: docker.io/elvenobservability/elven-profiler
+    tag: 1.0.0-dev
+    digest: sha256:ea1ef3d1fd91f9d6f584ac18fb1bfaa0b9cc1f7451f62ec2886b8924b154d275
+    pullPolicy: IfNotPresent
+imagePullSecrets: []
+credentials:
+  existingSecret: elven-ingest
+tls:
+  existingSecret: elven-internal-tls
+endpoints:
+  logs: https://loki.elvenobservability.com/otlp/v1/logs
+  metrics: https://mimir.elvenobservability.com/otlp/v1/metrics
+  traces: https://tempo.elvenobservability.com/http/v1/traces
+  profiles: https://pyroscope.elvenobservability.com
+exportTLS:
+  # Optional private export CA supplied as a separate Secret, key ca.crt.
+  existingCASecret: ""
+ports:
+  otlpGrpc: 4317
+  otlpHttp: 4318
+  health: 13133
+  metrics: 8888
+  localOtlpHttp: 14318
+gateway:
+  # This release candidate supports a singleton only; it does not claim HA.
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+    ephemeralSizeLimit: 1Gi
+  queueSizeBytes: 20971520
+  terminationGracePeriodSeconds: 120
+  pdb:
+    enabled: false
+nodeAgent:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  nodeSelector: {}
+  tolerations: []
+  # Only reviewed, static node DNS mappings; prefer real platform DNS.
+  hostAliases: []
+  terminationGracePeriodSeconds: 60
+clusterMetrics:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+profiles:
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+collection:
+  # Explicit opt-in; never discovers/scrapes client prometheus.io annotations.
+  namespaces: []
+modules:
+  logs:
+    enabled: false
+    hostAccessApproved: false
+  clusterMetrics:
+    enabled: false
+    clusterWideApproved: false
+  kubeletMetrics:
+    enabled: false
+    port: 10250
+    # hostname verifies a serving certificate with a node-name DNS SAN.
+    endpointAddress: ip
+    caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    caSecretName: ""
+  ebpf:
+    enabled: false
+    hostAccessApproved: false
+    # Distribution floor: Linux >=5.11 with BTF. No automatic SYS_ADMIN fallback.
+    additionalCapabilities: []
+    additionalCapabilitiesApproved: false
+    workloads: []
+  profiles:
+    enabled: false
+    # Raw pprof frames/labels bypass OTLP sanitization and have no durable WAL.
+    # Approve the source data policy explicitly before enabling collection.
+    dataPolicyApproved: false
+    targets: []
+privacy:
+  # Selective masking preserves useful text, JSON and sanitized SQL structure.
+  # It detects known patterns, not arbitrary PII. Review your source-data policy.
+  # strict replaces complete log bodies; legacy redact aliases selective.
+  logBodyMode: selective
+  # Link attributes pass through the same recursive sanitizer; IDs are retained.
+  preserveSpanLinks: true
+  # Deprecated compatibility field; no longer bypasses link sanitization.
+  spanLinkAttributesApproved: false
+  # Exceeding a bound masks the affected subtree instead of forwarding it raw.
+  # AnyValue maps add several protobuf nesting levels per logical level.
+  # Keep the complete exported envelope below common 100-level wire limits.
+  maxDepth: 24
+  maxStringBytes: 262144
+  maxCollectionItems: 4096
+networkPolicy:
+  enabled: true
+  dnsNamespace: kube-system
+  dnsPort: 53
+  dnsPodLabels: {k8s-app: kube-dns}
+  dnsCIDRs: []
+  # Must be populated from reviewed real destinations; empty denies the traffic.
+  exportCIDRs: []
+  exportPorts: [443]
+  apiServerCIDRs: []
+  apiServerPorts: [443, 6443]
+  kubeletCIDRs: []
+  profileCIDRs: []
+  profilePorts: [443]
+selfMonitoring:
+  enabled: true
+  interval: 30s
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []

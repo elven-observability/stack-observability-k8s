@@ -1,0 +1,250 @@
+{{- if .Values.modules.profiles.enabled }}
+{{- $fullname := include "elven.fullname" . }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}-profiles
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: profiles
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fullname }}-profiles
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: profiles
+data:
+  profile.alloy: |
+    logging {
+      level = "warn"
+    }
+
+    pyroscope.write "elven" {
+      external_labels = {
+        "k8s_cluster_name" = {{ .Values.cluster.name | quote }},
+        "elven_distribution" = "elven-observability",
+      }
+      endpoint {
+        url = {{ .Values.endpoints.profiles | quote }}
+        headers = {
+          "X-Scope-OrgID" = sys.env("TENANT_ID"),
+        }
+        authorization {
+          type = "Bearer"
+          credentials = sys.env("API_TOKEN")
+        }
+        tls_config {
+          insecure_skip_verify = false
+          min_version = "TLS12"
+          {{- if .Values.exportTLS.existingCASecret }}
+          ca_file = "/etc/elven/export-ca/ca.crt"
+          {{- end }}
+        }
+        follow_redirects = false
+        remote_timeout = "15s"
+        min_backoff_period = "1s"
+        max_backoff_period = "30s"
+        max_backoff_retries = 0
+      }
+    }
+
+    {{- range $index, $target := .Values.modules.profiles.targets }}
+    pyroscope.scrape "target_{{ $index }}" {
+      targets = [{
+        "__address__" = {{ $target.address | quote }},
+        "service_name" = {{ $target.name | quote }},
+      }]
+      forward_to = [pyroscope.write.elven.receiver]
+      job_name = {{ printf "elven-profiles/%s" $target.name | quote }}
+      scheme = "https"
+      scrape_interval = "60s"
+      scrape_timeout = "15s"
+      delta_profiling_duration = "14s"
+      follow_redirects = false
+      tls_config {
+        ca_file = "/etc/elven/targets/{{ $index }}/ca.crt"
+        cert_file = "/etc/elven/targets/{{ $index }}/client.crt"
+        key_file = "/etc/elven/targets/{{ $index }}/client.key"
+        min_version = "TLS12"
+        insecure_skip_verify = false
+      }
+      profiling_config {
+        profile.process_cpu {
+          enabled = true
+          path = {{ printf "%s/profile" (trimSuffix "/" $target.path) | quote }}
+        }
+        profile.memory {
+          enabled = true
+          path = {{ printf "%s/allocs" (trimSuffix "/" $target.path) | quote }}
+        }
+        profile.goroutine {
+          enabled = true
+          path = {{ printf "%s/goroutine" (trimSuffix "/" $target.path) | quote }}
+        }
+        profile.block {
+          enabled = true
+          path = {{ printf "%s/block" (trimSuffix "/" $target.path) | quote }}
+        }
+        profile.mutex {
+          enabled = true
+          path = {{ printf "%s/mutex" (trimSuffix "/" $target.path) | quote }}
+        }
+      }
+    }
+    {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-profiles
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elven.labels" . | nindent 4 }}
+    app.kubernetes.io/component: profiles
+spec:
+  replicas: 1
+  # A singleton avoids double scraping during updates without requiring
+  # a discovery API token, ring ports, or Alloy clustering.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "elven.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: profiles
+  template:
+    metadata:
+      labels:
+        {{- include "elven.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: profiles
+      annotations:
+        {{- with omit .Values.podAnnotations "checksum/profiles-config" "checksum/profiles-endpoint" "checksum/profiles-cluster" "checksum/profiles-export-tls" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/profiles-config: {{ toJson .Values.modules.profiles | sha256sum }}
+        checksum/profiles-endpoint: {{ .Values.endpoints.profiles | sha256sum }}
+        checksum/profiles-cluster: {{ toJson .Values.cluster | sha256sum }}
+        checksum/profiles-export-tls: {{ toJson .Values.exportTLS | sha256sum }}
+    spec:
+      serviceAccountName: {{ $fullname }}-profiles
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- with omit .Values.nodeSelector "kubernetes.io/os" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: profiles
+          image: {{ include "elven.alloyImage" . | quote }}
+          imagePullPolicy: {{ .Values.images.alloy.pullPolicy }}
+          args:
+            - run
+            - /etc/elven/profile.alloy
+            - --server.http.listen-addr=0.0.0.0:{{ .Values.ports.metrics }}
+            - --storage.path=/var/lib/elven
+            - --disable-reporting
+          env:
+            - name: TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.existingSecret }}
+                  key: tenant-id
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentials.existingSecret }}
+                  key: api-token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.profiles.resources | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.ports.metrics }}
+          startupProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: http
+            periodSeconds: 15
+          volumeMounts:
+            - name: config
+              mountPath: /etc/elven/profile.alloy
+              subPath: profile.alloy
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/elven
+            {{- if .Values.exportTLS.existingCASecret }}
+            - name: export-ca
+              mountPath: /etc/elven/export-ca
+              readOnly: true
+            {{- end }}
+            {{- range $index, $target := .Values.modules.profiles.targets }}
+            - name: target-{{ $index }}
+              mountPath: /etc/elven/targets/{{ $index }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $fullname }}-profiles
+        - name: data
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- if .Values.exportTLS.existingCASecret }}
+        - name: export-ca
+          secret:
+            secretName: {{ .Values.exportTLS.existingCASecret }}
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        {{- range $index, $target := .Values.modules.profiles.targets }}
+        - name: target-{{ $index }}
+          secret:
+            secretName: {{ $target.secretName }}
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: client.crt
+                path: client.crt
+              - key: client.key
+                path: client.key
+        {{- end }}
+{{- end }}

@@ -1,0 +1,7 @@
+**
+!images/
+!images/licenses/
+!images/licenses/APACHE-2.0.txt
+!images/autoinstrumentation/
+!images/autoinstrumentation/java/
+!images/autoinstrumentation/java/NOTICE

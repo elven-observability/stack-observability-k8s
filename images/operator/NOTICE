@@ -1,0 +1,6 @@
+Elven Instrumentation Operator
+Copyright Elven Observability.
+
+This admission-only Operator is distributed under the Apache License, Version 2.0.
+It is built using the Go standard library; the Go license is included separately.
+Instrumentation SDKs are separate artifacts with their own upstream notices.

@@ -1,0 +1,9 @@
+**
+!images
+!images/licenses
+!images/licenses/**
+!images/ebpf
+!images/ebpf/Dockerfile
+!images/ebpf/NOTICE
+!images/ebpf/UPSTREAM-NOTICE
+!images/ebpf/third_party_licenses.csv

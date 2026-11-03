@@ -1,0 +1,6 @@
+Elven Privacy Processor
+Copyright Elven Observability
+
+This component is licensed under the Apache License, Version 2.0.
+It uses the OpenTelemetry Collector component API and pdata libraries,
+whose original licenses and attributions are retained in the runtime bundle.

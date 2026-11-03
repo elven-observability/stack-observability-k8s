@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Elven instrumentation admission values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enabled", "clusterDomain", "namespaces", "gateway", "webhook", "clientTLS", "runtimes", "images", "imagePullSecrets", "replicas", "samplingRatio", "sdkVolumeSizeMiB", "resources", "networkPolicy", "podAnnotations", "nodeSelector", "tolerations"],
+  "properties": {
+    "enabled": {"type": "boolean"},
+    "clusterDomain": {"$ref": "#/definitions/dnsName"},
+    "namespaces": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/definitions/dnsLabel"}},
+    "gateway": {
+      "type": "object", "additionalProperties": false,
+      "required": ["endpoint", "sourceRelease", "sourceNamespace"],
+      "properties": {
+        "endpoint": {"type": "string", "maxLength": 1024, "pattern": "^https://[^\\s]+$"},
+        "sourceRelease": {"type": "string", "maxLength": 53, "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"},
+        "sourceNamespace": {"$ref": "#/definitions/dnsLabel"}
+      }
+    },
+    "webhook": {
+      "type": "object", "additionalProperties": false,
+      "required": ["existingSecret", "caBundle", "port", "servicePort", "timeoutSeconds"],
+      "properties": {
+        "existingSecret": {"$ref": "#/definitions/dnsName"},
+        "caBundle": {"type": "string", "maxLength": 65536, "pattern": "^$|^[A-Za-z0-9+/]+={0,2}$", "description": "Public serving CA, base64 encoded. Empty is allowed only for offline/bootstrap render; installer must verify and populate before mutation."},
+        "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+        "servicePort": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "timeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 5}
+      }
+    },
+    "clientTLS": {"type": "object", "additionalProperties": false, "required": ["secretName"], "properties": {"secretName": {"$ref": "#/definitions/dnsName"}}},
+    "runtimes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["java", "nodejs", "python", "nodejs20", "legacyNode20Approved"],
+      "properties": {"java": {"type": "boolean"}, "nodejs": {"type": "boolean"}, "python": {"type": "boolean"}, "nodejs20": {"type": "boolean"}, "legacyNode20Approved": {"type": "boolean"}}
+    },
+    "images": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operator", "java", "nodejs", "python", "nodejs20"],
+      "properties": {
+        "operator": {"allOf": [{"$ref": "#/definitions/image"}, {"properties": {"repository": {"const": "docker.io/elvenobservability/elven-instrumentation-operator"}}}]},
+        "java": {"allOf": [{"$ref": "#/definitions/image"}, {"properties": {"repository": {"const": "docker.io/elvenobservability/elven-auto-java"}}}]},
+        "nodejs": {"allOf": [{"$ref": "#/definitions/image"}, {"properties": {"repository": {"const": "docker.io/elvenobservability/elven-auto-nodejs"}}}]},
+        "python": {"allOf": [{"$ref": "#/definitions/image"}, {"properties": {"repository": {"const": "docker.io/elvenobservability/elven-auto-python"}}}]},
+        "nodejs20": {"allOf": [{"$ref": "#/definitions/image"}, {"properties": {"repository": {"const": "docker.io/elvenobservability/elven-auto-nodejs20"}}}]}
+      }
+    },
+    "imagePullSecrets": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"$ref": "#/definitions/dnsName"}}}},
+    "replicas": {"type": "integer", "minimum": 1, "maximum": 3},
+    "samplingRatio": {"type": "string", "pattern": "^(0(\\.[0-9]+)?|1(\\.0+)?)$"},
+    "sdkVolumeSizeMiB": {"type": "integer", "minimum": 64, "maximum": 512},
+    "resources": {"$ref": "#/definitions/resources"},
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false, "required": ["enabled", "apiServerCIDRs"],
+      "properties": {"enabled": {"type": "boolean"}, "apiServerCIDRs": {"type": "array", "uniqueItems": true, "maxItems": 100, "items": {"type": "string", "pattern": "^[0-9a-fA-F:.]+/[1-9][0-9]{0,2}$"}}}
+    },
+    "podAnnotations": {"$ref": "#/definitions/stringMap"},
+    "nodeSelector": {"$ref": "#/definitions/stringMap"},
+    "tolerations": {"type": "array", "maxItems": 20, "items": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"key": {"type": "string"}, "operator": {"type": "string", "enum": ["Equal", "Exists"]}, "value": {"type": "string"}, "effect": {"type": "string", "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"]}, "tolerationSeconds": {"type": "integer", "minimum": 0}}
+    }}
+  },
+  "definitions": {
+    "dnsLabel": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "dnsName": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
+    "image": {
+      "type": "object", "additionalProperties": false, "required": ["repository", "tag", "digest"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "maxLength": 128, "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]*$", "not": {"enum": ["latest"]}},
+        "digest": {"type": "string", "pattern": "^$|^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "stringMap": {"type": "object", "maxProperties": 64, "additionalProperties": {"type": "string", "maxLength": 1024}},
+    "quantity": {"type": "string", "pattern": "^[1-9][0-9]*(m|Ki|Mi|Gi)?$"},
+    "resourcePair": {"type": "object", "additionalProperties": false, "required": ["cpu", "memory"], "properties": {"cpu": {"$ref": "#/definitions/quantity"}, "memory": {"$ref": "#/definitions/quantity"}}},
+    "resources": {"type": "object", "additionalProperties": false, "required": ["requests", "limits"], "properties": {"requests": {"$ref": "#/definitions/resourcePair"}, "limits": {"$ref": "#/definitions/resourcePair"}}}
+  }
+}

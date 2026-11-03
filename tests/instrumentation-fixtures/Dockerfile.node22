@@ -1,0 +1,7 @@
+# Test-only application image: no telemetry agent or SDK is bundled here.
+FROM docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
+WORKDIR /fixture
+COPY --chown=10001:10001 main.js /fixture/main.js
+USER 10001:10001
+EXPOSE 8080
+ENTRYPOINT ["node", "/fixture/main.js"]

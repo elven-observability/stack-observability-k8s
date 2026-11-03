@@ -1,0 +1,25 @@
+{
+  "completed": true,
+  "cluster_access": "none",
+  "runtime_requested": false,
+  "schema_requested": true,
+  "tests": {
+    "run": 241,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "schemas": {
+    "1.35.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0",
+    "1.36.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0",
+    "1.37.0": "Summary: 23 resources found in 1 file - Valid: 23, Invalid: 0, Errors: 0, Skipped: 0"
+  },
+  "runtime": null,
+  "_evidence": {
+    "recorded_on": "2026-11-03",
+    "source_report": ".artifacts/validation-20261103T132149/report.json",
+    "source_report_sha256": "845ae4a94549daab69b4469c4a6fed4c2f1afb75b8df9c147d2237e69d490ed4",
+    "scope": "synthetic isolated laboratory; no customer deployment",
+    "sanitization": "No private host paths, credential values, private keys or raw fixture payloads retained."
+  }
+}

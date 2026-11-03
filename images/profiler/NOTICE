@@ -1,0 +1,9 @@
+Elven Profiler is a distribution of Grafana Alloy 1.21.3.
+Upstream code and binary copyright Grafana Labs, licensed Apache-2.0.
+Elven packaging copyright Elven Observability contributors, licensed Apache-2.0.
+
+Upstream binary and all upstream image files are preserved without modification.
+Source: https://github.com/grafana/alloy/tree/v1.21.3
+Upstream LICENSING.md is included unchanged alongside this file.
+Dependencies retain their respective licenses; consult the release SBOM.
+This packaging does not imply endorsement by Grafana Labs.

@@ -2,3 +2,16 @@
 elven-prometheus/values-prometheus.rendered.yaml
 bootstrap/*.env
 !bootstrap/*.env.example
+.artifacts/
+artifacts/
+tmp/
+.venv/
+__pycache__/
+*.pyc
+*.env
+!*.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+.DS_Store

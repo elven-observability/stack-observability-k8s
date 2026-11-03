@@ -1,0 +1,103 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . }}
+{{- $components := list "gateway" }}
+{{- if eq (include "elven.nodeEnabled" .) "true" }}{{- $components = append $components "node" }}{{- end }}
+{{- if .Values.modules.clusterMetrics.enabled }}{{- $components = append $components "cluster-metrics" }}{{- end }}
+{{- if .Values.modules.profiles.enabled }}{{- $components = append $components "profiles" }}{{- end }}
+{{- range $component := $components }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "elven.fullname" $root }}-{{ $component }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "elven.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "elven.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "elven.selectorLabels" $root | nindent 14 }}
+      ports:
+        - {protocol: TCP, port: {{ $root.Values.ports.metrics }}}
+    {{- if eq $component "gateway" }}
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "elven.selectorLabels" $root | nindent 14 }}
+        {{- range $namespace := $root.Values.collection.namespaces }}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $namespace | quote }}}
+        {{- end }}
+      ports:
+        - {protocol: TCP, port: {{ $root.Values.ports.otlpGrpc }}}
+        - {protocol: TCP, port: {{ $root.Values.ports.otlpHttp }}}
+    {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: {{ $root.Values.networkPolicy.dnsNamespace | quote }}}
+          podSelector:
+            matchLabels:
+              {{- toYaml $root.Values.networkPolicy.dnsPodLabels | nindent 14 }}
+        {{- range $cidr := $root.Values.networkPolicy.dnsCIDRs }}
+        - ipBlock: {cidr: {{ $cidr | quote }}}
+        {{- end }}
+      ports:
+        - {protocol: UDP, port: {{ $root.Values.networkPolicy.dnsPort }}}
+        - {protocol: TCP, port: {{ $root.Values.networkPolicy.dnsPort }}}
+    {{- if ne $component "gateway" }}
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "elven.selectorLabels" $root | nindent 14 }}
+              app.kubernetes.io/component: gateway
+      ports:
+        - {protocol: TCP, port: {{ $root.Values.ports.otlpHttp }}}
+    {{- end }}
+    {{- if and (or (eq $component "gateway") (eq $component "profiles")) $root.Values.networkPolicy.exportCIDRs }}
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.exportCIDRs }}
+        - ipBlock: {cidr: {{ $cidr | quote }}}
+        {{- end }}
+      ports:
+        {{- range $port := $root.Values.networkPolicy.exportPorts }}
+        - {protocol: TCP, port: {{ $port }}}
+        {{- end }}
+    {{- end }}
+    {{- if and (or (eq $component "cluster-metrics") (and (eq $component "node") $root.Values.modules.ebpf.enabled)) $root.Values.networkPolicy.apiServerCIDRs }}
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.apiServerCIDRs }}
+        - ipBlock: {cidr: {{ $cidr | quote }}}
+        {{- end }}
+      ports:
+        {{- range $port := $root.Values.networkPolicy.apiServerPorts }}
+        - {protocol: TCP, port: {{ $port }}}
+        {{- end }}
+    {{- end }}
+    {{- if and (eq $component "node") $root.Values.modules.kubeletMetrics.enabled $root.Values.networkPolicy.kubeletCIDRs }}
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.kubeletCIDRs }}
+        - ipBlock: {cidr: {{ $cidr | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ $root.Values.modules.kubeletMetrics.port }}}]
+    {{- end }}
+    {{- if and (eq $component "profiles") $root.Values.networkPolicy.profileCIDRs }}
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.profileCIDRs }}
+        - ipBlock: {cidr: {{ $cidr | quote }}}
+        {{- end }}
+      ports:
+        {{- range $port := $root.Values.networkPolicy.profilePorts }}
+        - {protocol: TCP, port: {{ $port }}}
+        {{- end }}
+    {{- end }}
+{{- end }}
+{{- end }}

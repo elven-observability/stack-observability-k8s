@@ -1,0 +1,9 @@
+Elven Node.js 20 legacy auto-instrumentation packaging
+Copyright The OpenTelemetry Authors and the respective dependency authors.
+Elven packaging copyright Elven Observability contributors, Apache-2.0.
+Official image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.81.2-1@sha256:7c5852f71d38ee12ba19df81aa8b7d866a254ce19fd3cf12966201de1efbc283
+Source: https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.81.2
+All upstream SDK files, copy utility, dependency notices and payload /autoinstrumentation are preserved.
+Compatibility Node.js >=20.6.0 is not ongoing Node.js 20 support: runtime EOL was 2026-04-30.
+This image requires explicit legacy approval; it is never the default Node.js profile.
+Elven packaging source: https://github.com/elven-observability/stack-observability-k8s
