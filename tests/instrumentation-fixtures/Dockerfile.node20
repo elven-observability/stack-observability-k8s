@@ -1,0 +1,7 @@
+# Test-only EOL compatibility fixture; requires explicit legacy opt-in.
+FROM docker.io/library/node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+WORKDIR /fixture
+COPY --chown=10001:10001 main.js /fixture/main.js
+USER 10001:10001
+EXPOSE 8080
+ENTRYPOINT ["node", "/fixture/main.js"]

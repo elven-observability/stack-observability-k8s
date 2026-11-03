@@ -1,0 +1,11 @@
+**
+!operator
+!operator/*.go
+!operator/go.mod
+!operator/go.sum
+!images
+!images/licenses
+!images/licenses/APACHE-2.0.txt
+!images/operator
+!images/operator/NOTICE
+!images/operator/Dockerfile

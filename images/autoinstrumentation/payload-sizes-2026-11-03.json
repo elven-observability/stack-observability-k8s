@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "measuredOn": "2026-11-03",
+  "hostPlatform": "linux/arm64",
+  "amd64Execution": "Docker Desktop cross-architecture copy utility execution; not native amd64 application telemetry proof",
+  "method": {
+    "rootFilesystem": "read-only",
+    "user": "10001:10001",
+    "network": "none",
+    "capabilities": "ALL dropped",
+    "noNewPrivileges": true,
+    "copy": "Actual cp-r of each selected payload into a fresh disposable512MiB tmpfs; Java JAR copied directly",
+    "readout": "du -sk destination after copy; KiB converted to bytes"
+  },
+  "defaultPayloadVolumeBytes": 134217728,
+  "maximumMeasuredPayloadBytes": 78708736,
+  "minimumRemainingDefaultVolumeBytes": 55508992,
+  "allMeasuredPayloadsFitDefault": true,
+  "images": {
+    "java": {
+      "image": "docker.io/elvenobservability/elven-auto-java:1.0.0-dev@sha256:b3c77423fd6783524ef99f27123653b3886fb3d24a69861a8cd00da8b374fe78",
+      "platforms": {
+        "linux/arm64": {
+          "/javaagent.jar": {
+            "copiedKiB": 25888,
+            "copiedBytes": 26509312
+          }
+        },
+        "linux/amd64": {
+          "/javaagent.jar": {
+            "copiedKiB": 25888,
+            "copiedBytes": 26509312
+          }
+        }
+      }
+    },
+    "nodejs": {
+      "image": "docker.io/elvenobservability/elven-auto-nodejs:1.0.0-dev@sha256:b91dd03ec30a7b9cf908b7653a14a20cb8d6b2aa24e408243ba150d5138d677d",
+      "platforms": {
+        "linux/arm64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 68428,
+            "copiedBytes": 70070272
+          }
+        },
+        "linux/amd64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 68428,
+            "copiedBytes": 70070272
+          }
+        }
+      }
+    },
+    "nodejs20": {
+      "image": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.0-dev@sha256:a1e4759ac9fc6996f87faa063c18447766e0f86856c9c387ad50c032159d2856",
+      "platforms": {
+        "linux/arm64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 76864,
+            "copiedBytes": 78708736
+          }
+        },
+        "linux/amd64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 76864,
+            "copiedBytes": 78708736
+          }
+        }
+      }
+    },
+    "python": {
+      "image": "docker.io/elvenobservability/elven-auto-python:1.0.0-dev@sha256:9eb9cdd01379f204784771cdbd9bf2b82d9332fcd398b147d4acb493281ac9db",
+      "platforms": {
+        "linux/arm64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 24316,
+            "copiedBytes": 24899584
+          },
+          "/autoinstrumentation-musl": {
+            "copiedKiB": 23340,
+            "copiedBytes": 23900160
+          }
+        },
+        "linux/amd64": {
+          "/autoinstrumentation": {
+            "copiedKiB": 23788,
+            "copiedBytes": 24358912
+          },
+          "/autoinstrumentation-musl": {
+            "copiedKiB": 23184,
+            "copiedBytes": 23740416
+          }
+        }
+      }
+    }
+  }
+}

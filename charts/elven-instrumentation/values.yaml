@@ -1,0 +1,60 @@
+# This independent admission module is opt-in. Use scripts/instrumentation.py,
+# not a direct Helm install: the CLI verifies ownership, PKI and promoted images.
+enabled: false
+clusterDomain: cluster.local
+namespaces: []
+gateway:
+  endpoint: https://elven-gateway.elven-observability.svc.cluster.local:4318
+  sourceRelease: elven
+  sourceNamespace: elven-observability
+webhook:
+  existingSecret: elven-operator-webhook-tls
+  # Public serving CA only, base64 encoded. The installer fills this after PKI checks.
+  caBundle: ""
+  port: 9443
+  servicePort: 443
+  timeoutSeconds: 3
+clientTLS:
+  secretName: elven-instrumentation-tls
+runtimes:
+  java: true
+  nodejs: true
+  python: false
+  nodejs20: false
+  legacyNode20Approved: false
+images:
+  operator:
+    repository: docker.io/elvenobservability/elven-instrumentation-operator
+    tag: 1.0.0-dev
+    digest: ""
+  java:
+    repository: docker.io/elvenobservability/elven-auto-java
+    tag: 1.0.0-dev
+    digest: ""
+  nodejs:
+    repository: docker.io/elvenobservability/elven-auto-nodejs
+    tag: 1.0.0-dev
+    digest: ""
+  python:
+    repository: docker.io/elvenobservability/elven-auto-python
+    tag: 1.0.0-dev
+    digest: ""
+  nodejs20:
+    repository: docker.io/elvenobservability/elven-auto-nodejs20
+    tag: 1.0.0-dev
+    digest: ""
+imagePullSecrets: []
+replicas: 1
+samplingRatio: "1"
+sdkVolumeSizeMiB: 128
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: 500m, memory: 256Mi}
+networkPolicy:
+  enabled: true
+  # Real apiserver source addresses as observed by the CNI, including control-plane
+  # sources after NAT. Empty is deliberately deny-all and cannot enable the module.
+  apiServerCIDRs: []
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []

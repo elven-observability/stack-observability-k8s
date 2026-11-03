@@ -1,0 +1,38 @@
+{{- range $name, $_ := .Values.podAnnotations -}}
+{{- if hasPrefix "checksum/" $name -}}{{ fail "podAnnotations checksum/* keys are reserved for deterministic Elven rollouts" }}{{- end -}}
+{{- end -}}
+{{- if and (hasKey .Values.nodeSelector "kubernetes.io/os") (ne (get .Values.nodeSelector "kubernetes.io/os") "linux") -}}
+{{- fail "The Elven instrumentation operator supports Linux nodes only" -}}
+{{- end -}}
+{{- if .Values.enabled -}}
+{{- if not .Values.networkPolicy.enabled -}}{{ fail "The enabled Elven instrumentation module requires its reviewed NetworkPolicy" }}{{- end -}}
+{{- if empty .Values.namespaces -}}{{ fail "namespaces must select explicit approved application namespaces before enabling injection" }}{{- end -}}
+{{- range $namespace := .Values.namespaces -}}
+{{- if or (eq $namespace $.Release.Namespace) (has $namespace (list "kube-system" "kube-public" "kube-node-lease")) -}}
+{{- fail (printf "Injection into distribution/system namespace %s is forbidden" $namespace) -}}
+{{- end -}}
+{{- end -}}
+{{- if not (or .Values.runtimes.java .Values.runtimes.nodejs .Values.runtimes.python .Values.runtimes.nodejs20) -}}
+{{- fail "Enable at least one explicitly supported Elven instrumentation runtime" -}}
+{{- end -}}
+{{- if and .Values.runtimes.nodejs20 (not .Values.runtimes.legacyNode20Approved) -}}
+{{- fail "Node.js 20 is end-of-life: runtimes.legacyNode20Approved must explicitly approve this legacy exception" -}}
+{{- end -}}
+{{- range $name := list "operator" "java" "nodejs" "python" "nodejs20" -}}
+{{- if or (eq $name "operator") (index $.Values.runtimes $name) -}}
+{{- $image := index $.Values.images $name -}}
+{{- if not (regexMatch "^sha256:[0-9a-f]{64}$" $image.digest) -}}{{ fail (printf "images.%s.digest must pin the actual Elven OCI artifact before enabling injection" $name) }}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $endpoint := urlParse .Values.gateway.endpoint -}}
+{{- if or (ne (get $endpoint "scheme") "https") (empty (get $endpoint "host")) (not (empty (get $endpoint "userinfo"))) (not (empty (get $endpoint "query"))) (not (empty (get $endpoint "fragment"))) -}}
+{{- fail "gateway.endpoint must be an HTTPS gateway base URL without userinfo, query or fragment" -}}
+{{- end -}}
+{{- $endpointPath := get $endpoint "path" | default "" -}}
+{{- if not (or (eq $endpointPath "") (eq $endpointPath "/")) -}}{{ fail "gateway.endpoint must be the OTLP base URL, not a signal path" }}{{- end -}}
+{{- $authority := get $endpoint "host" -}}
+{{- if or (eq $authority "localhost") (hasPrefix "localhost:" $authority) (hasPrefix "127." $authority) (hasPrefix "0.0.0.0" $authority) (hasPrefix "[::1]" $authority) (contains ".." $authority) -}}{{ fail "gateway.endpoint cannot use a loopback or malformed destination" }}{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.networkPolicy.apiServerCIDRs) -}}
+{{- fail "networkPolicy.apiServerCIDRs must identify reviewed apiserver ingress sources before enabling injection" -}}
+{{- end -}}
+{{- end -}}

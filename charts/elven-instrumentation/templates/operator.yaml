@@ -1,0 +1,171 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "elvenInjection.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elvenInjection.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "elvenInjection.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elvenInjection.labels" . | nindent 4 }}
+data:
+  injection.json: {{ include "elvenInjection.config" . | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "elvenInjection.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elvenInjection.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas }}
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 300
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector:
+    matchLabels:
+      {{- include "elvenInjection.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "elvenInjection.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "elvenInjection.config" . | sha256sum }}
+        checksum/serving-ca: {{ .Values.webhook.caBundle | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "elvenInjection.fullname" . }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        {{- range $key, $value := .Values.nodeSelector }}
+        {{- if ne $key "kubernetes.io/os" }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: elven-instrumentation-operator
+          image: {{ include "elvenInjection.image" .Values.images.operator | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+            seccompProfile: {type: RuntimeDefault}
+          ports:
+            - {name: webhook, containerPort: {{ .Values.webhook.port }}, protocol: TCP}
+          env:
+            - name: ELVEN_INJECTION_CONFIG
+              valueFrom: {configMapKeyRef: {name: {{ include "elvenInjection.fullname" . }}-config, key: injection.json}}
+            - {name: ELVEN_WEBHOOK_ADDR, value: {{ printf ":%v" .Values.webhook.port | quote }}}
+            - {name: ELVEN_WEBHOOK_CERT, value: /etc/elven/webhook/tls.crt}
+            - {name: ELVEN_WEBHOOK_KEY, value: /etc/elven/webhook/tls.key}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {scheme: HTTPS, path: /healthz, port: webhook}
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {scheme: HTTPS, path: /healthz, port: webhook}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {scheme: HTTPS, path: /healthz, port: webhook}
+            periodSeconds: 10
+          volumeMounts:
+            - {name: serving-tls, mountPath: /etc/elven/webhook, readOnly: true}
+      volumes:
+        - name: serving-tls
+          secret:
+            secretName: {{ .Values.webhook.existingSecret }}
+            defaultMode: 0440
+            items:
+              - {key: tls.crt, path: tls.crt}
+              - {key: tls.key, path: tls.key}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "elvenInjection.fullname" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "elvenInjection.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "elvenInjection.selectorLabels" . | nindent 4 }}
+  ports:
+    - {name: webhook, port: {{ .Values.webhook.servicePort }}, targetPort: webhook, protocol: TCP}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "elvenInjection.globalname" . }}
+  labels:
+    {{- include "elvenInjection.labels" . | nindent 4 }}
+webhooks:
+  - name: inject.instrumentation.elvenobservability.com
+    admissionReviewVersions: [v1]
+    failurePolicy: Ignore
+    sideEffects: None
+    matchPolicy: Equivalent
+    reinvocationPolicy: Never
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}
+    clientConfig:
+      service:
+        name: {{ include "elvenInjection.fullname" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutate
+        port: {{ .Values.webhook.servicePort }}
+      caBundle: {{ .Values.webhook.caBundle | quote }}
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            {{- toYaml .Values.namespaces | nindent 12 }}
+    objectSelector:
+      matchExpressions:
+        - key: elven.observability/inject
+          operator: Exists
+        - key: elven.observability/inject
+          operator: NotIn
+          values: ["false"]
+    rules:
+      - operations: [CREATE]
+        apiGroups: [""]
+        apiVersions: [v1]
+        resources: [pods]
+        scope: Namespaced
+{{- end }}

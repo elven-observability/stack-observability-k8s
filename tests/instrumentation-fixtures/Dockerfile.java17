@@ -1,0 +1,8 @@
+# Test-only application image: no telemetry agent or SDK is bundled here.
+FROM docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516
+WORKDIR /fixture
+COPY JavaFixture.java h2.jar /fixture/
+RUN javac --release 17 --add-modules jdk.httpserver JavaFixture.java
+USER 10001:10001
+EXPOSE 8080
+ENTRYPOINT ["java", "--add-modules", "jdk.httpserver", "-cp", "/fixture:/fixture/h2.jar", "JavaFixture"]

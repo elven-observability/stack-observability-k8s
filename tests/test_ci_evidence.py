@@ -31,7 +31,7 @@ class EvidenceUploadTests(unittest.TestCase):
         for file, options in self.hidden_uploads():
             for path in options["path"].splitlines():
                 with self.subTest(workflow=file, path=path):
-                    self.assertTrue(path.endswith(("/report.json", "/diagnostics.txt")))
+                    self.assertTrue(path.endswith(("/report.json", "/diagnostics.txt", "/sdk-diagnostics.txt")))
                     self.assertNotIn("**", path)
                     self.assertNotIn("kubeconfig", path)
                     self.assertNotIn(".key", path)

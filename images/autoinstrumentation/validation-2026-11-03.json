@@ -1,0 +1,304 @@
+{
+  "artifactDirectory": "artifacts/instrumentation-final-20261103",
+  "builtAt": "2026-11-03T14:54:14.569845+00:00",
+  "dirtySource": true,
+  "images": {
+    "java": {
+      "archiveSha256": "41914e962812fe757181290cb0354694abf9534aba5858e9fe57dc68a93f4f85",
+      "digest": "sha256:b3c77423fd6783524ef99f27123653b3886fb3d24a69861a8cd00da8b374fe78",
+      "inputsSha256": {
+        "images/autoinstrumentation/java/Dockerfile": "5907dc5311de85595d9ff489b7682be66faa205da3d027400a2006c0aa8ba490",
+        "images/autoinstrumentation/java/Dockerfile.dockerignore": "2d459199d2609c7e8585c050498f82b8533a9b59d9522127aee2a1d281f6091c",
+        "images/autoinstrumentation/java/NOTICE": "9b19dc96069427c77bd14f0ef619fe18f4b1cfcec5d40422bcab8a7e137b922b",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "instrumentation.lock.json": "af13e164acdcfae1d4fad744a70717960c85eac6b8171d835f48acf7e21796d1"
+      },
+      "metadataSha256": "5a9fcbfe5870670157df4a5e1675b913641198676be156e54edecc235621bd2f",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "ea24dcc1725e7e403b2b6d6c2c21aaa3e348b75c16a11e3a75e3257ae7f0d7fc",
+          "sbomSha256": "721b3cf04b0e1b537578227b7ed64cf1cfaac6c837f146eee4188f99f94f925f",
+          "scannedAt": "2026-11-03T14:55:12.651780+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "2f6a2a6edfc95ac43521b53a6b59671493d9deb3884142caa6c2567f32be012f",
+          "sbomSha256": "c8b6a183da70647914b515c91bb6ef59877d7aa86b351ba9ba551d1942017652",
+          "scannedAt": "2026-11-03T14:55:13.046263+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        }
+      },
+      "tag": "docker.io/elvenobservability/elven-auto-java:1.0.0-dev"
+    },
+    "nodejs": {
+      "archiveSha256": "bee9e976e060b31d3d6c017eb1300d1292448da865c7e48d988f42efb349e92f",
+      "digest": "sha256:b91dd03ec30a7b9cf908b7653a14a20cb8d6b2aa24e408243ba150d5138d677d",
+      "inputsSha256": {
+        "images/autoinstrumentation/nodejs/Dockerfile": "184b72d0c252294a3886b6c9398cbd5b4782b58c8b2adb6fef8b6d7173a33d83",
+        "images/autoinstrumentation/nodejs/Dockerfile.dockerignore": "b584ffce879471049818af7b8f76583bcd8c5a9727c402b40661654d97952258",
+        "images/autoinstrumentation/nodejs/NOTICE": "fd5fcf5d7bb9877c4b55e2c0434d4c536277766ee9ee6a21e93513dc50196bc8",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "instrumentation.lock.json": "af13e164acdcfae1d4fad744a70717960c85eac6b8171d835f48acf7e21796d1"
+      },
+      "metadataSha256": "8b0f63b216f637145d1048a17d851b15fd4b33b43503f7e7aabe92032d1f74e1",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [
+            {
+              "FixedVersion": "14.0.2",
+              "InstalledVersion": "10.5.0",
+              "PkgName": "glob",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118773"
+            },
+            {
+              "FixedVersion": "11.0.1",
+              "InstalledVersion": "9.0.9",
+              "PkgName": "minimatch",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118764"
+            }
+          ],
+          "highCriticalCount": 0,
+          "reportSha256": "4fd90377786bf18e563dd8f186f76ffc3f38d93cb05c96931d09776d0c796989",
+          "sbomSha256": "41ca185e4924e578e71bac0164af044a6607a217e024c3c386975e62876ac5fc",
+          "scannedAt": "2026-11-03T14:55:13.969666+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "MEDIUM": 2
+          },
+          "status": "passed"
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [
+            {
+              "FixedVersion": "14.0.2",
+              "InstalledVersion": "10.5.0",
+              "PkgName": "glob",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118773"
+            },
+            {
+              "FixedVersion": "11.0.1",
+              "InstalledVersion": "9.0.9",
+              "PkgName": "minimatch",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118764"
+            }
+          ],
+          "highCriticalCount": 0,
+          "reportSha256": "140e1827fa3685c259641c942f793a94c8285a452687bb8cbbed6e53061423af",
+          "sbomSha256": "f8a2ca40f6ed97b637e5da7a25b41462dcfc4ea4ce83fa51042812866cb5d20e",
+          "scannedAt": "2026-11-03T14:55:14.380789+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "MEDIUM": 2
+          },
+          "status": "passed"
+        }
+      },
+      "tag": "docker.io/elvenobservability/elven-auto-nodejs:1.0.0-dev"
+    },
+    "nodejs20": {
+      "archiveSha256": "e35598d21a6f515f779a30bcecec090804de7cfb0af8e237bd5745d223ae8306",
+      "digest": "sha256:a1e4759ac9fc6996f87faa063c18447766e0f86856c9c387ad50c032159d2856",
+      "inputsSha256": {
+        "images/autoinstrumentation/nodejs20/Dockerfile": "8b1a5780c98e677f325b13100ae59eb0dae0cb7beb8104db2705025978be349e",
+        "images/autoinstrumentation/nodejs20/Dockerfile.dockerignore": "eb9d44878d9548d65beed0c670eed8a634beb9758e8230ff0133c7293425aab0",
+        "images/autoinstrumentation/nodejs20/NOTICE": "ce56f9f6d920b73c8b44008cc0fdf3d2735010ffe3445ab06898f60edad33652",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "instrumentation.lock.json": "af13e164acdcfae1d4fad744a70717960c85eac6b8171d835f48acf7e21796d1"
+      },
+      "metadataSha256": "8ec730496bc1b995500d1781a4774f4c0cd2740456bac73eec380f51c9620693",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [
+            {
+              "FixedVersion": "14.0.2",
+              "InstalledVersion": "10.5.0",
+              "PkgName": "glob",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118773"
+            },
+            {
+              "FixedVersion": "11.0.1",
+              "InstalledVersion": "9.0.9",
+              "PkgName": "minimatch",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118764"
+            }
+          ],
+          "highCriticalCount": 0,
+          "reportSha256": "4406a9ef80a413f7c701a0479edf2c119b7d3883dd18cdfdf0cdcdc375df2718",
+          "sbomSha256": "04467e7c4cceb4b9ff3a8791cb48edc448bf8c120c804fd4d3df4b72f383ddf9",
+          "scannedAt": "2026-11-03T14:55:15.321533+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "MEDIUM": 2
+          },
+          "status": "passed"
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [
+            {
+              "FixedVersion": "14.0.2",
+              "InstalledVersion": "10.5.0",
+              "PkgName": "glob",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118773"
+            },
+            {
+              "FixedVersion": "11.0.1",
+              "InstalledVersion": "9.0.9",
+              "PkgName": "minimatch",
+              "Severity": "MEDIUM",
+              "VulnerabilityID": "CVE-2026-118764"
+            }
+          ],
+          "highCriticalCount": 0,
+          "reportSha256": "a25b3ea32924e39aefc157a42bb2dac040277be1aed7e7505d81da4b25cd881d",
+          "sbomSha256": "dd7be991d486b64af352d2cba2bcbf217d29e2a1ca6590cca6bc414437cf7455",
+          "scannedAt": "2026-11-03T14:55:15.767547+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {
+            "MEDIUM": 2
+          },
+          "status": "passed"
+        }
+      },
+      "tag": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.0-dev"
+    },
+    "operator": {
+      "archiveSha256": "6473d7bcf2a0c66ef32a86fe21e72db38eb3b26e6bdb7a21ef8a5779ca18fe9f",
+      "digest": "sha256:2749ef30d24e022739b8990ea40de35478e4b625170377ce516ef42642f23df2",
+      "inputsSha256": {
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "images/operator/Dockerfile": "cb6b230ac5990b9da7310fb29f4d7c0937fd6d315da88e3dc3f8e3e6026b71ad",
+        "images/operator/Dockerfile.dockerignore": "27268e28c2452b663e2d781e077d6433adcc64edbb08c1ceac0e1255b68d367e",
+        "images/operator/NOTICE": "0be47672f8c5ef716c71a42b734ae5d71060a50325ce897cf5a1e100d243f6ce",
+        "instrumentation.lock.json": "af13e164acdcfae1d4fad744a70717960c85eac6b8171d835f48acf7e21796d1",
+        "operator/README.md": "ee2adb43ba2e8c4f997faa842f0627ea7b0975ce5473a4f6fb227efeb060afe1",
+        "operator/go.mod": "a37b42be7d12c6f419dba1af954af2e24cd9ddb67c7199772e1227c7ec349a97",
+        "operator/handler.go": "67fc95679afec4f78cad10cffd55b6788b1f904e6577ee9a89716ed7e2a123f0",
+        "operator/handler_test.go": "6cc8351060030442e9a11a560b1f85a87002115661b35b2b5f51c316e7acb28f",
+        "operator/main.go": "c7e77a1e7525f6b9ff5e42746c661054f79e998b6df4a240453538cf9b12674a",
+        "operator/tls_test.go": "99cb68c38e2877e3e3acb8cd068bbd9620153146e5186c0197a7e988d2516d18"
+      },
+      "metadataSha256": "51a09125090fea2a3350fcfcfe344c2097ce3c89318a49f2d544f9a4b0f2db85",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "99436485fac6e0f9fdbc302ff6e98288a1c762093713d18c37b0d6ba277e5d7b",
+          "sbomSha256": "c991b170758d9f0ec3d86325085c340b9d9f1863e846a988f50750cd8b2a659e",
+          "scannedAt": "2026-11-03T15:26:35.669396+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "a9ffc0bdfec3087be693e94112964e8a545983e5ec8e4a80e360cd30e0c30666",
+          "sbomSha256": "56a70b93fc592c90fe153ac7f7491e0ab6c7be5143fc44b118a1ebac33cc5c6d",
+          "scannedAt": "2026-11-03T15:26:35.819448+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        }
+      },
+      "tag": "docker.io/elvenobservability/elven-instrumentation-operator:1.0.0-dev"
+    },
+    "python": {
+      "archiveSha256": "7d2a6864dfb0a51b6a8b2d08ce6f529fae180856adac37b82b7edd03f0bd6d6f",
+      "digest": "sha256:9eb9cdd01379f204784771cdbd9bf2b82d9332fcd398b147d4acb493281ac9db",
+      "inputsSha256": {
+        "images/autoinstrumentation/python/Dockerfile": "d0ce893f7a3c1dc0c2923ff3e7681e79259dea1f6f4439c883fa0c5c92569bbf",
+        "images/autoinstrumentation/python/Dockerfile.dockerignore": "af088da6f487af978448e6f0d830a449c96a4790c2494d40a7c3982fcb8e78d6",
+        "images/autoinstrumentation/python/NOTICE": "5464c54f4d28a6970325f2865909a6719108d10976fe08b63073c2d90b053f6b",
+        "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "instrumentation.lock.json": "af13e164acdcfae1d4fad744a70717960c85eac6b8171d835f48acf7e21796d1"
+      },
+      "metadataSha256": "dc2b86b1610625ee9f5147dd671b608dff0993a37a3189cb069621cca8b80c55",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "scans": {
+        "linux/amd64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "5f14f4556431b43c429a415a6544f5ddcea8995ef79df85fc2f8f405519fd1ca",
+          "sbomSha256": "f38848e60d27bdf1c679151b313245b8a1d177f56c20a43cb2db99b2e3e36e89",
+          "scannedAt": "2026-11-03T14:55:17.263291+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        },
+        "linux/arm64": {
+          "databaseUpdatedAt": "2026-11-03T13:13:42.304243913Z",
+          "findings": [],
+          "highCriticalCount": 0,
+          "reportSha256": "cd38b367daf686a07fe37455c8f0aeac198683dfc4a1ac71f6fd4b146f3f698b",
+          "sbomSha256": "75a7c3dba2bfc8e9c923b631943aff4160ce4cffb1f40a7aeecf504ffe329594",
+          "scannedAt": "2026-11-03T14:55:17.711977+00:00",
+          "scanner": "trivy/0.76.1",
+          "severities": {},
+          "status": "passed"
+        }
+      },
+      "tag": "docker.io/elvenobservability/elven-auto-python:1.0.0-dev"
+    }
+  },
+  "limitations": [
+    "Local development builds from dirty sources, not published or approved for production.",
+    "Node.js 20 runtime is EOL and requires explicit legacy approval; it is not the default Node.js profile.",
+    "Python auto-instrumentation remains beta.",
+    "Payload copy and vulnerability scans do not themselves prove application telemetry, production scale, or native amd64 SDK compatibility.",
+    "An initial cold JavaDB download exceeded the default Trivy timeout; the final complete scan passed with an explicit30-minute timeout and no vulnerability waiver."
+  ],
+  "localBuildkit": "docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe",
+  "localBuildx": "0.37.1",
+  "promotionStatus": "not-executed",
+  "publicationStatus": "not-published",
+  "releaseCIBuildx": "0.38.1",
+  "revision": "7362195f63d20d743d8bbf413e76e86704fae3ea",
+  "schemaVersion": 1,
+  "signingStatus": "not-executed",
+  "sourceDateEpoch": 1793291359,
+  "verifiedOn": "2026-11-03",
+  "version": "1.0.0-dev"
+}

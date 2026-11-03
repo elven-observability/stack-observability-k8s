@@ -1,0 +1,15 @@
+Elven instrumentation admission module
+{{- if not .Values.enabled }}
+Injection is disabled. Only this release's settings were rendered.
+{{- else }}
+Only CREATE Pods in the approved namespaces with the explicit
+elven.observability/inject runtime label are eligible. Existing Pods and workload
+specifications are never restarted, annotated or modified by this release.
+{{- if empty .Values.webhook.caBundle }}
+WARNING: serving CA is empty. This render is NOT ready for installation.
+Use scripts/instrumentation.py to verify/provision private PKI and supply public CA.
+{{- end }}
+Webhook transport failures fail open: application availability is preserved,
+but instrumentation coverage must be verified before acceptance.
+{{- end }}
+Pods Ready is not proof of signal delivery. Follow the module's acceptance tests.
