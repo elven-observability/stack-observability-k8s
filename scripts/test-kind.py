@@ -36,6 +36,9 @@ KUBECTL = os.environ.get("ELVEN_KUBECTL_BINARY", "kubectl")
 KIND_NODE = "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
 PYTHON_IMAGE = "python:3.14.0-slim@sha256:0aecac02dc3d4c5dbb024b753af084cafe41f5416e02193f1ce345d671ec966e"
 SENTINEL = "SYNTHETIC_PRIVATE_DO_NOT_EXPORT"
+PRIVATE_EMAIL = "synthetic@example.invalid"
+PRIVATE_PAN = "4111111111111111"
+RUNTIME_LIMITS = {"linux/amd64": "native amd64 runtime", "linux/arm64": "native arm64 runtime"}
 
 
 def execute(args, data=None, check=True, timeout=300):
@@ -69,9 +72,25 @@ class Lab:
         self.report = {"completed": False, "cluster": self.name, "node_image": node_image,
             "fixture_image": PYTHON_IMAGE, "customer_cluster_access": False, "checks": [],
             "not_proven": ["NetworkPolicy enforcement (Kind default CNI)",
-                "customer network/tenant ingestion", "native amd64 runtime", "eBPF/kernel compatibility",
+                "customer network/tenant ingestion", *RUNTIME_LIMITS.values(), "eBPF/kernel compatibility",
                 "production scale/HA", "all supported Kubernetes versions live"]}
         self.report["collector_image_override"] = collector_image
+
+    def record_server_runtime(self, version):
+        # The Docker engine/Kind server can differ from the caller's host.
+        # Attribute architecture evidence only to Kubernetes' actual server
+        # binary platform; unknown/missing values must not imply either arch.
+        server = version.get("serverVersion", {})
+        reported = server.get("platform") if isinstance(server, dict) else None
+        tested = reported if isinstance(reported, str) and reported in RUNTIME_LIMITS else None
+        self.report["runtime_platform"] = {
+            "source": "kubectl version.serverVersion.platform",
+            "reported": reported if isinstance(reported, str) else None,
+            "tested": tested,
+        }
+        limits = [value for value in self.report["not_proven"] if value not in RUNTIME_LIMITS.values()]
+        limits.extend(value for platform, value in RUNTIME_LIMITS.items() if platform != tested)
+        self.report["not_proven"] = limits
 
     def kube(self, *args, data=None, check=True, timeout=240):
         return execute([KUBECTL, "--kubeconfig", self.kubeconfig, "--context", "kind-" + self.name, *args],
@@ -117,6 +136,7 @@ class Lab:
             self.check("local Collector OCI archive loaded into only the disposable Kind node", image=self.collector_image)
         version = json.loads(self.kube("version", "-o", "json").stdout)
         self.report["versions"] = version
+        self.record_server_runtime(version)
         self.apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": self.namespace}},
                    {"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": self.app_namespace}})
         self.check("isolated Kind boot", server=version["serverVersion"]["gitVersion"])
@@ -323,19 +343,23 @@ class Lab:
     def install(self, release, cluster_metrics=False):
         self.provision(release)
         source = self.values(release, cluster_metrics)
-        self.helm("install", release, str(CHART), "-f", str(source), "--wait", "--timeout", "240s")
+        # Exercise the real installer: it reserves the PVC and records the
+        # cluster/PVC/tenant receipt required for later safe upgrades/replay.
+        self.cli("install", source, release=release)
         installed = self.helm("get", "manifest", release).stdout
         self.check("clean Helm install " + release, manifest_sha256=hashlib.sha256(installed.encode()).hexdigest())
         return source
 
-    def cli(self, command, values=None):
+    def cli(self, command, values=None, release="elven-a", revision=None):
         uid = json.loads(self.kube("get", "namespace/kube-system", "-o", "json").stdout)["metadata"]["uid"]
-        args = [sys.executable, str(ROOT / "elven"), command, "--release", "elven-a", "--namespace", self.namespace,
+        args = [sys.executable, str(ROOT / "elven"), command, "--release", release, "--namespace", self.namespace,
                 "--context", "kind-" + self.name, "--kubeconfig", str(self.kubeconfig),
                 "--expect-cluster-uid", uid, "--cluster-name", "synthetic-kind", "--use-existing-secrets",
                 "--credentials-secret", "elven-ingest", "--tls-secret", "elven-internal-tls", "--development-images"]
         if values:
             args.extend(["--values", str(values)])
+        if revision is not None:
+            args.extend(["--revision", str(revision)])
         return execute(args)
 
     def send(self, gateway_port, signal, level=17):
@@ -344,18 +368,22 @@ class Lab:
         now = str(time.time_ns())
         if signal == "logs":
             payload = {"resourceLogs": [{"resource": resource, "scopeLogs": [{"logRecords": [{
-                "timeUnixNano": now, "severityNumber": level, "severityText": SENTINEL, "body": {"stringValue": SENTINEL},
-                "attributes": [{"key": "email", "value": {"stringValue": "synthetic@example.invalid"}}]}]}]}]}
+                "timeUnixNano": now, "severityNumber": level, "severityText": "ERROR", "body": {"stringValue":
+                    "operation=checkout status=failed email=" + PRIVATE_EMAIL + " card=" + PRIVATE_PAN + " password=" + SENTINEL},
+                "attributes": [{"key": "email", "value": {"stringValue": PRIVATE_EMAIL}}]}]}]}]}
         elif signal == "traces":
             payload = {"resourceSpans": [{"resource": resource, "scopeSpans": [{"spans": [{
-                "traceId": "112233445566778899aabbccddeeff00", "spanId": "1122334455667788", "name": SENTINEL,
+                "traceId": "112233445566778899aabbccddeeff00", "spanId": "1122334455667788", "name": "GET /synthetic-checkout",
                 "kind": 2, "startTimeUnixNano": now, "endTimeUnixNano": str(int(now) + 123000000),
                 "attributes": [{"key": "http.request.method", "value": {"stringValue": "GET"}}],
-                "status": {"message": SENTINEL},
-                "events": [{"timeUnixNano": now, "name": SENTINEL, "attributes": [
-                    {"key": "exception.message", "value": {"stringValue": SENTINEL}}]}],
+                "status": {"message": "checkout failed email=" + PRIVATE_EMAIL},
+                "events": [{"timeUnixNano": now, "name": "checkout.failed", "attributes": [
+                    {"key": "exception.message", "value": {"stringValue": "checkout failed email=" + PRIVATE_EMAIL}},
+                    {"key": "password", "value": {"stringValue": SENTINEL}}]}],
                 "links": [{"traceId": "ffeeddccbbaa99887766554433221100", "spanId": "8877665544332211",
-                    "attributes": [{"key": "email", "value": {"stringValue": SENTINEL}}]}]}]}]}]}
+                    "attributes": [{"key": "email", "value": {"stringValue": PRIVATE_EMAIL}},
+                                   {"key": "password", "value": {"stringValue": SENTINEL}},
+                                   {"key": "component", "value": {"stringValue": "checkout"}}]}]}]}]}]}
         else:
             payload = {"resourceMetrics": [{"resource": resource, "scopeMetrics": [{"metrics": [{
                 "name": "synthetic_e2e_gauge", "gauge": {"dataPoints": [{"asDouble": 42, "timeUnixNano": now}]}}]}]}]}
@@ -388,11 +416,17 @@ class Lab:
         for signal in ("logs", "metrics", "traces"):
             self.send(self.gateway_port, signal)
         self.wait_for(lambda: all(self.decoded(signal) for signal in ("logs", "metrics", "traces")), "positive delivery of all OTLP signals")
-        assert self.logs()[0]["body"]["string_value"] == "[REDACTED]"
+        useful_body = self.logs()[0]["body"]["string_value"]
+        assert "operation=checkout" in useful_body and "status=failed" in useful_body and "[REDACTED]" in useful_body
         exported = json.dumps({signal: self.decoded(signal) for signal in ("logs", "metrics", "traces")})
-        assert SENTINEL not in exported and "synthetic@example.invalid" not in exported
+        assert all(value not in exported for value in (SENTINEL, PRIVATE_EMAIL, PRIVATE_PAN))
+        trace_spans = [span for payload in self.decoded("traces") for resource in payload.get("resource_spans", [])
+                       for scope in resource.get("scope_spans", []) for span in scope.get("spans", [])]
+        trace = next(span for span in trace_spans if span["name"] == "GET /synthetic-checkout")
+        assert trace["links"] and trace["links"][0]["span_id"] == base64.b64encode(bytes.fromhex("8877665544332211")).decode()
+        assert any(item["key"] == "component" and item["value"]["string_value"] == "checkout" for item in trace["links"][0]["attributes"])
         assert all(capture["tenant"] == "synthetic-tenant" and capture["authorization_valid"] for capture in self.state()["accepted"])
-        self.check("positive OTLP logs metrics traces; privacy and outbound tenant/auth headers verified")
+        self.check("positive OTLP logs metrics traces; selective privacy preserves useful text and sanitized span links; outbound tenant/auth verified")
         # A rejected TLS handshake can close the entire kubectl port-forward
         # stream. Negative probes must not reuse the positive-delivery tunnel.
         no_client_port = self.port_forward("service/elven-a-gateway", 4318)
@@ -428,7 +462,12 @@ class Lab:
         self.kube("exec", "deployment/synthetic-customer-app", "-n", self.app_namespace, "--", "python", "-c",
                   "import urllib.request; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8080/emit',data=b'x')); assert r.status==200")
         self.wait_for(lambda: len(self.logs()) > before, "CRI stdout delivery without SDK or customer gateway")
-        assert all(record["body"]["string_value"] == "[REDACTED]" for record in self.logs()[before:])
+        assert all("synthetic checkout failed" in record["body"]["string_value"] and "[REDACTED]" in record["body"]["string_value"]
+                   and PRIVATE_EMAIL not in record["body"]["string_value"] and PRIVATE_PAN not in record["body"]["string_value"]
+                   and SENTINEL not in record["body"]["string_value"] for record in self.logs()[before:])
+        assert all(record.get("severity_number") == "SEVERITY_NUMBER_ERROR" for record in self.logs()[before:])
+        assert all(attribute["key"] != "application" for record in self.logs()[before:]
+                   for attribute in record.get("attributes", []))
         self.check("node log collector reads actual CRI stdout and exports sanitized data without application SDK")
         for account, verb, resource, expected in (("elven-a-gateway", "list", "secrets", "no"),
                 ("elven-a-cluster-metrics", "list", "pods", "yes"),
@@ -454,13 +493,16 @@ class Lab:
         self.send(self.gateway_port, "logs", level=9)
         self.wait_for(lambda: self.state()["attempts"].get("/otlp/v1/logs", 0) > attempts, "pending record persisted")
         queue_directory = "/var/local/" + self.name + "/elven-a/exports"
-        for forbidden in (SENTINEL, "synthetic@example.invalid", "synthetic-test-token"):
+        for forbidden in (SENTINEL, PRIVATE_EMAIL, PRIVATE_PAN, "synthetic-test-token"):
             found = execute(["docker", "exec", self.name + "-control-plane", "grep", "--recursive",
                              "--binary-files=text", "--fixed-strings", "--quiet", forbidden, queue_directory], check=False)
             assert found.returncode == 1, "Private marker or credential found in the persistent queue, or queue inspection failed"
         sanitized = execute(["docker", "exec", self.name + "-control-plane", "grep", "--recursive",
                              "--binary-files=text", "--fixed-strings", "--quiet", "[REDACTED]", queue_directory], check=False)
         assert sanitized.returncode == 0, "Queue inspection must observe real persisted sanitized data"
+        useful = execute(["docker", "exec", self.name + "-control-plane", "grep", "--recursive",
+                          "--binary-files=text", "--fixed-strings", "--quiet", "operation=checkout", queue_directory], check=False)
+        assert useful.returncode == 0, "Selective privacy must retain useful diagnostic text in the durable queue"
         self.check("persistent queue contains sanitized data, not private body/link sentinels or exporter token")
         pod = json.loads(self.kube("get", "pod/elven-a-gateway-0", "-n", self.namespace, "-o", "json").stdout)
         claim = json.loads(self.kube("get", "pvc/data-elven-a-gateway-0", "-n", self.namespace, "-o", "json").stdout)
@@ -489,8 +531,8 @@ class Lab:
         history_after = json.loads(self.helm("history", "elven-a", "-o", "json").stdout)
         assert history_after == history_before
         self.check("invalid configuration rejected by Helm before apply")
-        self.helm("rollback", "elven-a", "1", "--wait", "--timeout", "180s")
-        self.check("Helm rollback restores the prior revision")
+        self.cli("rollback", revision=1)
+        self.check("actual Elven CLI rollback validates storage and tenant identity before restoring the prior revision")
         self.install("elven-b")
         current = json.loads(self.kube("get", "configmap/customer-observability-sentinel", "-n", self.namespace, "-o", "json").stdout)
         assert current["metadata"]["uid"] == self.sentinel["metadata"]["uid"] and current["data"] == self.sentinel["data"]

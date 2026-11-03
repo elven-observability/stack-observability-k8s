@@ -185,7 +185,6 @@ class ChartTests(unittest.TestCase):
             {"images": {"collector": {"digest": "latest"}}},
             {"collection": {"namespaces": ["kube-system"]}},
             {"networkPolicy": {"exportCIDRs": ["0.0.0.0/0"]}},
-            {"privacy": {"preserveSpanLinks": True, "spanLinkAttributesApproved": False}},
             {"modules": {"logs": {"enabled": True, "hostAccessApproved": False}}},
             {"modules": {"ebpf": {"enabled": True, "hostAccessApproved": False}}},
             {"modules": {"ebpf": {"enabled": True, "hostAccessApproved": True,

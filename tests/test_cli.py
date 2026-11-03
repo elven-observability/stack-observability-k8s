@@ -92,6 +92,12 @@ class ProcessMockedTestCase(unittest.TestCase):
             "Unexpected external process in a process-mocked CLI unit test"))
         self.block_process.start()
         self.addCleanup(self.block_process.stop)
+        # Storage identity has dedicated process-mocked tests. These older
+        # command-boundary contracts deliberately do not model a PVC lifecycle.
+        for name in ("check_storage_identity", "check_rollback_storage_identity", "reserve_storage", "write_storage_identity"):
+            patcher = mock.patch.object(cli, name)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
 
 class CommandBoundaryTests(ProcessMockedTestCase):
@@ -566,7 +572,7 @@ class RealHelmArgumentCompatibilityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="elven-cli-test-") as folder:
             with mock.patch.object(cli, "helm", side_effect=[contract, "kind: ConfigMap\n"]):
                 _, actual, flags = cli.render(arguments(), Path(folder))
-            with mock.patch.object(cli, "get_secret", return_value={"metadata": {"name": "synthetic-existing"}}), mock.patch.object(cli, "helm") as helm, contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(cli, "get_secret", return_value={"metadata": {"name": "synthetic-existing"}}), mock.patch.object(cli, "helm") as helm, mock.patch.object(cli, "reserve_storage"), mock.patch.object(cli, "write_storage_identity"), contextlib.redirect_stdout(io.StringIO()):
                 cli.install(arguments(), {"metadata": {"name": "synthetic-existing"}}, actual, flags, Path(folder), major)
         generated = {str(value) for value in helm.call_args.args[1:] if str(value).startswith("--")}
         self.assertTrue(generated <= supported, f"Unsupported upgrade flags: {generated - supported}")

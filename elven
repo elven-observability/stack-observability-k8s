@@ -2,6 +2,7 @@
 """Elven distribution control plane. No third-party Python dependencies."""
 import argparse
 import base64
+import hashlib
 import ipaddress
 import json
 import os
@@ -15,18 +16,24 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent
 CHART = ROOT / "charts/elven-observability"
-VERSION = "1.0.0-rc.1"
+VERSION = "1.0.0-rc.2"
 OWNER = "elven-cli"
 MUTATING = {"install", "upgrade", "rollback", "uninstall"}
+STORAGE_IDENTITY = "elven.observability/storage-identity"
 
 
 class Failure(Exception):
     pass
 
 
-def run(argv, data=None, quiet_error=False):
-    result = subprocess.run([str(arg) for arg in argv], input=data, text=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+def run(argv, data=None, quiet_error=False, timeout=120):
+    try:
+        result = subprocess.run([str(arg) for arg in argv], input=data, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # The exception can retain command arguments and partial Secret output.
+        # A timeout is not proof that an API/Helm write did not complete.
+        raise Failure(f"External command timed out after {timeout}s; completion is UNKNOWN. Arguments/output were suppressed and no cleanup was attempted. Inspect the current state before retrying.") from None
     if result.returncode:
         # kubectl/Helm errors can echo a Secret. Never print arbitrary stderr.
         hint = " Inspect the target's events locally; never share Secret contents." if quiet_error else ""
@@ -43,6 +50,25 @@ def kube(args, *command, data=None):
     return run(argv + ["--context", args.context, *command], data=data, quiet_error=True)
 
 
+def helm_command_timeout(command):
+    if not command or command[0] not in ("install", "upgrade", "rollback", "uninstall", "test"):
+        return 120
+    selected = None
+    # CLI-generated --timeout is after values flags. Use the last explicit flag
+    # so a values filename containing that text cannot shorten a real rollout.
+    for index, argument in enumerate(command):
+        if argument == "--timeout" and index + 1 < len(command):
+            selected = str(command[index + 1])
+        elif str(argument).startswith("--timeout="):
+            selected = str(argument).split("=", 1)[1]
+    if selected is None:
+        return 390 if "--wait" in command or "--wait-for-jobs" in command else 120
+    match = re.fullmatch(r"([1-9][0-9]{0,4})([smh])", selected)
+    if not match:
+        raise Failure("Helm wait timeout must be a bounded positive duration, such as 15m.")
+    return int(match.group(1)) * {"s": 1, "m": 60, "h": 3600}[match.group(2)] + 90
+
+
 def helm(args, *command, online=False):
     argv = [os.environ.get("ELVEN_HELM_BINARY", "helm"), *command]
     if online:
@@ -51,7 +77,7 @@ def helm(args, *command, online=False):
         argv += ["--kube-context", args.context]
         if args.kubeconfig:
             argv += ["--kubeconfig", args.kubeconfig]
-    return run(argv, quiet_error=online)
+    return run(argv, quiet_error=online, timeout=helm_command_timeout(command))
 
 
 def identifier(value, label, limit=53):
@@ -182,7 +208,11 @@ def can_i(args, verb, resource, namespaced=False, namespace=None):
     argv = ["kubectl"]
     if args.kubeconfig:
         argv += ["--kubeconfig", args.kubeconfig]
-    result = subprocess.run(argv + ["--context", args.context, *command], text=True, capture_output=True)
+    try:
+        result = subprocess.run(argv + ["--context", args.context, *command], text=True,
+                                capture_output=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        raise Failure("Installation permission check timed out; authorization is UNKNOWN. Arguments/output were suppressed and no cleanup was attempted.") from None
     if result.returncode != 0 or result.stdout.strip() != "yes":
         raise Failure(f"Installation permission missing: {verb} {resource}. Ask the cluster administrator; runtime RBAC is separate.")
 
@@ -213,8 +243,198 @@ def check_source_claims(args, settings):
             component = existing_labels.get("app.kubernetes.io/component")
             active_signals = {"logs", "traces", "kubelet"} if component == "node" else {"cluster-metrics"} if component == "cluster-metrics" else set()
         active_namespaces = set(filter(None, annotations.get("elven.observability/collection-namespaces", "").split(",")))
-        if signals & active_signals and (not wanted or not active_namespaces or wanted & active_namespaces):
+        shared_signals = signals & active_signals
+        if "kubelet" in shared_signals:
+            # kubelet_stats also emits node-wide usage: disjoint application
+            # namespaces do not prove disjoint sources or node placement.
+            raise Failure(f"Collection overlaps {meta.get('namespace')}/{meta.get('name')}. Kubelet node-wide metrics are not isolated by namespace. Use one kubelet collector, or explicitly acknowledge --allow-overlapping-collection after reviewing node placement, destinations and duplication.")
+        if shared_signals and (not wanted or not active_namespaces or wanted & active_namespaces):
             raise Failure(f"Collection overlaps {meta.get('namespace')}/{meta.get('name')}. Choose disjoint namespaces/sources, or explicitly acknowledge --allow-overlapping-collection after checking destinations and duplication.")
+
+
+def storage_names(args):
+    # CLI release names are <=40 characters and fullnameOverride is forbidden.
+    statefulset = f"{args.release}-gateway"
+    return statefulset, f"data-{statefulset}-0"
+
+
+def storage_object(args, kind, name):
+    try:
+        raw = kube(args, "get", kind, name, "-n", args.namespace, "--ignore-not-found", "-o", "json")
+    except Failure:
+        raise Failure(f"Cannot inspect gateway storage identity: get {kind} {args.namespace}/{name} failed. Verify read permission/API connectivity; nothing was adopted or deleted.") from None
+    return json.loads(raw) if raw.strip() else None
+
+
+def storage_identity(args, settings, secret, phase, pvc_uid=None, statefulset_uid=None):
+    cluster_uid = getattr(args, "confirmed_cluster_uid", None)
+    secret_uid = (secret or {}).get("metadata", {}).get("uid")
+    if not cluster_uid or not secret_uid:
+        raise Failure("Cannot bind gateway storage without confirmed cluster and ingest Secret UIDs.")
+    secret_keys(secret, ("tenant-id", "api-token"), "Ingest Secret")
+    tenant = base64.b64decode(secret["data"]["tenant-id"], validate=True)
+    identity = {"schemaVersion": 1, "phase": phase, "release": args.release,
+                "namespace": args.namespace, "clusterUID": cluster_uid,
+                "clusterName": settings["cluster"]["name"],
+                "credentialsSecret": settings["credentials"]["existingSecret"],
+                "credentialsSecretUID": secret_uid,
+                "tenantSHA256": hashlib.sha256(tenant).hexdigest()}
+    if pvc_uid:
+        identity["pvcUID"] = pvc_uid
+    if statefulset_uid:
+        identity["statefulSetUID"] = statefulset_uid
+    return identity
+
+
+def storage_receipt(pvc):
+    try:
+        receipt = json.loads(pvc.get("metadata", {}).get("annotations", {}).get(STORAGE_IDENTITY, ""))
+    except (TypeError, ValueError):
+        receipt = None
+    if not isinstance(receipt, dict):
+        raise Failure("Gateway PVC has no valid Elven storage identity. Retained, foreign or direct-Helm claims require manual recovery review; automatic adoption is forbidden.")
+    return receipt
+
+
+def storage_labels(args):
+    return {**labels(args), "app.kubernetes.io/name": "elven-observability",
+            "app.kubernetes.io/component": "gateway"}
+
+
+def verify_storage_objects(args, settings, pvc):
+    """Read-only ownership checks; a familiar claim name never proves ownership."""
+    statefulset_name, pvc_name = storage_names(args)
+    metadata = pvc.get("metadata", {})
+    existing_labels = metadata.get("labels", {})
+    if (metadata.get("name") != pvc_name or metadata.get("namespace") != args.namespace
+            or not metadata.get("uid")
+            or any(existing_labels.get(key) != value for key, value in storage_labels(args).items())):
+        raise Failure("Gateway PVC belongs to another owner or has no verifiable identity; it will not be reused, adopted or deleted.")
+    statefulset = storage_object(args, "statefulset", statefulset_name)
+    settings_map = storage_object(args, "configmap", f"{args.release}-settings")
+    for resource in (statefulset, settings_map):
+        annotations = (resource or {}).get("metadata", {}).get("annotations", {})
+        if (annotations.get("meta.helm.sh/release-name") != args.release
+                or annotations.get("meta.helm.sh/release-namespace") != args.namespace):
+            raise Failure("Retained gateway PVC has no live owned StatefulSet/settings. Manual recovery is required; reinstall never replays a retained queue automatically.")
+    sts_meta = statefulset["metadata"]
+    if (not sts_meta.get("uid") or sts_meta.get("name") != statefulset_name
+            or sts_meta.get("namespace") != args.namespace
+            or sts_meta.get("labels", {}).get("app.kubernetes.io/instance") != args.release
+            or sts_meta.get("labels", {}).get("app.kubernetes.io/name") != "elven-observability"):
+        raise Failure("Gateway StatefulSet UID is missing; storage ownership cannot be proven.")
+    for owner in metadata.get("ownerReferences", []):
+        if owner.get("kind") != "StatefulSet" or owner.get("uid") != sts_meta["uid"]:
+            raise Failure("Gateway PVC has a foreign owner reference; refusing storage reuse.")
+    claims = statefulset.get("spec", {}).get("volumeClaimTemplates", [])
+    if not any(claim.get("metadata", {}).get("name") == "data"
+               and claim.get("spec", {}).get("accessModes") == ["ReadWriteOnce"] for claim in claims):
+        raise Failure("Owned StatefulSet does not declare the expected gateway data claim.")
+    try:
+        installed = json.loads(settings_map["data"]["settings.json"])
+        same_identity = (installed["cluster"]["name"] == settings["cluster"]["name"]
+                         and installed["credentials"]["existingSecret"] == settings["credentials"]["existingSecret"])
+    except (KeyError, TypeError, ValueError):
+        same_identity = False
+    if not same_identity:
+        raise Failure("Gateway storage cluster/ingest identity differs from the installed release; drain and review migration instead of replaying its WAL.")
+    secret = get_secret(args, settings["credentials"]["existingSecret"])
+    return statefulset, secret
+
+
+def check_storage_identity(args, settings):
+    if not settings.get("gateway", {}).get("persistence", {}).get("enabled"):
+        return
+    _, name = storage_names(args)
+    pvc = storage_object(args, "pvc", name)
+    if pvc is None:
+        return
+    statefulset, secret = verify_storage_objects(args, settings, pvc)
+    expected = storage_identity(args, settings, secret, "bound", pvc["metadata"]["uid"], statefulset["metadata"]["uid"])
+    if storage_receipt(pvc) != expected:
+        raise Failure("Gateway PVC storage identity changed or is incomplete (cluster, tenant, Secret or StatefulSet). No queue was adopted. Follow manual storage recovery.")
+
+
+def check_rollback_storage_identity(args, settings):
+    if args.revision is None or args.revision < 1:
+        raise Failure("rollback requires --revision with a positive Helm revision.")
+    # Rollback can restart the Collector with today's Secret values; it must not
+    # bypass the tenant/PVC guard just because no new image is being promoted.
+    check_storage_identity(args, settings)
+    target = json.loads(helm(args, "get", "values", args.release, "--namespace", args.namespace,
+                             "--revision", str(args.revision), "--all", "--output", "json", online=True))
+    try:
+        same_identity = (target["cluster"]["name"] == settings["cluster"]["name"]
+                         and target["credentials"]["existingSecret"] == settings["credentials"]["existingSecret"]
+                         and target["gateway"]["persistence"]["enabled"] is settings["gateway"]["persistence"]["enabled"]
+                         and not target.get("fullnameOverride"))
+    except (KeyError, TypeError):
+        same_identity = False
+    if not same_identity:
+        raise Failure("Rollback revision changes gateway storage/cluster/ingest identity. Drain and review recovery instead of replaying an old WAL under different credentials.")
+
+
+def reserve_storage(args, settings):
+    """Create-only reservation closes the preflight/StatefulSet claim-name race."""
+    persistence = settings.get("gateway", {}).get("persistence", {})
+    if not persistence.get("enabled"):
+        return
+    _, name = storage_names(args)
+    pvc = storage_object(args, "pvc", name)
+    if pvc is not None:
+        check_storage_identity(args, settings)
+        return
+    secret = get_secret(args, settings["credentials"]["existingSecret"])
+    pending = storage_identity(args, settings, secret, "reserved")
+    spec = {"accessModes": ["ReadWriteOnce"], "volumeMode": "Filesystem",
+            "resources": {"requests": {"storage": persistence["size"]}}}
+    if persistence.get("storageClass"):
+        spec["storageClassName"] = persistence["storageClass"]
+    obj = {"apiVersion": "v1", "kind": "PersistentVolumeClaim",
+           "metadata": {"name": name, "namespace": args.namespace, "labels": storage_labels(args),
+                        "annotations": {STORAGE_IDENTITY: json.dumps(pending, sort_keys=True)}}, "spec": spec}
+    # No fallback on AlreadyExists: a claim created since the read is not ours.
+    try:
+        created = json.loads(kube(args, "create", "-f", "-", "-o", "json", data=json.dumps(obj)))
+    except Failure:
+        raise Failure(f"Gateway PVC reservation create failed for {args.namespace}/{name}. Helm was not started; inspect admission/storage or a competing claim. Nothing was adopted or deleted.") from None
+    args.reserved_storage_uid = created.get("metadata", {}).get("uid")
+    if not args.reserved_storage_uid:
+        raise Failure("Gateway storage reservation returned no UID; it was retained and Helm was not started.")
+
+
+def write_storage_identity(args, settings, attempt=0):
+    if not settings.get("gateway", {}).get("persistence", {}).get("enabled"):
+        return
+    _, name = storage_names(args)
+    pvc = storage_object(args, "pvc", name)
+    if pvc is None:
+        raise Failure("Helm reconciled but the gateway PVC is missing; storage identity could not be confirmed.")
+    statefulset, secret = verify_storage_objects(args, settings, pvc)
+    expected = storage_identity(args, settings, secret, "bound", pvc["metadata"]["uid"], statefulset["metadata"]["uid"])
+    current = storage_receipt(pvc)
+    if current == expected:
+        return
+    pending = storage_identity(args, settings, secret, "reserved")
+    if (current != pending or pvc["metadata"]["uid"] != getattr(args, "reserved_storage_uid", None)):
+        raise Failure("Helm reconciled but gateway storage reservation no longer matches. PVC/Secrets were retained; automatic recovery/adoption is forbidden.")
+    metadata = pvc["metadata"]
+    version = metadata.get("resourceVersion")
+    if not version:
+        raise Failure("Helm reconciled but PVC resourceVersion is missing; no storage identity was overwritten.")
+    path = "/metadata/annotations/" + STORAGE_IDENTITY.replace("~", "~0").replace("/", "~1")
+    patch = [{"op": "test", "path": "/metadata/uid", "value": metadata["uid"]},
+             {"op": "test", "path": "/metadata/resourceVersion", "value": version},
+             {"op": "test", "path": path, "value": metadata["annotations"][STORAGE_IDENTITY]},
+             {"op": "replace", "path": path, "value": json.dumps(expected, sort_keys=True)}]
+    try:
+        kube(args, "patch", "pvc", name, "-n", args.namespace, "--type=json", "--patch-file=/dev/stdin", data=json.dumps(patch))
+    except Failure:
+        if attempt < 2:
+            # Re-read and revalidate every identity after a controller update or
+            # uncertain response; never turn a CAS failure into overwrite/adoption.
+            return write_storage_identity(args, settings, attempt + 1)
+        raise Failure("Helm reconciled but the CAS storage receipt write failed. PVC/Secrets were retained and nothing was adopted or deleted. Follow manual storage recovery before another install/upgrade.") from None
 
 
 def preflight(args, manifest, settings, changing=False):
@@ -228,6 +448,7 @@ def preflight(args, manifest, settings, changing=False):
         raise Failure(f"Cluster identity not confirmed. Re-run with --expect-cluster-uid {uid} after verifying --context.")
     if args.expect_cluster_uid and args.expect_cluster_uid != uid:
         raise Failure("Cluster UID does not match --expect-cluster-uid. Nothing has been changed.")
+    args.confirmed_cluster_uid = uid
     namespace_raw = kube(args, "get", "namespace", args.namespace, "--ignore-not-found", "-o", "json")
     namespace = json.loads(namespace_raw) if namespace_raw.strip() else None
     modules = settings.get("modules", {})
@@ -237,6 +458,8 @@ def preflight(args, manifest, settings, changing=False):
         if ns_labels.get("pod-security.kubernetes.io/enforce") in ("baseline", "restricted"):
             raise Failure("Namespace Pod Security disallows host modules. Obtain a scoped admission exception; this installer never relaxes namespace policy.")
     if args.command in ("install", "upgrade", "preflight"):
+        if namespace:
+            check_storage_identity(args, settings)
         check_source_claims(args, settings)
         policy = settings.get("networkPolicy", {})
         if not policy.get("enabled") and not args.allow_unrestricted_network:
@@ -258,8 +481,9 @@ def preflight(args, manifest, settings, changing=False):
         if not namespace:
             can_i(args, "create", "namespaces")
         if "kind: ClusterRole\n" in manifest:
-            can_i(args, "create", "clusterroles.rbac.authorization.k8s.io")
-            can_i(args, "create", "clusterrolebindings.rbac.authorization.k8s.io")
+            for resource in ("clusterroles.rbac.authorization.k8s.io", "clusterrolebindings.rbac.authorization.k8s.io"):
+                can_i(args, "create", resource)
+                can_i(args, "patch", resource)
         # Helm's default release storage is a namespace-scoped Secret even
         # when credentials are externally provisioned. Runtime SAs cannot read it.
         for verb in ("get", "list", "create", "update", "patch", "delete"):
@@ -272,6 +496,8 @@ def preflight(args, manifest, settings, changing=False):
                     can_i(args, "patch", resource, namespace=target_namespace)
         persistence = settings.get("gateway", {}).get("persistence", {})
         if persistence.get("enabled"):
+            for verb in ("get", "create", "patch"):
+                can_i(args, verb, "persistentvolumeclaims", True)
             classes = json.loads(kube(args, "get", "storageclasses", "-o", "json"))["items"]
             selected = persistence.get("storageClass")
             if selected:
@@ -290,6 +516,8 @@ def preflight(args, manifest, settings, changing=False):
             raise Failure("This release belongs to a different chart/legacy major. Choose a new release; automatic adoption or removal is forbidden.")
         if not selected and args.command in ("uninstall", "rollback"):
             raise Failure("The requested Elven v1 release does not exist. Nothing has been changed.")
+    if namespace and args.command == "rollback":
+        check_rollback_storage_identity(args, settings)
     if namespace and args.command in ("install", "upgrade", "preflight"):
         for name, keys in ((settings["credentials"]["existingSecret"], ("tenant-id", "api-token")),
                            (settings["tls"]["existingSecret"], ("tls.crt", "tls.key", "ca.crt", "client.crt", "client.key"))):
@@ -407,11 +635,16 @@ def install(args, namespace, settings, flags, folder, helm_major):
         create_secret(args, credentials_name, credentials)
     if pki:
         create_secret(args, tls_name, pki)
+    reserve_storage(args, settings)
     # Never expose credential values in Helm arguments, release history, files or logs.
     failure_flag = "--rollback-on-failure" if helm_major == 4 else "--atomic"
     helm(args, "upgrade", "--install", args.release, CHART, *flags,
          "--wait", "--wait-for-jobs", "--timeout", args.timeout, "--history-max", "10",
          "--reset-values", failure_flag, online=True)
+    try:
+        write_storage_identity(args, settings)
+    except Failure as error:
+        raise Failure(f"Helm has reconciled, but gateway storage confirmation failed. PVCs/Secrets were retained. {error}") from None
     print(f"Release {args.release} reconciled in {args.namespace}; Secrets and PVCs are retained.")
     print("This proves Helm reconciliation, not receipt in the Elven tenant. Follow docs/operations.md acceptance checks.")
 
