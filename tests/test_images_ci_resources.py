@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 
 import yaml
@@ -20,10 +21,22 @@ class ImageCIResourcesTests(unittest.TestCase):
         cls.job = workflow["jobs"]["build-and-scan"]
         cls.steps = cls.job["steps"]
 
+    def test_go_workdirs_are_serialized_by_the_actual_buildkit_config(self):
+        builder = next(step for step in self.steps if step.get("id") == "builder")
+        config = tomllib.loads(builder["with"]["buildkitd-config-inline"])
+        self.assertEqual(config["worker"]["oci"]["max-parallelism"], 1)
+
+    def test_hosted_space_guard_runs_before_the_first_build_without_ignoring_failure(self):
+        guard = next(i for i, step in enumerate(self.steps) if "images-ci-space.py" in step.get("run", ""))
+        build = next(i for i, step in enumerate(self.steps) if "images-release.py build" in step.get("run", ""))
+        self.assertLess(guard, build)
+        self.assertEqual(self.steps[guard]["run"], "python3 scripts/images-ci-space.py --prepare")
+        self.assertNotIn("continue-on-error", self.steps[guard])
+
     def test_job_and_build_have_distinct_bounded_timeouts(self):
-        self.assertEqual(self.job["timeout-minutes"], 60)
+        self.assertEqual(self.job["timeout-minutes"], 75)
         build = next(step for step in self.steps if "images-release.py build" in step.get("run", ""))
-        self.assertEqual(build["timeout-minutes"], 30)
+        self.assertEqual(build["timeout-minutes"], 40)
 
     def test_cleanup_targets_only_the_action_created_builder(self):
         builder = next(step for step in self.steps if step.get("id") == "builder")

@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build-and-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,15 +39,22 @@ jobs:
         with:
           version: v0.38.1
           driver-opts: image=docker.io/moby/buildkit:v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe
+          # Bound concurrent Go temporary workdirs, not just retained cache.
+          # https://docs.docker.com/build/buildkit/configure/#max-parallelism
+          buildkitd-config-inline: |
+            [worker.oci]
+              max-parallelism = 1
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
           version: v0.76.1
+      - name: Ensure bounded disk margin on the disposable hosted runner
+        run: python3 scripts/images-ci-space.py --prepare
       - name: Inspect disposable CI runner storage before building
         run: |
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           docker system df
       - name: Validate locks and build both architectures without publishing
-        timeout-minutes: 30
+        timeout-minutes: 40
         env:
           RELEASE_REF: ${{ github.ref }}
         run: |
