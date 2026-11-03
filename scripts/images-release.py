@@ -5,6 +5,7 @@ import contextlib
 import datetime as dt
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,9 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+ATTESTATION_SPEC = importlib.util.spec_from_file_location("elven_exact_attestations", ROOT / "scripts/images-attestations.py")
+ATTESTATIONS = importlib.util.module_from_spec(ATTESTATION_SPEC)
+ATTESTATION_SPEC.loader.exec_module(ATTESTATIONS)
 LOCK = ROOT / "versions.lock.json"
 REPOSITORY = "elven-observability/stack-observability-k8s"
 WORKFLOW = ".github/workflows/images.yaml"
@@ -81,6 +85,11 @@ def lock_data():
         digest = image["distribution"].get("digest")
         if digest is not None and not DIGEST.fullmatch(digest):
             raise ValueError(f"{name}: invalid distribution digest")
+        if image["distribution"].get("status") == "verified":
+            if not re.fullmatch(r"v1\.[0-9]+\.[0-9]+", image["distribution"].get("tag", "")):
+                raise ValueError(f"{name}: an exact stable signing tag is required")
+            ATTESTATIONS.validate_policy(image["distribution"].get("attestations"), digest,
+                                         BUILD_TYPE, lock["distribution"]["platforms"])
     if not re.fullmatch(r"docker.io/docker/buildkit-syft-scanner@sha256:[0-9a-f]{64}", lock["tools"]["sbomScanner"]):
         raise ValueError("The SBOM generator must be locked by digest")
     return lock
@@ -362,7 +371,19 @@ def anonymous_registry():
         yield {**os.environ, "DOCKER_CONFIG": folder}
 
 
-def verify_image(reference, version=None):
+def verify_image(reference, version=None, policy=None):
+    if not isinstance(reference, str) or "@" not in reference:
+        raise ValueError("Signature verification requires an immutable image reference")
+    digest = reference.rsplit("@", 1)[1]
+    if policy is None:
+        approved = next((image["distribution"] for image in lock_data()["images"].values()
+                         if image["distribution"].get("repository", "") + "@"
+                         + str(image["distribution"].get("digest")) == reference), None)
+        if approved is None or approved.get("status") != "verified":
+            raise ValueError("Exact signed-predicate hashes are missing from the promoted lock")
+        policy = approved.get("attestations")
+        version = version or approved.get("tag")
+    ATTESTATIONS.validate_policy(policy, digest, BUILD_TYPE)
     tool = json.loads(run(["cosign", "version", "--json"], capture=True))
     if tool.get("gitVersion") != "v" + lock_data()["tools"]["cosign"]:
         raise ValueError("Use the Cosign version pinned in versions.lock.json")
@@ -372,7 +393,9 @@ def verify_image(reference, version=None):
     with anonymous_registry() as env:
         run(["cosign", "verify", *expected, reference], capture=True, env=env)
         for attestation in ("spdxjson", BUILD_TYPE):
-            run(["cosign", "verify-attestation", *expected, "--type", attestation, reference], capture=True, env=env)
+            output = run(["cosign", "verify-attestation", *expected, "--type", attestation, reference], capture=True, env=env)
+            kind = ATTESTATIONS.SPDX_TYPE if attestation == "spdxjson" else BUILD_TYPE
+            ATTESTATIONS.verify_predicates(output, policy, digest, kind, BUILD_TYPE)
 
 
 def unpack_layout(archive_path, folder, expected_digest):
@@ -447,6 +470,8 @@ def publish(args, lock):
         raise ValueError("All three distribution images must be built before publishing")
     # Validate every component before publishing any component.
     for name, image in manifest["images"].items():
+        if image.get("tag") != lock["images"][name]["distribution"]["repository"] + ":" + manifest["version"]:
+            raise ValueError(f"{name}: unexpected publication repository or release tag")
         if set(image["platforms"]) != set(lock["distribution"]["platforms"]):
             raise ValueError(f"{name}: both supported platforms must be built and scanned")
         for file_key, checksum_key in (("archive", "archiveSha256"), ("metadata", "metadataSha256")):
@@ -483,6 +508,9 @@ def publish(args, lock):
                     raise ValueError("Collector Go audit is stale; rerun before publication")
                 if sha256(directory / go_audit["report"]) != go_audit["reportSha256"]:
                     raise ValueError("Collector govulncheck report checksum mismatch")
+    policies = {name: ATTESTATIONS.evidence_policy(directory, image, BUILD_TYPE,
+                                                  lock["distribution"]["platforms"])
+                for name, image in manifest["images"].items()}
     existing = preflight_remote_tags(manifest["images"])
     for name, image in manifest["images"].items():
         if name not in existing:
@@ -501,7 +529,8 @@ def publish(args, lock):
         for entry in image["scans"].values():
             run(["cosign", "attest", "--yes", "--type", "spdxjson", "--predicate", str(directory / entry["sbom"]), reference])
         run(["cosign", "attest", "--yes", "--type", BUILD_TYPE, "--predicate", str(directory / image["metadata"]), reference])
-        verify_image(reference, manifest["version"])
+        verify_image(reference, manifest["version"], policies[name])
+        image["attestations"] = policies[name]
         image["publicationStatus"] = "verified"
         write_json(directory / "release.json", manifest)
         print(f"Published and signature/attestation verified: {reference}")
@@ -522,7 +551,10 @@ def promote(args, lock):
         with anonymous_registry() as env:
             if run(["crane", "digest", reference], capture=True, env=env) != image["digest"]:
                 raise ValueError(f"{name}: public registry content missing or inconsistent")
-        verify_image(reference, manifest["version"])
+        policy = ATTESTATIONS.evidence_policy(directory, image, BUILD_TYPE, lock["distribution"]["platforms"])
+        if image.get("attestations") != policy:
+            raise ValueError("Published attestation policy differs from approved local evidence")
+        verify_image(reference, manifest["version"], policy)
         for platform in lock["distribution"]["platforms"]:
             with anonymous_registry() as env:
                 config = json.loads(run(["crane", "config", "--platform", platform, reference], capture=True, env=env))
@@ -532,7 +564,8 @@ def promote(args, lock):
                     or labels.get("org.opencontainers.image.revision") != manifest["revision"]):
                 raise ValueError(f"{name}: unexpected upstream/source revision for {platform}")
         source["distribution"].update({"digest": image["digest"], "tag": manifest["version"],
-                                      "status": "verified", "verifiedAt": now(), "sourceRevision": manifest["revision"]})
+                                      "status": "verified", "verifiedAt": now(), "sourceRevision": manifest["revision"],
+                                      "attestations": policy})
     lock["distribution"].update({"publicationStatus": "verified", "version": manifest["version"].removeprefix("v")})
     output = directory / "versions.promoted.lock.json"
     write_json(output, lock)
@@ -558,7 +591,7 @@ def main():
             image = lock["images"][name]["distribution"]
             if not image.get("digest") or image.get("status") != "verified":
                 raise ValueError(f"{name}: no promoted Elven image; production installation is blocked. Locked upstream images are for explicit --development-images laboratory use only")
-            verify_image(f"{image['repository']}@{image['digest']}", image.get("tag"))
+            verify_image(f"{image['repository']}@{image['digest']}", image.get("tag"), image.get("attestations"))
             print(f"Verified {name}: signature, SPDX and build metadata attestations")
     else:
         with evidence_lock(args):

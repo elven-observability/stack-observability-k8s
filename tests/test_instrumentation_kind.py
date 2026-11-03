@@ -174,12 +174,193 @@ class ImageManifestTests(ManifestFixture):
         self.escaped_archive(link.name)
 
 
+class ReleasePolicyTests(ManifestFixture):
+    """Synthetic local metadata exercises policy, not publication/signature proof."""
+
+    def setUp(self):
+        super().setUp()
+        self.policy_root = self.root / "synthetic-project"
+        self.chart_values = self.policy_root / "charts/elven-observability/values.yaml"
+        self.chart_values.parent.mkdir(parents=True)
+        self.collector_archive = self.root / "synthetic-core.oci.tar"
+        self.collector_archive.write_bytes(b"synthetic metadata fixture; never imported\n")
+        self.core_lock = {"schemaVersion": 1,
+            "distribution": {"version": "1.0.0", "publicationStatus": "verified"}, "images": {}}
+        self.sdk_lock = copy.deepcopy(self.core_lock)
+        self.defaults = {"images": {}}
+        self.expected = {}
+        for index, (name, repository) in enumerate(MODULE.CORE_REPOSITORIES.items(), start=16):
+            image = {"repository": "docker.io/elvenobservability/" + repository,
+                     "tag": "v1.0.0", "digest": "sha256:" + format(index, "064x")}
+            self.defaults["images"][name] = copy.deepcopy(image)
+            self.core_lock["images"][name] = {"distribution": {**image, "status": "verified"}}
+            self.expected["core." + name] = MODULE.image_reference(image)
+        self.payload.update({"version": "v1.0.0", "publicationStatus": "verified"})
+        for name, entry in self.payload["images"].items():
+            entry["tag"] = entry["tag"].replace(":1.0.0-dev", ":v1.0.0")
+            entry["publicationStatus"] = "verified"
+            image = {"repository": entry["tag"].rsplit(":", 1)[0], "tag": "v1.0.0", "digest": entry["digest"]}
+            self.sdk_lock["images"][name] = {"distribution": {**image, "status": "verified"}}
+            self.expected["sdk." + name] = MODULE.image_reference(image)
+        self.write_manifest()
+        self.write_locks()
+
+    def write_locks(self, core=None, sdk=None, defaults=None):
+        (self.policy_root / "versions.lock.json").write_text(json.dumps(self.core_lock if core is None else core))
+        (self.policy_root / "instrumentation.lock.json").write_text(json.dumps(self.sdk_lock if sdk is None else sdk))
+        # JSON is a valid YAML document; no repository values or real release
+        # metadata are changed by these isolated policy fixtures.
+        self.chart_values.write_text(json.dumps(self.defaults if defaults is None else defaults))
+
+    def arguments(self, **changes):
+        return SimpleNamespace(**{"images_manifest": self.manifest, "development_images": False,
+            "collector_image": self.expected["core.collector"],
+            "collector_image_archive": self.collector_archive, "node_image": MODULE.CORE.KIND_NODE,
+            "keep": False, **changes})
+
+    def policy(self, args=None, images=None):
+        selected = MODULE.read_images(self.manifest) if images is None else images
+        with mock.patch.object(MODULE, "ROOT", self.policy_root):
+            return MODULE.release_policy(self.arguments() if args is None else args, selected)
+
+    def test_verified_local_metadata_matches_all_eight_exact_promoted_references(self):
+        self.assertEqual(self.policy(), {"mode": "promoted-release", "development_images": False,
+                                         "promoted_references": self.expected})
+
+    def test_explicit_development_bypasses_production_locks_without_claiming_promotion(self):
+        images = MODULE.read_images(self.manifest)
+        with mock.patch.object(Path, "read_text", side_effect=AssertionError("Development must not read production locks")):
+            policy = MODULE.release_policy(self.arguments(development_images=True), images)
+        self.assertEqual(policy, {"mode": "explicit-development", "development_images": True,
+                                  "promoted_references": {}})
+
+    def test_missing_development_flag_uses_the_production_policy_not_an_inferred_fallback(self):
+        args = self.arguments()
+        del args.development_images
+        self.assertEqual(self.policy(args)["mode"], "promoted-release")
+        unpromoted = copy.deepcopy(self.core_lock)
+        unpromoted["distribution"]["publicationStatus"] = "not-published"
+        self.write_locks(core=unpromoted)
+        with self.assertRaises(ValueError):
+            self.policy(args)
+
+    def test_development_choice_must_be_an_explicit_boolean(self):
+        for value in (None, 1, "true", "false"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.policy(self.arguments(development_images=value))
+
+    def test_production_requires_both_collector_reference_and_its_archive(self):
+        for changes in ({"collector_image": None}, {"collector_image_archive": None},
+                        {"collector_image": None, "collector_image_archive": None}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                self.policy(self.arguments(**changes))
+
+    def test_both_release_locks_require_verified_top_level_publication(self):
+        for lock_name in ("core", "sdk"):
+            for status in (None, "not-published", "signed", "pending"):
+                core, sdk = copy.deepcopy(self.core_lock), copy.deepcopy(self.sdk_lock)
+                (core if lock_name == "core" else sdk)["distribution"]["publicationStatus"] = status
+                self.write_locks(core=core, sdk=sdk)
+                with self.subTest(lock=lock_name, status=status), self.assertRaises(ValueError):
+                    self.policy()
+
+    def test_every_one_of_eight_lock_entries_must_have_verified_status(self):
+        for scope, baseline in (("core", self.core_lock), ("sdk", self.sdk_lock)):
+            for component in baseline["images"]:
+                core, sdk = copy.deepcopy(self.core_lock), copy.deepcopy(self.sdk_lock)
+                (core if scope == "core" else sdk)["images"][component]["distribution"]["status"] = "not-published"
+                self.write_locks(core=core, sdk=sdk)
+                with self.subTest(scope=scope, component=component), self.assertRaises(ValueError):
+                    self.policy()
+
+    def test_each_release_lock_requires_the_complete_expected_component_set(self):
+        for scope, baseline in (("core", self.core_lock), ("sdk", self.sdk_lock)):
+            for component in baseline["images"]:
+                core, sdk = copy.deepcopy(self.core_lock), copy.deepcopy(self.sdk_lock)
+                del (core if scope == "core" else sdk)["images"][component]
+                self.write_locks(core=core, sdk=sdk)
+                with self.subTest(scope=scope, component=component), self.assertRaises(ValueError):
+                    self.policy()
+
+    def test_promoted_entries_require_matching_elven_repositories_and_stable_v1_tags(self):
+        for scope in ("core", "sdk"):
+            for change in ({"repository": "docker.io/foreign/runtime"}, {"tag": "1.0.0"},
+                           {"tag": "v1.0.0-dev"}, {"tag": "v1.0.0-rc.1"}, {"tag": "latest"},
+                           {"tag": "v2.0.0"}, {"digest": "sha256:abc"}):
+                core, sdk = copy.deepcopy(self.core_lock), copy.deepcopy(self.sdk_lock)
+                target = core if scope == "core" else sdk
+                component = next(iter(target["images"]))
+                target["images"][component]["distribution"].update(change)
+                self.write_locks(core=core, sdk=sdk)
+                with self.subTest(scope=scope, change=change), self.assertRaises(ValueError):
+                    self.policy()
+
+    def test_sdk_manifest_requires_verified_top_level_and_every_entry_publication(self):
+        original = copy.deepcopy(self.payload)
+        for component in (None, *MODULE.REPOSITORIES):
+            self.payload = copy.deepcopy(original)
+            target = self.payload if component is None else self.payload["images"][component]
+            target["publicationStatus"] = "not-published"
+            self.write_manifest()
+            with self.subTest(component=component), self.assertRaises(ValueError):
+                self.policy()
+
+    def test_sdk_manifest_version_must_match_the_promoted_distribution(self):
+        for version in ("1.0.0", "v1.0.1", "v1.0.0-dev", "v1.0.0-rc.1"):
+            self.payload["version"] = version
+            self.write_manifest()
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                self.policy()
+
+    def test_all_five_selected_sdk_references_must_match_the_promoted_lock(self):
+        original = MODULE.read_images(self.manifest)
+        for component in MODULE.REPOSITORIES:
+            images = copy.deepcopy(original)
+            images[component]["reference"] = images[component]["reference"].rsplit("@", 1)[0] + "@sha256:" + "f" * 64
+            with self.subTest(component=component), self.assertRaises(ValueError):
+                self.policy(images=images)
+
+    def test_effective_core_defaults_and_collector_override_cannot_drift_from_promoted_refs(self):
+        for component in ("beyla", "alloy"):
+            defaults = copy.deepcopy(self.defaults)
+            defaults["images"][component]["digest"] = "sha256:" + "f" * 64
+            self.write_locks(defaults=defaults)
+            with self.subTest(component=component), self.assertRaises(ValueError):
+                self.policy()
+        self.write_locks()
+        for override in (self.expected["core.collector"].replace(":v1.0.0@", ":1.0.0-dev@"),
+                         self.expected["core.collector"].rsplit("@", 1)[0] + "@sha256:" + "f" * 64):
+            with self.subTest(override=override), self.assertRaises(ValueError):
+                self.policy(self.arguments(collector_image=override))
+
+    def test_policy_refusal_precedes_core_constructor_and_all_process_boundaries(self):
+        with mock.patch.object(MODULE, "release_policy", side_effect=ValueError("synthetic promotion gate closed")), \
+             mock.patch.object(MODULE.CORE.Lab, "__init__") as core_constructor, \
+             mock.patch.object(MODULE.CORE, "execute") as execute:
+            with self.assertRaisesRegex(ValueError, "promotion gate closed"):
+                MODULE.InstrumentationLab(self.arguments())
+        core_constructor.assert_not_called()
+        execute.assert_not_called()
+
+    def test_promoted_metadata_in_report_still_does_not_claim_independent_registry_or_customer_proof(self):
+        with mock.patch.object(MODULE, "ROOT", self.policy_root), \
+             mock.patch.object(MODULE.CORE, "ROOT", self.root / "synthetic-lab"), \
+             mock.patch.object(MODULE.CORE, "execute", side_effect=AssertionError("Metadata checks must not spawn a process")):
+            lab = MODULE.InstrumentationLab(self.arguments())
+        self.assertEqual(lab.report["release_policy"], {"mode": "promoted-release", "development_images": False,
+                                                       "promoted_references": self.expected})
+        self.assertFalse(lab.report["completed"])
+        self.assertEqual(lab.report["checks"], [])
+        self.assertIn("independent registry/signature verification by this runtime harness", lab.report["not_proven"])
+        self.assertIn("customer infrastructure/tenant acceptance", lab.report["not_proven"])
+
+
 class LaboratoryMetadataTests(ManifestFixture):
     def make_lab(self, combined=False):
         collector = "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:" + "e" * 64
         archive = self.root / "synthetic-collector.oci.tar"
         archive.write_bytes(b"synthetic Collector constructor fixture; never imported\n")
-        arguments = SimpleNamespace(images_manifest=self.manifest, node_image=MODULE.CORE.KIND_NODE,
+        arguments = SimpleNamespace(images_manifest=self.manifest, node_image=MODULE.CORE.KIND_NODE, development_images=True,
             keep=False, collector_image=collector if combined else None,
             collector_image_archive=archive if combined else None)
         with mock.patch.object(MODULE.CORE, "ROOT", self.root / "lab-root"), \
@@ -291,26 +472,187 @@ class LaboratoryMetadataTests(ManifestFixture):
         self.assertIn("real Operator chart with verified serving PKI and mTLS SDK client fixture installed", names)
         self.assertFalse(any("CLI" in name or "bootstrap" in name for name in names))
 
-    def test_combined_install_routes_through_instrumentation_cli_not_direct_helm(self):
+    def test_combined_install_routes_through_one_unified_helper_not_a_second_cli(self):
         lab = self.make_lab(combined=True)
         endpoint = "https://elven-a-gateway.elven-e2e.svc.cluster.local:4318"
-        lab.install_gateway = mock.Mock(return_value=endpoint)
+        lab.install_gateway = mock.Mock()
         lab.operator_values = mock.Mock(return_value={"enabled": True})
         lab.helm = mock.Mock()
-        lab.kube = mock.Mock(side_effect=[SimpleNamespace(stdout=json.dumps({"metadata": {"uid": "synthetic-kind-uid"}})),
-                                         SimpleNamespace(stdout=""), SimpleNamespace(stdout="no\n")])
+        lab.kube = mock.Mock(return_value=SimpleNamespace(stdout="no\n"))
         lab.check = mock.Mock()
+        order = mock.Mock()
+        order.attach_mock(lab.operator_values, "operator_values")
+        order.attach_mock(lab.install_gateway, "install_gateway")
         with mock.patch.object(MODULE.CORE, "execute", return_value=SimpleNamespace(stdout="")) as execute, \
              mock.patch.object(MODULE.INSTRUMENTATION, "generate_serving") as serving:
             lab.install_operator()
-        command = execute.call_args.args[0]
-        self.assertEqual(command[:3], [MODULE.sys.executable, MODULE.ROOT / "scripts/instrumentation.py", "install"])
-        self.assertEqual(command[command.index("--kubeconfig") + 1], lab.kubeconfig)
-        self.assertEqual(command[command.index("--context") + 1], "kind-" + lab.name)
-        self.assertIn("--expect-cluster-uid", command)
-        self.assertIn("--development-images", command)
+        source = lab.directory / "operator-values.yaml"
+        lab.operator_values.assert_called_once_with(endpoint)
+        lab.install_gateway.assert_called_once_with(source)
+        self.assertEqual(MODULE.yaml.safe_load(source.read_text()), {"enabled": True})
+        self.assertEqual([call[0] for call in order.mock_calls], ["operator_values", "install_gateway"])
+        execute.assert_not_called()
         lab.helm.assert_not_called()
         serving.assert_not_called()
+
+
+class UnifiedCLICommandTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="elven-unified-cli-unit-")
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+
+    def laboratory(self, development):
+        lab = MODULE.InstrumentationLab.__new__(MODULE.InstrumentationLab)
+        lab.name, lab.namespace, lab.operator_release = "elven-dist-unit", "elven-unit", "elven-injector"
+        lab.directory = self.directory
+        lab.kubeconfig = self.directory / "isolated-kubeconfig"
+        lab.development_images = development
+        lab.report = {}
+        values = self.directory / "core-values.yaml"
+        values.write_text("{}\n")
+        lab.values = mock.Mock(return_value=values)
+        lab.provision = mock.Mock()
+        lab.verify_combined_installation = mock.Mock()
+        lab.check = mock.Mock()
+        lab.kube = mock.Mock(side_effect=[SimpleNamespace(stdout=json.dumps({"items": [{"status": {
+            "addresses": [{"type": "InternalIP", "address": "192.0.2.10"}]}}]})),
+            SimpleNamespace(stdout=json.dumps({"metadata": {"uid": "synthetic-cluster-uid"}}))])
+        return lab
+
+    def command(self, development):
+        lab = self.laboratory(development)
+        profile = self.directory / "operator-values.yaml"
+        profile.write_text("enabled: true\n")
+        with mock.patch.object(MODULE.CORE, "execute", return_value=SimpleNamespace(stdout="")) as execute:
+            lab.install_gateway(profile)
+        execute.assert_called_once()
+        command = list(map(str, execute.call_args.args[0]))
+        self.assertEqual(command[:3], [MODULE.sys.executable, str(MODULE.ROOT / "elven"), "install"])
+        self.assertEqual(command[command.index("--instrumentation-values") + 1], str(profile))
+        self.assertEqual(command[command.index("--instrumentation-release") + 1], lab.operator_release)
+        self.assertEqual(command[command.index("--kubeconfig") + 1], str(lab.kubeconfig))
+        self.assertEqual(command[command.index("--expect-cluster-uid") + 1], "synthetic-cluster-uid")
+        self.assertEqual(command[command.index("--timeout") + 1], "240s")
+        self.assertEqual(execute.call_args.kwargs["timeout"], 720)
+        self.assertEqual(command.count("--instrumentation-values"), 1)
+        self.assertNotIn(str(MODULE.ROOT / "scripts/instrumentation.py"), command)
+        self.assertNotIn("synthetic-test-token", command)
+        lab.verify_combined_installation.assert_called_once_with("synthetic-cluster-uid")
+        for name in ("tenant.txt", "token.txt"):
+            self.assertEqual((self.directory / name).stat().st_mode & 0o777, 0o600)
+        return command
+
+    def test_explicit_development_flag_is_forwarded_to_the_one_core_install(self):
+        self.assertIn("--development-images", self.command(True))
+
+    def test_production_does_not_silently_add_the_development_flag(self):
+        self.assertNotIn("--development-images", self.command(False))
+
+    def test_failed_unified_install_does_not_verify_or_mark_single_command_success(self):
+        lab = self.laboratory(True)
+        with mock.patch.object(MODULE.CORE, "execute", side_effect=RuntimeError("synthetic install failure")):
+            with self.assertRaisesRegex(RuntimeError, "install failure"):
+                lab.install_gateway(self.directory / "operator-values.yaml")
+        lab.verify_combined_installation.assert_not_called()
+        lab.check.assert_not_called()
+        self.assertNotIn("single_command_installation", lab.report)
+
+    def test_post_install_identity_failure_cannot_emit_a_success_check(self):
+        lab = self.laboratory(True)
+        lab.verify_combined_installation.side_effect = AssertionError("synthetic receipt mismatch")
+        with mock.patch.object(MODULE.CORE, "execute", return_value=SimpleNamespace(stdout="")):
+            with self.assertRaisesRegex(AssertionError, "receipt mismatch"):
+                lab.install_gateway(self.directory / "operator-values.yaml")
+        lab.check.assert_not_called()
+        self.assertNotIn("single_command_installation", lab.report)
+
+
+class CombinedAPIIdentityTests(unittest.TestCase):
+    """API metadata fixtures are not cryptographic certificate or registry proof."""
+
+    def setUp(self):
+        self.lab = MODULE.InstrumentationLab.__new__(MODULE.InstrumentationLab)
+        self.lab.namespace, self.lab.app_namespace = "elven-unit", "synthetic-app"
+        self.lab.operator_release, self.lab.development_images = "elven-injector", False
+        self.lab.report = {}
+        self.cluster_uid = "synthetic-cluster-uid"
+        ca, certificate = b"synthetic public CA metadata", b"synthetic client certificate metadata"
+        encoded = lambda value: base64.b64encode(value).decode()
+
+        def owned(release, uid):
+            return {"uid": uid, "labels": {"app.kubernetes.io/managed-by": "Helm",
+                "app.kubernetes.io/part-of": "elven-observability"}, "annotations": {
+                "meta.helm.sh/release-name": release, "meta.helm.sh/release-namespace": self.lab.namespace}}
+
+        def core_secret(uid, data):
+            return {"metadata": {"uid": uid, "labels": {"app.kubernetes.io/managed-by": "elven-cli",
+                "app.kubernetes.io/instance": "elven-a", "elven.observability/namespace": self.lab.namespace}},
+                "data": {key: encoded(value) for key, value in data.items()}}
+
+        receipt = {"schemaVersion": 1, "phase": "bound", "release": "elven-a", "namespace": self.lab.namespace,
+            "clusterUID": self.cluster_uid, "clusterName": "synthetic-kind", "credentialsSecret": "elven-a-ingest",
+            "credentialsSecretUID": "ingest-uid", "tenantSHA256": hashlib.sha256(b"synthetic-tenant").hexdigest(),
+            "pvcUID": "pvc-uid", "statefulSetUID": "sts-uid"}
+        objects = {
+            "pvc/data-elven-a-gateway-0": {"metadata": {"uid": "pvc-uid", "annotations": {
+                "elven.observability/storage-identity": json.dumps(receipt)}}},
+            "statefulset/elven-a-gateway": {"metadata": owned("elven-a", "sts-uid")},
+            "secret/elven-a-ingest": core_secret("ingest-uid", {"tenant-id": b"synthetic-tenant", "api-token": b"synthetic-token"}),
+            "secret/elven-a-internal-tls": core_secret("tls-uid", {"ca.crt": ca, "client.crt": certificate,
+                "client.key": b"synthetic source key", "tls.crt": b"synthetic server certificate", "tls.key": b"synthetic server key"}),
+            "configmap/elven-a-settings": {"metadata": owned("elven-a", "core-settings-uid"), "data": {"settings.json": json.dumps({
+                "tls": {"existingSecret": "elven-a-internal-tls"}, "credentials": {"existingSecret": "elven-a-ingest"}})}},
+            "configmap/elven-injector-settings": {"metadata": owned(self.lab.operator_release, "operator-settings-uid"),
+                "data": {"settings.json": json.dumps({"gateway": {"sourceRelease": "elven-a", "sourceNamespace": self.lab.namespace,
+                    "endpoint": f"https://elven-a-gateway.{self.lab.namespace}.svc.cluster.local:4318"}, "namespaces": [self.lab.app_namespace]})}},
+            "secret/elven-instrumentation-tls": {"metadata": {"labels": {"app.kubernetes.io/managed-by": "elven-instrumentation-cli",
+                "app.kubernetes.io/instance": self.lab.operator_release, "elven.observability/namespace": self.lab.namespace},
+                "annotations": {"elven.observability/cluster-uid": self.cluster_uid, "elven.observability/tls-role": "client",
+                    "elven.observability/source-ca-sha256": hashlib.sha256(ca).hexdigest()}},
+                "data": {"ca.crt": encoded(ca), "client.crt": encoded(certificate),
+                    "client.key": encoded(b"-----BEGIN PRIVATE KEY-----\nsynthetic PKCS8 marker fixture only\n")}},
+        }
+        self.original = objects
+        self.objects = copy.deepcopy(objects)
+
+        def get(*args, **kwargs):
+            self.assertEqual(args[0], "get")
+            namespace = args[args.index("-n") + 1]
+            self.assertEqual(namespace, self.lab.app_namespace if args[1] == "secret/elven-instrumentation-tls" else self.lab.namespace)
+            return SimpleNamespace(stdout=json.dumps(self.objects[args[1]]))
+
+        self.lab.kube = mock.Mock(side_effect=get)
+
+    def test_consistent_fixture_metadata_records_success_only_after_all_seven_reads(self):
+        self.lab.verify_combined_installation(self.cluster_uid)
+        self.assertEqual(self.lab.kube.call_count, 7)
+        self.assertEqual(self.lab.report["single_command_installation"], {"cli_install_invocations": 1,
+            "development_images": False, "core_release": "elven-a", "operator_release": "elven-injector",
+            "bound_pvc_receipt": True, "owned_core_pki": True, "scoped_client_pki": True, "source_ownership": True})
+
+    def test_invalid_receipt_ownership_or_scoped_client_material_never_records_success(self):
+        for case in ("receipt-tenant", "foreign-helm", "foreign-core-secret", "ingest-in-client", "wrong-ca", "non-pkcs8"):
+            self.objects = copy.deepcopy(self.original)
+            self.lab.report = {}
+            if case == "receipt-tenant":
+                annotations = self.objects["pvc/data-elven-a-gateway-0"]["metadata"]["annotations"]
+                receipt = json.loads(annotations["elven.observability/storage-identity"])
+                receipt["tenantSHA256"] = "f" * 64
+                annotations["elven.observability/storage-identity"] = json.dumps(receipt)
+            elif case == "foreign-helm":
+                self.objects["statefulset/elven-a-gateway"]["metadata"]["annotations"]["meta.helm.sh/release-name"] = "foreign-release"
+            elif case == "foreign-core-secret":
+                self.objects["secret/elven-a-ingest"]["metadata"]["labels"]["app.kubernetes.io/managed-by"] = "foreign-owner"
+            else:
+                data = self.objects["secret/elven-instrumentation-tls"]["data"]
+                key, value = {"ingest-in-client": ("api-token", b"synthetic-ingestion-material"),
+                    "wrong-ca": ("ca.crt", b"foreign CA metadata"),
+                    "non-pkcs8": ("client.key", b"-----BEGIN RSA PRIVATE KEY-----\nsynthetic marker only\n")}[case]
+                data[key] = base64.b64encode(value).decode()
+            with self.subTest(case=case), self.assertRaises(AssertionError):
+                self.lab.verify_combined_installation(self.cluster_uid)
+            self.assertNotIn("single_command_installation", self.lab.report)
 
 
 class CoreInstallerRoutingTests(unittest.TestCase):

@@ -60,6 +60,26 @@ Os defaults são `--release elven` e `--namespace elven-observability`. Para mud
 
 `status`, Pods Ready e sucesso do Helm não comprovam recebimento no tenant. Siga os [testes de coleta e entrega](docs/operations.md#aceite-de-coleta-e-entrega).
 
+### Gateway e Operator em um comando
+
+Depois de ambos os locks e os defaults das imagens serem publicados, assinados, verificados e promovidos, a mesma CLI pode reconciliar o núcleo e o Operator opcional em uma única invocação, sem modo de desenvolvimento:
+
+```bash
+./elven install --context "$ELVEN_CONTEXT" \
+  --cluster-name "$ELVEN_CLUSTER_NAME" --expect-cluster-uid "$ELVEN_CLUSTER_UID" \
+  --values "$ELVEN_VALUES" \
+  --instrumentation-values /caminho/privado/elven/instrumentation.yaml \
+  --instrumentation-release elven-operator \
+  --tenant-file /caminho/privado/elven/tenant \
+  --token-file /caminho/privado/elven/token
+```
+
+O arquivo do Operator é separado do perfil do núcleo. Ele precisa declarar `enabled: true`, namespaces de aplicações aprovados, runtimes necessários, gateway correspondente à release/namespace/porta/domain escolhidos e CIDRs reais do apiserver, conforme o [guia de injeção](charts/elven-instrumentation/README.md). Todos os namespaces de injeção também precisam estar explicitamente autorizados em `collection.namespaces` do núcleo. Não colocar tenant, token ou chaves privadas em nenhum dos dois values. Os nomes de contexto/cluster, CIDRs, storage e escopo não são adivinhados pela CLI.
+
+`--values` e `--instrumentation-values` podem ser repetidos para camadas revisadas, mantendo a ordem. O perfil efetivo do Operator é renderizado, validado contra seu lock e congelado em arquivo temporário privado **antes de qualquer escrita do núcleo**. As duas fases usam o mesmo contexto, UID esperado, namespace, kubeconfig e timeout. As releases Helm precisam ter nomes diferentes; o padrão do Operator é `elven-operator`. Para atualizar as duas fases, use `./elven upgrade` com os mesmos perfis completos revisados e argumentos de identidade.
+
+Essa operação não é uma transação atômica entre releases. O preflight online de ownership/permissões/PKI do Operator ocorre depois que o gateway existe. Se a segunda fase falhar ou expirar, a CLI retorna erro de estado parcial/UNKNOWN e preserva núcleo, Secrets e PVCs; não executa limpeza destrutiva, não reinicia aplicações e não trata essa situação como sucesso completo. Inspecione `./elven status` e `python3 scripts/instrumentation.py status` com o mesmo contexto, namespace e respectivas releases antes de repetir o comando. A instalação do Operator **não** seleciona ou reinicia workloads: o opt-in e o aceite real de sinais continuam explícitos.
+
 ### Ensaio descartável antes da publicação
 
 `--development-images` é uma exceção explícita somente para laboratório controlado; não é um modo GA, não aprova uma imagem e não ignora os guards de cluster, ownership, configuração, TLS ou rede. Construa o Collector Elven mínimo corrigido e use o artefato OCI/local e os values correspondentes da execução de teste, conforme [supply chain](docs/supply-chain.md). Não use a imagem upstream vulnerável por conveniência, nem substitua digests por `latest`.

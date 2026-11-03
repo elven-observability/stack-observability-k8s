@@ -2,7 +2,7 @@ name: Elven opt-in SDK supply chain
 
 on:
   pull_request:
-    paths: ['operator/**', 'images/operator/**', 'images/autoinstrumentation/**', 'instrumentation.lock.json', 'charts/elven-instrumentation/**', 'scripts/instrumentation.py', 'scripts/images-instrumentation.py', 'scripts/images-release.py', 'scripts/images-install-ci-tools.sh', 'scripts/validate-instrumentation.py', 'scripts/test-instrumentation-kind.py', 'tests/test_instrumentation*.py', 'tests/instrumentation-fixtures/**', '.github/workflows/instrumentation.yaml']
+    paths: ['operator/**', 'images/operator/**', 'images/autoinstrumentation/**', 'instrumentation.lock.json', 'charts/elven-instrumentation/**', 'scripts/instrumentation.py', 'scripts/images-instrumentation.py', 'scripts/images-release.py', 'scripts/images-attestations.py', 'scripts/images-install-ci-tools.sh', 'scripts/validate-instrumentation.py', 'scripts/test-instrumentation-kind.py', 'tests/test_instrumentation*.py', 'tests/test_images_attestations.py', 'tests/instrumentation-fixtures/**', '.github/workflows/instrumentation.yaml']
   push:
     tags: ['v1.*']
   workflow_dispatch:
@@ -96,6 +96,8 @@ jobs:
           bash scripts/images-install-ci-tools.sh
       - name: Validate scoped opt-in contracts, Helm lint and all maintained schemas
         run: python3 scripts/validate-instrumentation.py
+      - name: Verify exact signed-predicate contracts
+        run: python3 -m unittest discover -s tests -p test_images_attestations.py -v
       - name: Check real TLS runtime fixtures without a cluster
         run: python3 -m unittest discover -s tests/instrumentation-fixtures -p test_fixtures.py -v
       - name: Native amd64 injection and actual SDK telemetry with the scanned archives

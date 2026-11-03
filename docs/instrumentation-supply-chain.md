@@ -49,6 +49,8 @@ Publicação requer tag estável protegida `v1.x.y`, Environment com required re
 
 Imagem, SPDX e metadados de build recebem assinatura GitHub OIDC. Verificação exige issuer `https://token.actions.githubusercontent.com` e identidade exata `https://github.com/elven-observability/stack-observability-k8s/.github/workflows/instrumentation.yaml@refs/tags/v1.x.y`, nunca qualquer repositório/workflow. `promote` gera somente `artifacts/instrumentation/instrumentation.promoted.lock.json` para revisão; não altera automaticamente lock, chart ou workloads.
 
+Além da verificação criptográfica, os dois SPDX assinados e os metadados devem corresponder aos hashes semânticos da evidência aprovada. Essa política fica persistida no lock promovido, com subject digest e tipos exatos; `verify` posterior não depende do diretório local de build. Ver o [formato de verificação e o pacote instalável pós-promoção](supply-chain.md#fonte-de-build-versus-pacote-instalável). O comando combinado `./elven install --instrumentation-values ...` continua exigindo os dois locks verificados; não acrescenta `--development-images` implicitamente.
+
 **Estado desta revisão:** builds e scans locais executados; publicação, assinatura remota e promoção não executadas. O lock continua `not-published`, sem digests Elven inventados. A instalação normal/injeção de produção permanece bloqueada até a promoção verificável; `--development-images` é uma opção explícita de laboratório. Nenhum cluster de cliente foi acessado.
 
 ## Privacidade e limites da granularidade

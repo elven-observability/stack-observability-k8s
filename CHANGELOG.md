@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 — preparação da release
+
+- Instalação opcional do núcleo e Operator por um único `./elven install/upgrade --instrumentation-values ...`, com validação local antes das escritas e estado parcial explícito em falha da segunda fase.
+- Exemplo mínimo alinhado à privacidade seletiva; `strict` permanece uma escolha explícita.
+- Verificação exata dos dois SPDX e do metadata assinados, persistida nos locks promovidos; publicador recusa repos/tag estrangeiros antes do primeiro push.
+- Tag de build imutável separada da revisão/pacote de instalação com locks promovidos. Esta entrada de preparação não declara publicação ou promoção concluída.
+
 ## Unreleased — distribuição Elven modular
 
 ### Hardening de 03/11/2026

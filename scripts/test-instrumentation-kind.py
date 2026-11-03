@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Actual Elven admission + SDK application traces in a disposable Kind cluster.
 
-Standalone CI exercises the real Operator/SDK OCI archives against an mTLS
-Python OTLP sink. Supplying the exact Collector archive additionally exercises
-the gateway and both real installer bootstraps. Neither mode accesses the
+Standalone development CI exercises real Operator/SDK OCI archives against an
+mTLS Python OTLP sink. The combined mode exercises ONE real installer command
+for the gateway and Operator. Promoted-release acceptance omits development
+flags only after checking both locks and all eight selected references. Neither mode accesses the
 caller's kubeconfig or claims NetworkPolicy enforcement with Kind's default CNI.
 """
 from __future__ import annotations
@@ -36,6 +37,8 @@ FIXTURES = ROOT / "tests/instrumentation-fixtures"
 REPOSITORIES = {"operator": "elven-instrumentation-operator", "java": "elven-auto-java",
                 "nodejs": "elven-auto-nodejs", "nodejs20": "elven-auto-nodejs20", "python": "elven-auto-python"}
 IMAGE_DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
+STABLE_TAG = re.compile(r"v1\.[0-9]+\.[0-9]+\Z")
+CORE_REPOSITORIES = {"collector": "elven-collector", "beyla": "elven-ebpf", "alloy": "elven-profiler"}
 
 
 def sha256(path):
@@ -67,6 +70,67 @@ def read_images(path):
     return images
 
 
+def image_reference(image):
+    return f"{image['repository']}:{image['tag']}@{image['digest']}"
+
+
+def verified_lock(path, repositories):
+    lock = json.loads(Path(path).read_text())
+    if (type(lock.get("schemaVersion")) is not int or lock["schemaVersion"] != 1
+            or lock.get("distribution", {}).get("publicationStatus") != "verified"
+            or set(lock.get("images", {})) != set(repositories)):
+        raise ValueError("Production acceptance requires both complete, verified promoted release locks")
+    references = {}
+    for name, repository in repositories.items():
+        image = lock["images"][name].get("distribution", {})
+        if (image.get("status") != "verified"
+                or image.get("repository") != "docker.io/elvenobservability/" + repository
+                or not isinstance(image.get("tag"), str) or not STABLE_TAG.fullmatch(image["tag"])
+                or not isinstance(image.get("digest"), str) or not IMAGE_DIGEST.fullmatch(image["digest"])):
+            raise ValueError("Every promoted Elven image must have verified status and an exact stable reference")
+        references[name] = image_reference(image)
+    return lock, references
+
+
+def release_policy(args, images):
+    """Local metadata gate, not a substitute for the release's Cosign proof.
+
+    This runs before even constructing a laboratory directory. In particular,
+    absence of an explicit development flag never turns into a dev fallback.
+    Registry/attestation verification remains the protected release workflow's
+    responsibility; the actual installer independently enforces its own locks.
+    """
+    development = getattr(args, "development_images", False)
+    if type(development) is not bool:
+        raise ValueError("Development images require the explicit boolean --development-images choice")
+    if development:
+        return {"mode": "explicit-development", "development_images": True, "promoted_references": {}}
+    if not getattr(args, "collector_image", None) or not getattr(args, "collector_image_archive", None):
+        raise ValueError("Without --development-images, use combined mode with a promoted Collector reference and archive")
+    core_lock, core_refs = verified_lock(ROOT / "versions.lock.json", CORE_REPOSITORIES)
+    sdk_lock, sdk_refs = verified_lock(ROOT / "instrumentation.lock.json", REPOSITORIES)
+    manifest = json.loads(Path(args.images_manifest).read_text())
+    if (manifest.get("publicationStatus") != "verified"
+            or not isinstance(manifest.get("version"), str) or not STABLE_TAG.fullmatch(manifest["version"])
+            or manifest["version"].removeprefix("v") != sdk_lock["distribution"].get("version")
+            or set(manifest.get("images", {})) != set(REPOSITORIES) or set(images) != set(REPOSITORIES)):
+        raise ValueError("Production acceptance requires the complete verified SDK publication manifest")
+    for name in REPOSITORIES:
+        image = manifest["images"][name]
+        if (image.get("publicationStatus") != "verified"
+                or image.get("tag", "") + "@" + image.get("digest", "") != sdk_refs[name]
+                or images[name].get("reference") != sdk_refs[name]):
+            raise ValueError("Selected SDK images/publication manifest must exactly match all five promoted lock references")
+    defaults = yaml.safe_load((ROOT / "charts/elven-observability/values.yaml").read_text())
+    selected = {name: image_reference(defaults["images"][name]) for name in CORE_REPOSITORIES}
+    selected["collector"] = args.collector_image
+    if selected != core_refs:
+        raise ValueError("All three effective core image references must exactly match the promoted core lock")
+    references = {"core." + name: reference for name, reference in core_refs.items()}
+    references.update({"sdk." + name: reference for name, reference in sdk_refs.items()})
+    return {"mode": "promoted-release", "development_images": False, "promoted_references": references}
+
+
 def sdk_wire_summary(accepted):
     assert accepted and all(item.get("client_certificate_verified") is True for item in accepted)
     assert all(not item.get("authorization_present") for item in accepted)
@@ -80,6 +144,8 @@ def sdk_wire_summary(accepted):
 class InstrumentationLab(CORE.Lab):
     def __init__(self, args):
         self.images = read_images(args.images_manifest)
+        self.release_policy = release_policy(args, self.images)
+        self.development_images = self.release_policy["development_images"]
         super().__init__(args.node_image, args.keep, args.collector_image, args.collector_image_archive)
         target = self.directory.with_name("instrumentation-" + self.directory.name)
         self.directory.rename(target)
@@ -91,11 +157,13 @@ class InstrumentationLab(CORE.Lab):
         self.fixture_images = {}
         self.report.update({"test": "actual Elven admission and auto-instrumentation SDKs",
             "mode": "gateway-and-installers" if self.combined else "standalone-sdk-mtls-sink",
+            "test_environment": "disposable synthetic Kind; never a customer/production cluster",
+            "release_policy": self.release_policy,
             "images": {name: value["reference"] for name, value in self.images.items()},
             "runtime_cases": ["java17", "java21", "node22", "node20-explicit-eol-exception"],
             "not_proven": ["NetworkPolicy enforcement (Kind default CNI)", "customer infrastructure/tenant acceptance",
                 "all supported Kubernetes versions live", "production scale/HA", "Python SDK application compatibility",
-                "image publication/signature/promotion", *CORE.RUNTIME_LIMITS.values()]})
+                "independent registry/signature verification by this runtime harness", *CORE.RUNTIME_LIMITS.values()]})
         if not self.combined:
             self.report["not_proven"] += ["gateway privacy/durable queues in this standalone SDK run",
                 "gateway/instrumentation installer ownership bootstrap in this standalone SDK run"]
@@ -153,7 +221,65 @@ class InstrumentationLab(CORE.Lab):
         self.customer_pods_before = {pod["metadata"]["uid"]: [item.get("restartCount", 0)
             for item in pod.get("status", {}).get("containerStatuses", [])] for pod in pods}
 
-    def install_gateway(self):
+    def verify_combined_installation(self, cluster_uid):
+        def get(kind, name, namespace=None):
+            return json.loads(self.kube("get", kind + "/" + name, "-n", namespace or self.namespace, "-o", "json").stdout)
+
+        def helm_owned(obj, release):
+            metadata = obj["metadata"]
+            assert metadata["annotations"]["meta.helm.sh/release-name"] == release
+            assert metadata["annotations"]["meta.helm.sh/release-namespace"] == self.namespace
+            assert metadata["labels"]["app.kubernetes.io/managed-by"] == "Helm"
+            assert metadata["labels"]["app.kubernetes.io/part-of"] == "elven-observability"
+
+        claim = get("pvc", "data-elven-a-gateway-0")
+        workload = get("statefulset", "elven-a-gateway")
+        ingest = get("secret", "elven-a-ingest")
+        source_tls = get("secret", "elven-a-internal-tls")
+        core_settings = get("configmap", "elven-a-settings")
+        operator_settings = get("configmap", self.operator_release + "-settings")
+        client_tls = get("secret", "elven-instrumentation-tls", self.app_namespace)
+        for obj in (workload, core_settings):
+            helm_owned(obj, "elven-a")
+        helm_owned(operator_settings, self.operator_release)
+        for obj in (ingest, source_tls):
+            labels = obj["metadata"]["labels"]
+            assert labels["app.kubernetes.io/managed-by"] == "elven-cli"
+            assert labels["app.kubernetes.io/instance"] == "elven-a"
+            assert labels["elven.observability/namespace"] == self.namespace
+        assert set(source_tls["data"]) == {"ca.crt", "tls.crt", "tls.key", "client.crt", "client.key"}
+        tenant = base64.b64decode(ingest["data"]["tenant-id"], validate=True)
+        assert tenant == b"synthetic-tenant"
+        receipt = json.loads(claim["metadata"]["annotations"]["elven.observability/storage-identity"])
+        assert receipt == {"schemaVersion": 1, "phase": "bound", "release": "elven-a", "namespace": self.namespace,
+            "clusterUID": cluster_uid, "clusterName": "synthetic-kind", "credentialsSecret": "elven-a-ingest",
+            "credentialsSecretUID": ingest["metadata"]["uid"], "tenantSHA256": hashlib.sha256(tenant).hexdigest(),
+            "pvcUID": claim["metadata"]["uid"], "statefulSetUID": workload["metadata"]["uid"]}
+        source = json.loads(core_settings["data"]["settings.json"])
+        target = json.loads(operator_settings["data"]["settings.json"])
+        assert source["tls"]["existingSecret"] == "elven-a-internal-tls"
+        assert source["credentials"]["existingSecret"] == "elven-a-ingest"
+        assert target["gateway"]["sourceRelease"] == "elven-a"
+        assert target["gateway"]["sourceNamespace"] == self.namespace
+        assert target["gateway"]["endpoint"] == f"https://elven-a-gateway.{self.namespace}.svc.cluster.local:4318"
+        assert target["namespaces"] == [self.app_namespace]
+        assert set(client_tls["data"]) == {"ca.crt", "client.crt", "client.key"}
+        labels, annotations = client_tls["metadata"]["labels"], client_tls["metadata"]["annotations"]
+        assert labels["app.kubernetes.io/managed-by"] == "elven-instrumentation-cli"
+        assert labels["app.kubernetes.io/instance"] == self.operator_release
+        assert labels["elven.observability/namespace"] == self.namespace
+        assert annotations["elven.observability/cluster-uid"] == cluster_uid
+        assert annotations["elven.observability/tls-role"] == "client"
+        ca = base64.b64decode(source_tls["data"]["ca.crt"], validate=True)
+        assert annotations["elven.observability/source-ca-sha256"] == hashlib.sha256(ca).hexdigest()
+        assert base64.b64decode(client_tls["data"]["ca.crt"], validate=True) == ca
+        assert base64.b64decode(client_tls["data"]["client.crt"], validate=True) == base64.b64decode(source_tls["data"]["client.crt"], validate=True)
+        assert base64.b64decode(client_tls["data"]["client.key"], validate=True).startswith(b"-----BEGIN PRIVATE KEY-----")
+        self.report["single_command_installation"] = {"cli_install_invocations": 1,
+            "development_images": self.development_images, "core_release": "elven-a", "operator_release": self.operator_release,
+            "bound_pvc_receipt": True, "owned_core_pki": True, "scoped_client_pki": True, "source_ownership": True}
+
+    def install_gateway(self, instrumentation_values):
         node = json.loads(self.kube("get", "nodes", "-o", "json").stdout)["items"][0]
         self.node_ip = next(item["address"] for item in node["status"]["addresses"] if item["type"] == "InternalIP")
         self.provision("elven-a")
@@ -167,12 +293,18 @@ class InstrumentationLab(CORE.Lab):
             path.write_text(text + "\n")
             path.chmod(0o600)
         uid = json.loads(self.kube("get", "namespace/kube-system", "-o", "json").stdout)["metadata"]["uid"]
-        CORE.execute([sys.executable, ROOT / "elven", "install", "--release", "elven-a", "--namespace", self.namespace,
+        command = [sys.executable, ROOT / "elven", "install", "--release", "elven-a", "--namespace", self.namespace,
             "--context", "kind-" + self.name, "--kubeconfig", self.kubeconfig, "--expect-cluster-uid", uid,
             "--cluster-name", "synthetic-kind", "--values", source, "--tenant-file", tenant, "--token-file", token,
-            "--credentials-secret", "elven-a-ingest", "--tls-secret", "elven-a-internal-tls", "--development-images"], timeout=420)
-        claim = json.loads(self.kube("get", "pvc/data-elven-a-gateway-0", "-n", self.namespace, "-o", "json").stdout)
-        assert any("storage-identity" in key for key in claim["metadata"].get("annotations", {}))
+            "--credentials-secret", "elven-a-ingest", "--tls-secret", "elven-a-internal-tls",
+            "--instrumentation-values", instrumentation_values, "--instrumentation-release", self.operator_release,
+            "--timeout", "240s"]
+        if self.development_images:
+            command.append("--development-images")
+        # The inner CLI bounds both Helm phases to 240s; leave enough outer
+        # time for both plus read-only preflights/crypto, not an orphaned phase2.
+        CORE.execute(command, timeout=720)
+        self.verify_combined_installation(uid)
         self.check("real gateway CLI bootstrap creates PKI credentials durable PVC and storage identity receipt")
         return "https://elven-a-gateway." + self.namespace + ".svc.cluster.local:4318"
 
@@ -187,16 +319,14 @@ class InstrumentationLab(CORE.Lab):
         return settings
 
     def install_operator(self):
-        endpoint = self.install_gateway() if self.combined else "https://sink." + self.namespace + ".svc.cluster.local:443"
+        endpoint = ("https://elven-a-gateway." + self.namespace + ".svc.cluster.local:4318" if self.combined
+                    else "https://sink." + self.namespace + ".svc.cluster.local:443")
         settings = self.operator_values(endpoint)
         source = self.directory / "operator-values.yaml"
         if self.combined:
             source.write_text(yaml.safe_dump(settings))
-            uid = json.loads(self.kube("get", "namespace/kube-system", "-o", "json").stdout)["metadata"]["uid"]
-            CORE.execute([sys.executable, ROOT / "scripts/instrumentation.py", "install", "--release", self.operator_release,
-                "--namespace", self.namespace, "--context", "kind-" + self.name, "--kubeconfig", self.kubeconfig,
-                "--expect-cluster-uid", uid, "--values", source, "--development-images", "--timeout", "240s"], timeout=420)
-            self.check("real instrumentation CLI validates owned source gateway and provisions scoped PKI without patching apps")
+            self.install_gateway(source)
+            self.check("one real Elven CLI command installs core and Operator with owned source and scoped PKI without patching apps")
         else:
             # Standalone SDK CI has no core-image cross-workflow dependency.
             # This is explicit test PKI + the real chart, never fabricated CLI ownership.
@@ -390,8 +520,6 @@ def main():
     parser.add_argument("--keep", action="store_true")
     parser.add_argument("--keep-on-failure", action="store_true", help="Maintainer diagnosis only: retain this disposable cluster if the run fails")
     args = parser.parse_args()
-    if not args.development_images:
-        parser.error("This unpublished-image test requires explicit --development-images; it cannot promote production images")
     if bool(args.collector_image) != bool(args.collector_image_archive):
         parser.error("Combined mode requires both exact --collector-image and --collector-image-archive")
     os.umask(0o077)

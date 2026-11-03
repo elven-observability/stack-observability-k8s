@@ -2,8 +2,8 @@ apiVersion: v2
 name: elven-observability
 description: Elven-owned, CRD-free Kubernetes telemetry distribution
 type: application
-version: 1.0.0-rc.2
-appVersion: "1.0.0-rc.2"
+version: 1.0.0
+appVersion: "1.0.0"
 kubeVersion: ">=1.35.0-0 <1.38.0-0"
 home: https://github.com/elven-observability/stack-observability-k8s
 sources:

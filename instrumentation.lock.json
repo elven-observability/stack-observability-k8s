@@ -3,7 +3,7 @@
   "verifiedOn": "2026-11-03",
   "distribution": {
     "name": "Elven opt-in SDK auto-instrumentation",
-    "version": "1.0.0-rc.1",
+    "version": "1.0.0",
     "repository": "https://github.com/elven-observability/stack-observability-k8s",
     "registry": "docker.io/elvenobservability",
     "publicationStatus": "not-published",

@@ -117,6 +117,7 @@ class PublicationImmutabilityTests(unittest.TestCase):
                     "anonymous_registry": lambda: contextlib.nullcontext({}), "run": run,
                 }.items():
                     stack.enter_context(mock.patch.object(release, name, replacement))
+                stack.enter_context(mock.patch.object(release.ATTESTATIONS, "evidence_policy", return_value={"fixture": True}))
                 stack.enter_context(mock.patch.object(release.subprocess, "run", side_effect=query))
                 stack.enter_context(mock.patch("builtins.print"))
                 release.publish(SimpleNamespace(), lock)
@@ -145,6 +146,24 @@ class PublicationImmutabilityTests(unittest.TestCase):
         manifest = self.publish_with_results([same] * 3)
         self.assert_no_push()
         self.assertEqual(manifest["publicationStatus"], "verified")
+
+    def test_foreign_repository_or_tag_is_rejected_before_every_external_write(self):
+        for target in ("docker.io/untrusted/elven-collector:v1.0.0",
+                       "docker.io/elvenobservability/elven-collector:v1.0.1"):
+            manifest, lock = release_fixture()
+            manifest["images"]["alloy"]["tag"] = target  # last component must still block the whole release
+            with self.subTest(target=target), contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.object(release, "evidence", return_value=ROOT))
+                stack.enter_context(mock.patch.object(release, "load_manifest", return_value=manifest))
+                stack.enter_context(mock.patch.object(release, "assert_release_environment"))
+                stack.enter_context(mock.patch.object(release, "git_state", return_value=(manifest["revision"], "0", False)))
+                stack.enter_context(mock.patch.object(release, "sha256", return_value=CHECKSUM))
+                preflight = stack.enter_context(mock.patch.object(release, "preflight_remote_tags"))
+                command = stack.enter_context(mock.patch.object(release, "run"))
+                with self.assertRaisesRegex(ValueError, "publication repository or release tag"):
+                    release.publish(SimpleNamespace(), lock)
+                preflight.assert_not_called()
+                command.assert_not_called()
 
     def test_network_authentication_and_execution_failures_block_every_push(self):
         absent = lambda tag, digest: missing(tag)
