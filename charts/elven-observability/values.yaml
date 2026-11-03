@@ -6,12 +6,12 @@ cluster:
 fullnameOverride: ""
 images:
   collector:
-    # Real local development archive, not a published registry release. The
+    # Real multiarch CI development archive, not a published registry release. The
     # supported CLI blocks production until the verified promotion updates pins.
-    # Other development platforms must use their own built/CI values override.
+    # A laboratory must load the exact archive or use its own verified build pins.
     repository: docker.io/elvenobservability/elven-collector
     tag: "1.0.0-dev"
-    digest: sha256:bd2eb81f5b3139164dc95cde8b3024a2bf25d09a0ec6fec7f90e567f6d8517ce
+    digest: sha256:34c6be1ccf08bbb6c81224c327f1b4ff77548b08602265896f3c05e3938d986b
     pullPolicy: IfNotPresent
   beyla:
     repository: docker.io/elvenobservability/elven-ebpf

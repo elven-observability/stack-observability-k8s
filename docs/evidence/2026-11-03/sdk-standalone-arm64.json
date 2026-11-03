@@ -1,0 +1,217 @@
+{
+  "completed": true,
+  "cluster": "elven-dist-b07f0e82e4",
+  "node_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+  "fixture_image": "python:3.14.0-slim@sha256:0aecac02dc3d4c5dbb024b753af084cafe41f5416e02193f1ce345d671ec966e",
+  "customer_cluster_access": false,
+  "checks": [
+    {
+      "name": "isolated Kind boot",
+      "result": "passed",
+      "server": "v1.37.0"
+    },
+    {
+      "name": "all five instrumentation OCI indices verified and loaded only into isolated Kind",
+      "result": "passed"
+    },
+    {
+      "name": "official pinned Java17 Java21 Node22 and explicit EOL Node20 fixtures built without bundled SDKs",
+      "result": "passed",
+      "h2_sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+    },
+    {
+      "name": "synthetic TLS and ingestion Secrets created without argv values",
+      "result": "passed"
+    },
+    {
+      "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+      "result": "passed"
+    },
+    {
+      "name": "real Operator chart with verified serving PKI and mTLS SDK client fixture installed",
+      "result": "passed"
+    },
+    {
+      "name": "Operator runtime has no Kubernetes Secret read permissions",
+      "result": "passed"
+    },
+    {
+      "name": "actual SDK init copy and app readiness java17",
+      "result": "passed",
+      "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.0-dev@sha256:b3c77423fd6783524ef99f27123653b3886fb3d24a69861a8cd00da8b374fe78",
+      "init_exit_code": 0
+    },
+    {
+      "name": "actual SDK init copy and app readiness java21",
+      "result": "passed",
+      "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.0-dev@sha256:b3c77423fd6783524ef99f27123653b3886fb3d24a69861a8cd00da8b374fe78",
+      "init_exit_code": 0
+    },
+    {
+      "name": "actual SDK init copy and app readiness node22",
+      "result": "passed",
+      "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs:1.0.0-dev@sha256:b91dd03ec30a7b9cf908b7653a14a20cb8d6b2aa24e408243ba150d5138d677d",
+      "init_exit_code": 0
+    },
+    {
+      "name": "actual SDK init copy and app readiness node20",
+      "result": "passed",
+      "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.0-dev@sha256:a1e4759ac9fc6996f87faa063c18447766e0f86856c9c387ad50c032159d2856",
+      "init_exit_code": 0
+    },
+    {
+      "name": "explicit app-container target leaves Node sidecar security loader and mounts untouched",
+      "result": "passed"
+    },
+    {
+      "name": "unlabelled app and opted-in foreign namespace are not injected",
+      "result": "passed"
+    },
+    {
+      "name": "unknown runtime existing SDK conflict and ambiguous multi-container target are denied before creation",
+      "result": "passed"
+    },
+    {
+      "name": "Operator install and admissions do not update or restart an existing application",
+      "result": "passed"
+    },
+    {
+      "name": "real auto-instrumented HTTP server client and JDBC SQL spans java17",
+      "result": "passed",
+      "span_count": 18,
+      "scopes": [
+        "io.opentelemetry.http-url-connection",
+        "io.opentelemetry.java-http-server",
+        "io.opentelemetry.jdbc"
+      ]
+    },
+    {
+      "name": "real auto-instrumented HTTP server client and JDBC SQL spans java21",
+      "result": "passed",
+      "span_count": 12,
+      "scopes": [
+        "io.opentelemetry.http-url-connection",
+        "io.opentelemetry.java-http-server",
+        "io.opentelemetry.jdbc"
+      ]
+    },
+    {
+      "name": "real auto-instrumented HTTP server client spans node20",
+      "result": "passed",
+      "span_count": 6,
+      "scopes": [
+        "@opentelemetry/instrumentation-http"
+      ]
+    },
+    {
+      "name": "real auto-instrumented HTTP server client spans node22",
+      "result": "passed",
+      "span_count": 9,
+      "scopes": [
+        "@opentelemetry/instrumentation-http"
+      ]
+    },
+    {
+      "name": "actual SDK OTLP exports authenticate with verified TLS client certificates",
+      "result": "passed"
+    }
+  ],
+  "not_proven": [
+    "NetworkPolicy enforcement (Kind default CNI)",
+    "customer infrastructure/tenant acceptance",
+    "all supported Kubernetes versions live",
+    "production scale/HA",
+    "Python SDK application compatibility",
+    "image publication/signature/promotion",
+    "gateway privacy/durable queues in this standalone SDK run",
+    "gateway/instrumentation installer ownership bootstrap in this standalone SDK run",
+    "native amd64 runtime"
+  ],
+  "collector_image_override": null,
+  "test": "actual Elven admission and auto-instrumentation SDKs",
+  "mode": "standalone-sdk-mtls-sink",
+  "images": {
+    "java": "docker.io/elvenobservability/elven-auto-java:1.0.0-dev@sha256:b3c77423fd6783524ef99f27123653b3886fb3d24a69861a8cd00da8b374fe78",
+    "nodejs": "docker.io/elvenobservability/elven-auto-nodejs:1.0.0-dev@sha256:b91dd03ec30a7b9cf908b7653a14a20cb8d6b2aa24e408243ba150d5138d677d",
+    "nodejs20": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.0-dev@sha256:a1e4759ac9fc6996f87faa063c18447766e0f86856c9c387ad50c032159d2856",
+    "operator": "docker.io/elvenobservability/elven-instrumentation-operator:1.0.0-dev@sha256:2749ef30d24e022739b8990ea40de35478e4b625170377ce516ef42642f23df2",
+    "python": "docker.io/elvenobservability/elven-auto-python:1.0.0-dev@sha256:9eb9cdd01379f204784771cdbd9bf2b82d9332fcd398b147d4acb493281ac9db"
+  },
+  "runtime_cases": [
+    "java17",
+    "java21",
+    "node22",
+    "node20-explicit-eol-exception"
+  ],
+  "versions": {
+    "clientVersion": {
+      "major": "1",
+      "minor": "37",
+      "gitVersion": "v1.37.0",
+      "gitCommit": "f54c212e3a2f75d674b717a9b29052b20b60aefc",
+      "gitTreeState": "clean",
+      "buildDate": "2026-08-26T10:44:20Z",
+      "goVersion": "go1.27.0",
+      "compiler": "gc",
+      "platform": "darwin/arm64"
+    },
+    "kustomizeVersion": "v5.8.1",
+    "serverVersion": {
+      "major": "1",
+      "minor": "37",
+      "emulationMajor": "1",
+      "emulationMinor": "37",
+      "minCompatibilityMajor": "1",
+      "minCompatibilityMinor": "36",
+      "gitVersion": "v1.37.0",
+      "gitCommit": "f54c212e3a2f75d674b717a9b29052b20b60aefc",
+      "gitTreeState": "clean",
+      "buildDate": "2026-08-26T10:44:25Z",
+      "goVersion": "go1.26.6",
+      "compiler": "gc",
+      "platform": "linux/arm64"
+    }
+  },
+  "runtime_platform": {
+    "source": "kubectl version.serverVersion.platform",
+    "reported": "linux/arm64",
+    "tested": "linux/arm64"
+  },
+  "fixture_sources": {
+    "schemaVersion": 1,
+    "verifiedAt": "2026-11-03",
+    "images": {
+      "java17": "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516",
+      "java21": "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69",
+      "node22": "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da",
+      "node20": "docker.io/library/node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0"
+    },
+    "h2": {
+      "file": "h2.jar",
+      "version": "2.5.252",
+      "url": "https://repo.maven.apache.org/maven2/com/h2database/h2/2.5.252/h2-2.5.252.jar",
+      "sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+    },
+    "sources": {
+      "java": "https://adoptium.net/installation/containers/",
+      "node": "https://github.com/nodejs/docker-node",
+      "nodeLifecycle": "https://nodejs.org/en/about/previous-releases",
+      "h2": "https://github.com/h2database/h2database/releases/tag/version-2.5.252"
+    },
+    "node20Policy": "Explicit test-only EOL legacy compatibility fixture, never a production recommendation."
+  },
+  "observed_spans_by_service": {
+    "java17": 18,
+    "java21": 12,
+    "node20": 6,
+    "node22": 9
+  },
+  "cluster_retained": false,
+  "_evidence": {
+    "recorded_on": "2026-11-03",
+    "source_report": ".artifacts/instrumentation-kind-b07f0e82e4/report.json",
+    "source_report_sha256": "b4ac2662616b6cd85fcb1ca0280203bba2bb1f211d20b9d30a9d235c6a9b2d88",
+    "scope": "synthetic isolated laboratory; no customer deployment",
+    "sanitization": "No private host paths, credential values, private keys or raw fixture payloads retained."
+  }
+}

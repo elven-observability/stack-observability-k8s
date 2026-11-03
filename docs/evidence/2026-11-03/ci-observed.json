@@ -1,0 +1,43 @@
+{
+  "recorded_on": "2026-11-03",
+  "observed_revision": "67c44745583eed895d06678f3ce69715877242cb",
+  "final_revision_ci": "pending; consult the pull request for the final head checks",
+  "runs": [
+    {
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/41667783827",
+      "status": "completed",
+      "conclusion": "success",
+      "scope": "SDK/operator native linux/amd64; standalone SDK-to-mTLS-sink, not the final integrated Collector lifecycle",
+      "checks": 20,
+      "sdk_scan_results": {
+        "count": 10,
+        "high": 0,
+        "critical": 0
+      },
+      "operator_digest": "sha256:2749ef30d24e022739b8990ea40de35478e4b625170377ce516ef42642f23df2"
+    },
+    {
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/41667783478",
+      "status": "completed",
+      "conclusion": "success",
+      "scope": "distribution contracts and schemas with Python 3.12/3.14 at the observed revision"
+    },
+    {
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/41667783458",
+      "status": "completed",
+      "conclusion": "failure",
+      "scope": "core validation workflow; cleanup failed with runner UID 1001",
+      "functional_privacy_log_cases_before_failure": 15,
+      "overall_pass": false,
+      "kind_stage": "skipped; not counted as a native amd64 Kind pass",
+      "followup": "Cleanup was corrected with 11 additional regressions; final local arm64 reports passed. Final-head CI remains a separate gate."
+    }
+  ],
+  "not_proven": [
+    "final-head CI completion",
+    "image publication/signature/promotion",
+    "customer deployment or tenant ingestion",
+    "CNI enforcement",
+    "eBPF capture across supported kernels"
+  ]
+}

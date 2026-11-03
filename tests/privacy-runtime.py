@@ -197,8 +197,13 @@ def action(request):
     if operation == "cleanup":
         # Only these exact disposable fixture mounts may be cleared. They are
         # writable solely in a one-shot cleanup container, never the sink.
-        for name in ("selective", "strict"):
-            root = Path("/cleanup") / name
+        base = Path("/cleanup")
+        if base.is_symlink() or {path.name for path in base.iterdir()} != {"selective", "strict"}:
+            raise ValueError("Unexpected synthetic queue cleanup root")
+        roots = [base / name for name in ("selective", "strict")]
+        if any(root.is_symlink() or not root.is_dir() for root in roots):
+            raise ValueError("Synthetic queue cleanup roots must be real directories")
+        for root in roots:
             for path in root.iterdir():
                 if path.is_dir() and not path.is_symlink():
                     shutil.rmtree(path)
@@ -558,6 +563,103 @@ def render_gateway(root, directory, mode):
     return path
 
 
+def cleanup_fixture_queues(folder, runtime, queues, identity):
+    """Remove only this laboratory's UID10001-owned queue contents.
+
+    The host must not recursively chmod/chown arbitrary paths. A rootless,
+    offline helper sharing the actual runtime UID can remove its private 0700
+    directories; the host then removes its own empty temporary parent normally.
+    """
+    if (not folder.name.startswith("elven-privacy-runtime-")
+            or folder.is_symlink() or not folder.is_dir()
+            or runtime != folder / "runtime" or queues != folder / "queues"):
+        raise ValueError("Refusing cleanup outside the owned privacy laboratory")
+    script = runtime / "privacy-runtime.py"
+    if (runtime.is_symlink() or queues.is_symlink() or script.is_symlink()
+            or not runtime.is_dir() or not queues.is_dir() or not script.is_file()
+            or runtime.resolve().parent != folder.resolve()
+            or queues.resolve().parent != folder.resolve()
+            or {path.name for path in queues.iterdir()} != {"selective", "strict"}):
+        raise ValueError("Invalid synthetic queue cleanup mounts")
+    roots = [queues / name for name in ("selective", "strict")]
+    if any(root.is_symlink() or not root.is_dir() for root in roots):
+        raise ValueError("Synthetic queue roots must not be symlinks")
+    if not re.fullmatch(r"elven-privacy-test-[0-9a-f]{12}", identity):
+        raise ValueError("Invalid synthetic cleanup identity")
+    name = identity + "-cleanup"
+    try:
+        output = run("docker", "run", "--rm", "--interactive", "--name", name,
+                     "--network", "none", "--user", "10001:10001", "--cap-drop", "ALL",
+                     "--read-only", "--security-opt", "no-new-privileges",
+                     "--mount", f"type=bind,source={script},target=/fixture/privacy-runtime.py,readonly",
+                     "--mount", f"type=bind,source={queues},target=/cleanup",
+                     PYTHON_FIXTURE, "python", "/fixture/privacy-runtime.py", "--action",
+                     data=json.dumps({"op": "cleanup"}), timeout=30)
+        response = json.loads(output)
+        if not isinstance(response, dict) or response.get("cleaned") is not True:
+            raise RuntimeError("Queue cleanup helper did not confirm success")
+        if any(any(root.iterdir()) for root in roots):
+            raise RuntimeError("Queue cleanup helper left owned queue contents behind")
+    except Exception:
+        # A CLI timeout can leave a --rm container running. This exact name
+        # belongs to this laboratory only; cleanup failure still propagates.
+        run("docker", "rm", "--force", name, check=False, timeout=30)
+        raise
+
+
+def finish_cleanup(temporary, folder, runtime, queues, identity, containers,
+                   network_created, evidence, report):
+    """Record teardown failures without converting successful checks to a PASS."""
+    if (not re.fullmatch(r"elven-privacy-test-[0-9a-f]{12}", identity)
+            or any(name not in {identity + "-fixture", identity + "-selective", identity + "-strict"}
+                   for name in containers)):
+        raise ValueError("Refusing removal of resources outside this laboratory")
+    errors = []
+    for name in reversed(containers):
+        try:
+            run("docker", "rm", "--force", name, timeout=30)
+        except Exception as error:
+            errors.append("container removal: " + type(error).__name__)
+    try:
+        cleanup_fixture_queues(folder, runtime, queues, identity)
+    except Exception as error:
+        errors.append("queue cleanup: " + type(error).__name__)
+    if network_created:
+        try:
+            run("docker", "network", "rm", identity, timeout=30)
+        except Exception as error:
+            errors.append("network removal: " + type(error).__name__)
+    try:
+        temporary.cleanup()
+    except Exception as error:
+        errors.append("temporary directory removal: " + type(error).__name__)
+    evidence["cleanup"] = {"completed": not errors}
+    if errors:
+        evidence["result"] = "FAIL"
+        evidence["cleanup"]["errors"] = errors
+    if errors or not evidence.get("checks_passed", False):
+        save_report(evidence, report)
+    if errors:
+        raise RuntimeError("Synthetic privacy laboratory cleanup failed: " + "; ".join(errors))
+
+
+def save_report(evidence, report):
+    report.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    report.write_text(json.dumps(evidence, sort_keys=True, indent=2) + "\n")
+    print("Evidence: " + str(report), file=sys.stderr)
+
+
+def complete_lab(evidence, report):
+    if not evidence.pop("checks_passed", False) or not evidence.get("cleanup", {}).get("completed"):
+        evidence["result"] = "FAIL"
+        save_report(evidence, report)
+        raise RuntimeError("Privacy laboratory has not completed checks and teardown")
+    evidence["result"] = "PASS"
+    save_report(evidence, report)
+    print(json.dumps(evidence, sort_keys=True))
+    return evidence
+
+
 def smoke(image):
     import yaml
 
@@ -578,8 +680,9 @@ def smoke(image):
                 "network": "internal Docker bridge; no published ports or host networking",
                 "not_proven": ["universal PII detection", "client data/tenant ingestion", "NetworkPolicy enforcement",
                                "production disk capacity/scale", "all SQL dialects"]}
-    with tempfile.TemporaryDirectory(prefix="elven-privacy-runtime-") as temporary:
-        folder = Path(temporary)
+    temporary = tempfile.TemporaryDirectory(prefix="elven-privacy-runtime-")
+    with temporary as temporary_name:
+        folder = Path(temporary_name)
         pki = certificates(folder)
         runtime = folder / "runtime"
         runtime.mkdir(mode=0o755)
@@ -755,9 +858,7 @@ def smoke(image):
             if any(value in strict_text for value in FORBIDDEN):
                 raise AssertionError("Strict mode leaked sensitive attributes outside body")
             evidence["checks"].append({"name": "explicit strict mode", "result": "PASS", "log_cases": len(strict_records)})
-            evidence["result"] = "PASS"
-            print(json.dumps(evidence, sort_keys=True))
-            return evidence
+            evidence["checks_passed"] = True
         except Exception:
             for name in containers:
                 diagnostics = run("docker", "logs", "--tail", "30", name, check=False)
@@ -765,22 +866,11 @@ def smoke(image):
                     print(name + ":\n" + diagnostics[-12000:], file=sys.stderr)
             raise
         finally:
-            for name in reversed(containers):
-                run("docker", "rm", "--force", name, check=False, timeout=30)
-            # UID10001 removes its own private directories; the host then owns
-            # the empty parent. Neither the CA key nor unrelated paths mount.
-            if any(any((queues / mode).iterdir()) for mode in ("selective", "strict")):
-                run("docker", "run", "--rm", "--network", "none", "--user", "10001:10001",
-                    "--cap-drop", "ALL", "--read-only", "--security-opt", "no-new-privileges",
-                    "--mount", f"type=bind,source={runtime},target=/fixture,readonly",
-                    "--mount", f"type=bind,source={queues},target=/cleanup",
-                    PYTHON_FIXTURE, "python", "/fixture/privacy-runtime.py", "--action",
-                    data=json.dumps({"op": "cleanup"}), check=False, timeout=30)
-            if network_created:
-                run("docker", "network", "rm", network, check=False, timeout=30)
-            report.parent.mkdir(parents=True, mode=0o700)
-            report.write_text(json.dumps(evidence, sort_keys=True, indent=2) + "\n")
-            print("Evidence: " + str(report), file=sys.stderr)
+            finish_cleanup(temporary, folder, runtime, queues, identity, containers,
+                           network_created, evidence, report)
+    # TemporaryDirectory.__exit__ must also finish before any final PASS is
+    # printed or returned. Functional checks alone are not overall success.
+    return complete_lab(evidence, report)
 
 
 if __name__ == "__main__":

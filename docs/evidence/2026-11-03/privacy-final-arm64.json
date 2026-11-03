@@ -1,0 +1,93 @@
+{
+  "checks": [
+    {
+      "name": "verified server TLS and required client certificate",
+      "result": "PASS"
+    },
+    {
+      "correlation_preserved": true,
+      "known_sensitive_values_absent": true,
+      "log_cases": 15,
+      "metric_points": 1,
+      "name": "selective privacy and correlation",
+      "result": "PASS",
+      "span_links_preserved": 1,
+      "spans": 2,
+      "useful_operational_text_preserved": true
+    },
+    {
+      "name": "idempotent second privacy boundary for node-to-gateway",
+      "result": "PASS",
+      "signals": [
+        "logs",
+        "metrics",
+        "traces"
+      ]
+    },
+    {
+      "files": [
+        {
+          "bytes": 32768,
+          "name": "exports/exporter_otlp_http_logs_logs"
+        },
+        {
+          "bytes": 32768,
+          "name": "exports/exporter_otlp_http_metrics_metrics"
+        },
+        {
+          "bytes": 32768,
+          "name": "exports/exporter_otlp_http_traces_traces"
+        }
+      ],
+      "forbidden_matches": [],
+      "name": "privacy before persistent WAL and restart recovery",
+      "redaction_markers": 30,
+      "result": "PASS",
+      "useful_message_occurrences": 2
+    },
+    {
+      "log_cases": 15,
+      "name": "explicit strict mode",
+      "result": "PASS"
+    }
+  ],
+  "cleanup": {
+    "completed": true
+  },
+  "config_sha256": {
+    "selective": "46117e5894d4f3987c1f1171b3e91c699849fef867dd0c3fa15953bcc5309d04",
+    "strict": "4217135b86c428bb19ea65c77edc722e95be30b8720ae1511acb7b7974e2da83"
+  },
+  "customer_cluster_access": false,
+  "fixture_image": "python:3.14.0-slim@sha256:0aecac02dc3d4c5dbb024b753af084cafe41f5416e02193f1ce345d671ec966e",
+  "image": "docker.io/elvenobservability/elven-collector:1.0.0-dev@sha256:34c6be1ccf08bbb6c81224c327f1b4ff77548b08602265896f3c05e3938d986b",
+  "network": "internal Docker bridge; no published ports or host networking",
+  "not_proven": [
+    "universal PII detection",
+    "client data/tenant ingestion",
+    "NetworkPolicy enforcement",
+    "production disk capacity/scale",
+    "all SQL dialects"
+  ],
+  "privacy": {
+    "log_body_mode": "selective",
+    "max_collection_items": 4096,
+    "max_depth": 24,
+    "max_string_bytes": 262144,
+    "preserve_span_links": true
+  },
+  "result": "PASS",
+  "runtime_platform": "linux/arm64",
+  "test_dependencies": {
+    "PyYAML": "6.0.3",
+    "opentelemetry-proto": "1.45.1",
+    "protobuf": "7.36.2"
+  },
+  "_evidence": {
+    "recorded_on": "2026-11-03",
+    "source_report": ".artifacts/privacy-75c3604ac0e8/report.json",
+    "source_report_sha256": "9e41c4df66a6733f4b2f7f9a1f35d01ed509d4be7e52ee31d9913e85e478f799",
+    "scope": "synthetic isolated laboratory; no customer deployment",
+    "sanitization": "No private host paths, credential values, private keys or raw fixture payloads retained."
+  }
+}

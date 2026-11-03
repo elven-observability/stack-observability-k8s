@@ -77,6 +77,9 @@ class PrivacyChartTests(unittest.TestCase):
         self.assertEqual(statements[0]["context"], "datapoint")
         self.assertTrue(all(statement.startswith("keep_keys(attributes,")
                             for statement in statements[0]["statements"]))
+        # Multiple namespace-scoped node agents may share a node; keep their
+        # explicit release dimension instead of coalescing self-telemetry.
+        self.assertIn('"elven_release"', statements[0]["statements"][0])
         for signal in ("logs", "traces"):
             self.assertNotIn("transform/cardinality", config["service"]["pipelines"][signal]["processors"])
 
