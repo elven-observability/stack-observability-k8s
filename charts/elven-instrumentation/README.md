@@ -2,11 +2,11 @@
 
 Módulo **opcional e independente** de injeção de SDKs Elven por admission webhook. Não depende de Operator, agentes, CRDs ou cert-manager do cliente. O processo não possui token de ServiceAccount, client Kubernetes ou permissões de API; somente devolve um JSONPatch para Pods explicitamente selecionados.
 
-Esta é uma RC. As imagens em [`instrumentation.lock.json`](../../instrumentation.lock.json) precisam ser construídas, escaneadas, publicadas, assinadas, verificadas e promovidas antes de uma instalação de produção. Digests vazios não são artefatos publicados. A CLI bloqueia produção enquanto o lock não comprovar a promoção.
+A [release v1.0.0](../../docs/release-v1.0.0.md) tem imagens Elven assinadas e promovidas em [`instrumentation.lock.json`](../../instrumentation.lock.json). A CLI bloqueia imagens que não correspondam ao lock promovido.
 
 ## Instalação e identidade
 
-Use [`scripts/instrumentation.py`](../../scripts/instrumentation.py), não `helm install` diretamente. O chart sozinho não executa os guards de ownership/cluster, nem verifica/provisiona PKI privada. Um render offline pode deliberadamente conter `caBundle` vazio e **não está pronto para apply** nesse estado.
+Para instalar junto do gateway, siga o [guia de instalação](../../docs/installation.md). Se o gateway já existe, use [`scripts/instrumentation.py`](../../scripts/instrumentation.py) conforme os passos abaixo, não `helm install` diretamente. O chart sozinho não executa os guards de ownership/cluster, nem verifica/provisiona PKI privada. Um render offline pode deliberadamente conter `caBundle` vazio e **não está pronto para apply** nesse estado.
 
 Pré-requisitos: Python 3.11+, Helm 4.3.1+ ou ponte 3.22.1+, kubectl compatível, OpenSSL, Kubernetes 1.35–1.37, gateway Elven instalado, namespaces das aplicações já existentes e fontes reais de ingress do apiserver revisadas. O namespace da distribuição e namespaces de sistema não podem ser alvos.
 

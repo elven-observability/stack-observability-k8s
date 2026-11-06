@@ -77,7 +77,7 @@ A primeira rodada Linux amd64 concluiu 24 checks funcionais com a imagem upstrea
 
 ## Instalação e migração
 
-O [README](../README.md) contém quickstart completo: render offline, preflight sem apply, contexto/UID explícitos e credenciais em arquivos privados/Secrets externos. Instalação normal depende de imagens promovidas. `scripts/probe.py` envia três sinais sintéticos por mTLS e retorna trace ID correlacionado; indica explicitamente que aceitação pelo gateway não comprova ingestão no tenant.
+O [guia de instalação](installation.md) descreve render offline, preflight sem apply, contexto/UID explícitos e credenciais em arquivos privados/Secrets externos. Instalação normal depende de imagens promovidas. `scripts/probe.py` envia três sinais sintéticos por mTLS e retorna trace ID correlacionado; indica explicitamente que aceitação pelo gateway não comprova ingestão no tenant.
 
 A [operação](operations.md) cobre sizing, filas, health, diagnóstico, rotação, rollback e uninstall. A [migração](migration.md) exige baseline, dono por recurso/sinal, canary sem dupla ingestão, drenagem e cutover autorizado. Não aplicar por cima do Helmfile antigo nem remover CRDs/operadores do cliente.
 

@@ -12,7 +12,7 @@ Seleção inicial do núcleo em **29/10/2026**; hardening de SDKs, Operator, too
 
 Os três manifests OCI upstream foram consultados anonimamente, incluindo `linux/amd64` e `linux/arm64`; seus digests estão no lock. **Isso não é execução nativa em ambas as arquiteturas.** Beyla/Alloy preservam os runtimes upstream. O Collector passa a ser build mínimo próprio devido ao achado de segurança, com receita pública/revisável, componentes pinados e informações de build incluídas na imagem.
 
-Os defaults da rodada de hardening apontam para **artefatos OCI Elven de desenvolvimento realmente construídos**, não para imagens upstream nem para uma release publicada. O Collector upstream não contém o processor próprio `elven_privacy` e não é fallback compatível. Os repositórios preparados são `docker.io/elvenobservability/elven-collector`, `elven-ebpf` e `elven-profiler`. `digest: null`/`not-published` no lock de promoção continua intencional: produção permanece bloqueada até publicação, assinatura e verificação; um digest de archive local não prova disponibilidade anônima no registry.
+Os archives OCI de desenvolvimento da rodada de hardening eram evidência local, não imagens publicadas. A [release v1.0.0](release-v1.0.0.md) posterior aponta para imagens Elven assinadas, fixadas pelos digests promovidos. O Collector upstream não contém o processor próprio `elven_privacy` e não é fallback compatível.
 
 ## SDKs e Operator Elven opcionais — 03/11/2026
 

@@ -1,5 +1,7 @@
 # Instalação, dimensionamento e operação
 
+Para a primeira instalação, comece pelo [guia de instalação](installation.md).
+
 ## Contrato da CLI
 
 | Comando | Efeito |
@@ -17,9 +19,9 @@ Operações online usam `--context` explícito. Operações mutantes exigem `--e
 
 `status`, `rollback` e `uninstall` obtêm a configuração da ConfigMap de settings da release instalada, verificando ownership Helm; não dependem do arquivo values original, do render atual ou da disponibilidade dos backends. O nome lógico instalado é recuperado; se um `--cluster-name` for fornecido e divergir, a CLI rejeita. `status` e `uninstall` não precisam de Secrets válidos. O rollback não exige PKI ainda válida nem imagens novas promovidas, mas precisa comprovar a identidade da ingestão/storage e a compatibilidade da revisão alvo para não reabrir um WAL antigo em outro tenant.
 
-Nesta revisão candidata, `publicationStatus` ainda não é `verified`: `preflight/install/upgrade` de produção permanecem bloqueados. O mantenedor precisa concluir a promoção de imagens assinadas descrita em [supply chain](supply-chain.md), com repository/digest selecionados iguais aos aprovados. O `helmfile.yaml` da raiz não contém releases ou hooks; não é uma segunda via de instalação sem esse gate.
+A [release v1.0.0](release-v1.0.0.md) tem locks promovidos. A CLI continua exigindo `publicationStatus: verified` e repository/digest selecionados iguais aos aprovados. O `helmfile.yaml` da raiz não contém releases ou hooks e não instala a distribuição.
 
-Use `--help` para a interface completa. Os exemplos abaixo usam release `elven`, namespace `elven-observability`, domínio `cluster.local` e as variáveis preparadas no README. Se alterar esses parâmetros, ajuste comandos, certificados, clientes e consultas de diagnóstico.
+Use `--help` para a interface completa. Os exemplos abaixo usam release `elven`, namespace `elven-observability`, domínio `cluster.local` e as variáveis do [guia de instalação](installation.md#prepare-os-perfis-e-a-identidade). Se alterar esses parâmetros, ajuste comandos, certificados, clientes e consultas de diagnóstico.
 
 Comandos externos e checagens de autorização têm deadline padrão de 120 segundos. Operações Helm de instalação/upgrade/rollback/uninstall com `--timeout` recebem o prazo solicitado mais 90 segundos de margem; um rollout de 600s não é encerrado pelo limite genérico de 120s. Timeout suprime argumentos/stdout/stderr e deixa a conclusão **UNKNOWN**: uma escrita pode ter sido efetivada antes da perda de resposta. A CLI não tenta limpar ou adotar recursos nesse caso; confirme o estado antes de repetir, especialmente se uma reserva de PVC ficou pendente.
 

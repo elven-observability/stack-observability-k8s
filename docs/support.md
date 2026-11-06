@@ -1,8 +1,8 @@
 # Suporte, compatibilidade e critérios de release
 
-Data da rodada de hardening: 03/11/2026. A distribuição é um candidato da linha 1.0. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes. Evidência de 29/10 é histórica e não valida automaticamente o novo processor ou Operator.
+Rodada de hardening: 03/11/2026. A [release v1.0.0](release-v1.0.0.md) foi publicada. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes. Evidência de 29/10 é histórica e não valida automaticamente o novo processor ou Operator.
 
-**Não está liberada para instalação de produção enquanto a publicação/assinatura/promoção das imagens Elven permanecer pendente.** A CLI exige lock `verified` e correspondência dos repository/digests selecionados; não faz fallback para contrib upstream ou `latest`. `--development-images` existe somente para ensaio explicitamente aceito e não amplia o suporte declarado. Recuperação de uma release já instalada não depende desse gate nem da disponibilidade do SaaS.
+A CLI exige lock `verified` e correspondência dos repository/digests selecionados; não faz fallback para contrib upstream ou `latest`. Use o [guia de instalação](installation.md) e valide o piloto no ambiente-alvo. `--development-images` existe somente para ensaio explicitamente aceito e não amplia o suporte declarado. Recuperação de uma release já instalada não depende desse gate nem da disponibilidade do SaaS.
 
 ## Matriz declarada
 
