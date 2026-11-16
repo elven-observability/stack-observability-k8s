@@ -1,0 +1,53 @@
+# Copie para cliente.toml. Este arquivo não contém token e não é executado como shell.
+# As listas vazias são intencionais: o plano bloqueia até o escopo ser aprovado.
+[alvo]
+kubeconfig = "~/.kube/config"
+contexto = ""
+# UID de kube-system obtido de um contexto já confirmado com a equipe do cliente.
+uid_cluster = ""
+nome_cluster = ""
+dominio_cluster = "cluster.local"
+# Identificador exato do tenant; solicite o token NOVO pelo canal seguro separado.
+tenant_id = ""
+# Namespace e releases são fixos neste kit: elven-observability / elven / elven-operator.
+
+[storage]
+classe = ""
+tamanho = "2Gi"
+
+[coleta]
+# A mesma lista delimita ingresso OTLP, stdout/stderr quando ligado e métricas de
+# estado Kubernetes quando ligadas. Use somente namespaces já criados e aprovados.
+namespaces = []
+logs_stdout = false
+acesso_host_logs_aprovado = false
+# Se logs forem ligados, informe labels de um pool Linux piloto ou aprove
+# explicitamente todos os nodes elegíveis; nunca presuma cobertura total.
+seletor_nodes_logs = {}
+todos_nodes_elegiveis_aprovados = false
+metricas_estado_k8s = false
+# selective mascara padrões conhecidos sem apagar o corpo inteiro. strict apaga o corpo.
+privacidade_logs = "selective"
+
+[instrumentacao]
+# Subconjunto de coleta.namespaces. Ainda exige opt-in por Pod no GitOps.
+namespaces = []
+java = true
+nodejs = false
+nodejs20 = false
+excecao_eol_nodejs20_aprovada = false
+python = false
+# Fração para traces raiz; não controla logs/métricas. "1" é 100% no piloto.
+amostragem_traces = "1"
+
+[rede]
+# Destinos HTTPS SaaS Elven autorizados, observados com o CNI do cliente.
+cidrs_exportacao = []
+# Origem efetiva do apiserver para o webhook, inclusive após NAT.
+cidrs_origem_webhook = []
+# Egress para API Kubernetes: obrigatório se metricas_estado_k8s = true.
+cidrs_api_k8s = []
+# Defaults típicos; confirme no cliente. DNS local ao node pode exigir CIDR explícito.
+namespace_dns = "kube-system"
+labels_pods_dns = { "k8s-app" = "kube-dns" }
+cidrs_dns = []

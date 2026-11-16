@@ -1,5 +1,12 @@
 # Changelog
 
+## Kit público v1.0.0 — 16/11/2026
+
+- Kit completo para download no GitHub: `./instalar`, bootstrap, modelo TOML e pacote original da stack, sem credenciais ou configurações de clientes.
+- Fluxo guiado: preflight de leitura, revisão dos manifests e confirmação explícita antes da primeira escrita; token sem eco e reutilização apenas de Secret próprio do mesmo tenant.
+- Fonte em `kit/`, build determinístico com lista fechada de arquivos, checksum e manifesto vinculados ao commit. CI exercita terminal real, recusas, ZIP e renders do pacote oficial; não é aceite de produção do cliente.
+- A tag de build, as oito imagens e os assets originais da release permanecem inalterados.
+
 ## 1.0.0 — imagens assinadas e promovidas
 
 - Instalação opcional do núcleo e Operator por um único `./elven install/upgrade --instrumentation-values ...`, com validação local antes das escritas e estado parcial explícito em falha da segunda fase.

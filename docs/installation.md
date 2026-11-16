@@ -1,12 +1,18 @@
 # Instalação de produção
 
-Este guia é para a equipe de plataforma. Escolha um caminho: **preparar o kit com a Elven** para quem vai executar `./instalar`, ou **instalar pela CLI** a partir da release pública. O kit e o pacote público são entregas diferentes.
+Este guia é para a equipe de plataforma. Escolha um caminho: **baixar o kit completo com `./instalar`** ou **instalar pela CLI** a partir do pacote técnico. Ambos estão no GitHub; não é necessário obter arquivos da máquina da Elven.
 
-## Preparar o kit com a Elven
+## Instalar com o kit público
 
-Na pasta do kit, siga `plataforma/PREPARAR.md`. A plataforma preenche `plataforma/cliente.toml` com a identidade do cluster, o tenant, o storage, a rede e o escopo autorizado. Defina os namespaces em `coleta.namespaces` e habilite a leitura de logs de containers somente se aprovada. Instrumentação de aplicação tem escopo próprio, dentro dos namespaces autorizados.
+Baixe `elven-instalacao-v1.0.0.zip` e `elven-instalacao-v1.0.0.zip.sha256` na [release v1.0.0](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.0). Confira o checksum antes de extrair. O ZIP inclui launcher, bootstrap, modelo TOML e o pacote técnico original, com SHA-256 fixado. O [manifesto do kit](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.manifest.json) vincula os arquivos à revisão Git do instalador. A tag, as imagens e o pacote original da v1.0.0 não são substituídos.
 
-Gere e confira o plano com o bootstrap, que consulta o cluster mas não instala recursos. Entregue o kit completo com `plataforma/cliente.toml` e a revisão correspondente em `plataforma/revisao-v1.0.0/`. Não inclua token nem kubeconfig. Quem instala usa um terminal preparado, com acesso ao cluster, e recebe o token por canal seguro. O kit pede o token sem eco se o Secret próprio não existir e só reutiliza a credencial de um Secret compatível com a instalação e o tenant.
+Siga [Preparar a configuração](../kit/plataforma/PREPARAR.md), também incluído no download. Preencha `plataforma/cliente.toml` uma vez, sem token, e rode `./instalar`. O modo guiado gera o plano de leitura e exige confirmação explícita antes da primeira escrita. Cancelar não cria aprovação; reexecuções conferem os hashes dos arquivos aprovados. Mudanças de configuração exigem preservar e revisar outro plano. O token é pedido sem eco só quando não há Secret próprio compatível com o tenant.
+
+### Fonte, testes e reprodução
+
+O diretório [`kit/`](../kit/COMECE-AQUI.md) contém a fonte pública. Quem clonar o repositório pode configurar `kit/plataforma/cliente.toml` e usar `cd kit && ./instalar`; se faltar o pacote interno, ele é baixado apenas da URL oficial por HTTPS e conferido pelo hash fixado. O ZIP já inclui o pacote e não depende desse download adicional.
+
+Mantenedores podem gerar o ZIP a partir de um checkout **limpo e commitado**, sem arquivos de cliente, usando `python3 -I scripts/package-install-kit.py --output-dir .artifacts/install-kit`. O builder usa uma lista fechada de arquivos, recusa sobrescrita e gera ZIP determinístico, manifesto e checksum. O workflow `install-kit.yaml` executa testes do bootstrap, aprovação, launcher, ZIP e renders reais, sem cluster. Não sobrescreva um asset já publicado: mudanças posteriores exigem outro nome/versão de kit e nova validação.
 
 ## Instalar pela CLI da release
 

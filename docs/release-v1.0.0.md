@@ -31,6 +31,10 @@ O ZIP técnico da primeira tentativa foi preservado com SHA-256 `b70bbc6f11f8ee6
 
 ## Instalação em uma chamada
 
+Para o caminho guiado, baixe [elven-instalacao-v1.0.0.zip](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.zip) e seu [.zip.sha256](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.zip.sha256), confira o checksum e extraia. Preencha o modelo `plataforma/cliente.toml` uma vez e rode `./instalar`. O kit inclui o pacote original abaixo, gera o plano, pede aprovação explícita e solicita o token sem eco quando necessário. A [fonte versionada](../kit/COMECE-AQUI.md) e o [manifesto](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.manifest.json) permitem rastrear o bootstrap separado da tag de build. Adicionar o kit não altera as imagens, os locks ou os assets originais.
+
+Como alternativa para operadores da plataforma que preferem a CLI diretamente:
+
 Baixe o asset `elven-observability-v1.0.0.tar.gz`, confira SHA256SUMS e revise os dois perfis e arquivos privados. Dentro do pacote:
 
 ```bash

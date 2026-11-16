@@ -1,4 +1,7 @@
 .DS_Store
+kit/plataforma/cliente.toml
+kit/plataforma/revisao-v*/
+kit/plataforma/elven-observability-v*.tar.gz
 elven-prometheus/values-prometheus.rendered.yaml
 bootstrap/*.env
 !bootstrap/*.env.example

@@ -1,0 +1,71 @@
+name: Validate public Elven install kit
+
+on:
+  pull_request:
+    paths: ['kit/**', 'scripts/package-install-kit.py', 'tests/test_install_kit*.py', '.github/workflows/install-kit.yaml']
+  push:
+    branches: [main]
+    paths: ['kit/**', 'scripts/package-install-kit.py', 'tests/test_install_kit*.py', '.github/workflows/install-kit.yaml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KUBECONFIG: /dev/null
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  kit:
+    name: Public kit / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install checksum-pinned Helm for offline renders
+        shell: bash
+        run: |
+          set -euo pipefail
+          task_tools_dir="$RUNNER_TEMP/elven-kit-tools"
+          mkdir -p "$task_tools_dir/bin"
+          cd "$task_tools_dir"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://get.helm.sh/helm-v4.3.1-linux-amd64.tar.gz --output helm.tar.gz
+          printf '%s\n' '0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b  helm.tar.gz' | sha256sum -c -
+          tar -xzf helm.tar.gz linux-amd64/helm
+          install -m 0755 linux-amd64/helm bin/helm
+          printf '%s\n' "$task_tools_dir/bin" >> "$GITHUB_PATH"
+      - name: Fetch only the checksum-pinned base release
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'ELVEN_TEST_ARCHIVE=%s/elven-observability-v1.0.0.tar.gz\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          ELVEN_TEST_ARCHIVE="$RUNNER_TEMP/elven-observability-v1.0.0.tar.gz" python -I -c \
+            'import os,pathlib,runpy; m=runpy.run_path("kit/plataforma/instalar.py"); pathlib.Path(os.environ["ELVEN_TEST_ARCHIVE"]).write_bytes(m["baixar_pacote"]())'
+      - name: Bootstrap, approval, ZIP and real render contracts; no cluster
+        run: |
+          sh -n kit/instalar
+          python -m unittest discover -s tests -p 'test_install_kit*.py' -v
+      - name: Build the exact clean source kit
+        run: >-
+          python -I scripts/package-install-kit.py
+          --bundle "$ELVEN_TEST_ARCHIVE"
+          --output-dir "$RUNNER_TEMP/elven-public-kit"
+      - name: Preserve the reproducible kit and checksums
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elven-public-kit-python-${{ matrix.python-version }}
+          path: ${{ runner.temp }}/elven-public-kit/*
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -ne 0 ]; then
+    printf '%s\n' 'Uso: ./instalar (sem argumentos nem token na linha de comando)' >&2
+    exit 2
+fi
+
+kit_dir=$(CDPATH='' cd -P "$(dirname "$0")" && pwd -P)
+plataforma="$kit_dir/plataforma"
+
+if [ ! -f "$plataforma/cliente.toml" ]; then
+    printf '%s\n' 'Falta a configuração do seu ambiente.' \
+        'Preencha plataforma/cliente.toml usando cliente.exemplo.toml; veja plataforma/PREPARAR.md.' \
+        'Não coloque o token nesse arquivo. Nenhum token foi solicitado nem recurso instalado.' >&2
+    exit 1
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' 'Use um terminal com Python 3.11 ou superior; veja plataforma/PREPARAR.md.' >&2
+    exit 1
+fi
+
+printf '%s\n' 'Elven Observability 1.0.0' 'Conferindo a configuração do ambiente…'
+exec python3 -I "$plataforma/instalar.py" guiado \
+    --pacote "$plataforma/elven-observability-v1.0.0.tar.gz" \
+    --config "$plataforma/cliente.toml" \
+    --revisao "$plataforma/revisao-v1.0.0"
