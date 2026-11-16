@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — qualificação SaaS de 16/11/2026
+
+- Installer verifica a injeção real de cada namespace/runtime por admission dry-run após Helm; timeout/fail-open não é mais confundido com SDK instalado. Nenhum Pod de probe é persistido e aplicações não recebem restart automático.
+- Métricas preservam dimensões operacionais antigas/novas e pools, heap, GC e estados de runtime, após sanitização. Labels de payload/SQL/usuário não são liberadas como dimensões arbitrárias.
+- Identidades Kubernetes sanitizadas são promovidas explicitamente a dimensões OTLP, sem depender de configuração específica do backend. A candidata do Operator usa `env,serviceinstance` em Node para evitar alias de métricas entre processos; requer nova imagem assinada/promovida antes de chegar à instalação publicada.
+- eBPF tem orçamento independente do Collector e exclui SDKs detectados por padrão. Seletores disjuntos evitam a duplicação/correlação incompleta observada no ensaio; privilégios adicionais continuam desabilitados.
+- Novos fixtures de laboratório Go, .NET 10 e PHP 8.5 por digest, sem SDK embutido. O piloto comprovou HTTP por eBPF nessas aplicações, não instrumentação interna universal ou novos módulos de injeção.
+- Pesquisa upstream atualizada em `docs/versions.md`; não move tags, troca imagens/locks ou regrava os kits imutáveis da v1.0.0.
+
 ## Kit público v1.0.0 — 16/11/2026
 
 - Kit completo para download no GitHub: `./instalar`, bootstrap, modelo TOML e pacote original da stack, sem credenciais ou configurações de clientes.

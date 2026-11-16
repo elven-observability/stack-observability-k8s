@@ -57,6 +57,29 @@ def all_modules():
 
 
 class ChartTests(unittest.TestCase):
+    def test_ebpf_budget_is_independent_of_the_node_collector_budget(self):
+        values = all_modules()
+        values["nodeAgent"] = {"resources": {"requests": {"cpu": "75m", "memory": "96Mi"},
+                                             "limits": {"cpu": "250m", "memory": "192Mi"}}}
+        values["modules"]["ebpf"]["resources"] = {"requests": {"cpu": "150m", "memory": "256Mi"},
+                                                   "limits": {"cpu": "1", "memory": "1Gi"}}
+        daemon = next(obj for obj in objects(values) if obj["kind"] == "DaemonSet")
+        containers = {c["name"]: c for c in podspec(daemon)["containers"]}
+        self.assertEqual(containers["collector"]["resources"], values["nodeAgent"]["resources"])
+        self.assertEqual(containers["beyla"]["resources"], values["modules"]["ebpf"]["resources"])
+        self.assertFalse(containers["beyla"]["securityContext"]["privileged"])
+        self.assertNotIn("SYS_ADMIN", containers["beyla"]["securityContext"]["capabilities"]["add"])
+
+    def test_ebpf_prefers_existing_sdk_unless_overlap_is_explicit(self):
+        for exclude in (True, False):
+            values = all_modules()
+            values["modules"]["ebpf"]["excludeSDKInstrumentedServices"] = exclude
+            rendered = objects(values)
+            configmap = next(obj for obj in rendered if obj["kind"] == "ConfigMap" and obj["metadata"]["name"].endswith("-node"))
+            config = yaml.safe_load(configmap["data"]["beyla.yaml"])
+            self.assertIs(config["discovery"]["exclude_otel_instrumented_services"], exclude)
+        self.assertTrue(DEFAULTS["modules"]["ebpf"]["excludeSDKInstrumentedServices"])
+
     def test_lint(self):
         result = subprocess.run(["helm", "lint", str(CHART), "--strict", "--kube-version", "1.37.0"],
                                 text=True, capture_output=True)

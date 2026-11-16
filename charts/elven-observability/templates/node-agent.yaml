@@ -193,7 +193,7 @@ data:
       exclude_instrument:
         - k8s_namespace: {{ .Release.Namespace | quote }}
         - k8s_namespace: kube-system
-      exclude_otel_instrumented_services: false
+      exclude_otel_instrumented_services: {{ .Values.modules.ebpf.excludeSDKInstrumentedServices }}
       disabled_route_harvesters: [java, nodejs, go]
     ebpf:
       context_propagation: disabled
@@ -311,6 +311,7 @@ spec:
           env:
             - {name: BEYLA_CONFIG_PATH, value: /etc/elven/config/beyla.yaml}
             - {name: BEYLA_ENFORCE_SYS_CAPS, value: "1"}
+            - {name: OTEL_EBPF_KUBE_CLUSTER_NAME, value: {{ .Values.cluster.name | quote }}}
             - {name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces"}
             - name: K8S_NODE_NAME
               valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
@@ -328,7 +329,7 @@ spec:
             seccompProfile: {type: Unconfined}
             appArmorProfile: {type: Unconfined}
           resources:
-            {{- toYaml .Values.nodeAgent.resources | nindent 12 }}
+            {{- toYaml .Values.modules.ebpf.resources | nindent 12 }}
           volumeMounts:
             - {name: config, mountPath: /etc/elven/config, readOnly: true}
             - {name: beyla-run, mountPath: /var/run/beyla}

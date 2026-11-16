@@ -2,12 +2,29 @@
 
 Seleção inicial do núcleo em **29/10/2026**; hardening de SDKs, Operator, tooling e novos scans em **03/11/2026**, com releases oficiais, manifests OCI e advisories públicos. As fontes consumíveis por automação são [`versions.lock.json`](../versions.lock.json) e o lock independente [`instrumentation.lock.json`](../instrumentation.lock.json). Tags nunca substituem os digests no deployment. Não usar `latest`.
 
+## Pesquisa atualizada — 16/11/2026
+
+Esta pesquisa não substitui os digests assinados da v1.0.0 nem aprova automaticamente uma atualização. O piloto SaaS usa as imagens Elven promovidas; as correções de chart/installer são uma candidata separada, não uma alteração silenciosa do ZIP publicado.
+
+| Upstream verificado | Novidade / decisão |
+|---|---|
+| [OBI 1.0.0, 30/10](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v1.0.0) | Primeira versão estável; configuração v2 e matriz de suporte precisam de qualificação própria. Métricas de runtime experimentais não viram substituto universal de SDK. |
+| [Beyla 3.41.0, 04/11](https://github.com/grafana/beyla/releases/tag/v3.41.0) | Inclui sanitização SQL opt-in de literais em `db.query.text`. A imagem Elven v1.0.0 permanece no 3.40.0; não habilitar captura de parâmetros/payload para obter mais detalhe. |
+| [Collector 0.165.0, 07/11](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.165.0) | Candidato a novo build mínimo Elven, não troca direta pelo contrib completo. Repetir regressões de privacy/WAL, SCA, SBOM, assinatura e gates nativos. |
+| [Auto-instrumentação Node 0.83.1, 12/11](https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.83.1) | Candidata; a imagem atual continua 0.82.0. Validar CJS/ESM, dependências e mTLS antes de promover. |
+| [Java agent 2.33.1](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1) | Já é a base pinada e exercitada com Java 17/21. Python pinado 0.66b2/SDK 1.45.2 foi exercitado com Flask/sqlite3; continua beta. |
+| [Operator upstream 0.163.0, 11/11](https://github.com/open-telemetry/opentelemetry-operator/releases/tag/v0.163.0) | Referência técnica atualizada; não é dependência de runtime do nosso webhook Elven mínimo. |
+
+Arquitetura qualificada por sinal: SDK como autoridade de spans internos/runtime; eBPF complementar em deployments sem SDK; logs stdout por namespace aprovado; sanitização recursiva antes do WAL/export. O ensaio com SDK+eBPF no mesmo processo produziu traces paralelos sem correlação completa; o padrão da candidata exclui SDKs detectados e recomenda seletores disjuntos. Não é seguro vender isso como “captura tudo”.
+
+Para ampliar os canários, foram selecionados [Go 1.27.3](https://go.dev/doc/devel/release), [.NET 10 LTS com servicing 10.0.15](https://dotnet.microsoft.com/en-us/platform/support/policy) e [PHP 8.5.12](https://www.php.net/downloads.php), com imagens de laboratório por digest e sem ingress público. Esses fixtures não equivalem a novos módulos de auto-injeção ou imagens SDK Elven promovidas. A [limitação documentada de sqlite3](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/sqlite3/sqlite3.html) requer cursor explícito; `connection.execute` não foi apresentado como caminho coberto.
+
 ## Runtimes selecionados
 
 | Papel Elven | Upstream | Release | Justificativa / exceção |
 |---|---|---|---|
 | Collector | Elven mínimo: OCB/core **0.164.0**, contrib **0.164.1** | [core/artefatos de 26/10/2026](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0) | Exceção de segurança: o runtime completo oficial tem CVE High publicada após a release. Build com Go 1.27.3, go-jose 4.1.6 quando transitivo e x/net 0.62.0. O [patch contrib 0.164.1](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.164.1) corrige módulos OTTL; não presumir imagem oficial `:0.164.1`. |
-| eBPF opcional | Grafana Beyla **3.40.0** | [26/10/2026](https://github.com/grafana/beyla/releases/tag/v3.40.0) | Maior versão estável publicada. Um patch da série antiga 3.38.1 saiu depois: ordenar releases por data, sozinho, selecionaria a série errada. |
+| eBPF opcional | Grafana Beyla **3.40.0** | [26/10/2026](https://github.com/grafana/beyla/releases/tag/v3.40.0) | Versão selecionada no snapshot da v1.0.0, não a mais nova em 16/11. Um patch da série antiga 3.38.1 saiu depois: ordenar releases por data, sozinho, selecionaria a série errada. |
 | Profiler opcional | Grafana Alloy **1.21.3** | [28/10/2026](https://github.com/grafana/alloy/releases/tag/v1.21.3) | Componentes nativos para pprof/eBPF. O runtime mantém suas dependências upstream integradas (OTel 0.162.0, Beyla 3.38.1), não substituídas manualmente. O chart usa o Beyla standalone quando habilitado. |
 
 Os três manifests OCI upstream foram consultados anonimamente, incluindo `linux/amd64` e `linux/arm64`; seus digests estão no lock. **Isso não é execução nativa em ambas as arquiteturas.** Beyla/Alloy preservam os runtimes upstream. O Collector passa a ser build mínimo próprio devido ao achado de segurança, com receita pública/revisável, componentes pinados e informações de build incluídas na imagem.
@@ -34,7 +51,7 @@ Nos scans SDK de 03/11, os dois perfis Node mantêm achados Medium **CVE-2026-11
 ## Mudanças upstream que afetam a arquitetura
 
 - Alloy 1.21 passou a exigir `--stability.level=experimental` para `loki.write.wal.enabled=true`; sem a flag a configuração não carrega. O caminho de logs duráveis desta distribuição utiliza as filas persistentes do Collector, não esse WAL experimental. [Release 1.21.0](https://github.com/grafana/alloy/releases/tag/v1.21.0).
-- Beyla foi doado ao OpenTelemetry como **OBI**. O upstream OBI está em [0.15.2](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v0.15.2), de 16/10/2026. A migração de código não torna os números/configurações intercambiáveis nem significa abandono do runtime Beyla atualmente publicado. [Aviso do projeto](https://github.com/grafana/beyla/blob/v3.40.0/README.md#important-update-for-current-and-future-beyla-contributors).
+- Beyla foi doado ao OpenTelemetry como **OBI**. A revisão inicial consultou [0.15.2](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v0.15.2), de 16/10/2026; a pesquisa de 16/11 já confirma **1.0.0**. A migração de código não torna os números/configurações intercambiáveis nem significa abandono do runtime Beyla atualmente publicado. [Aviso do projeto](https://github.com/grafana/beyla/blob/v3.40.0/README.md#important-update-for-current-and-future-beyla-contributors).
 - Grafana Agent está EOL desde [01/11/2025](https://grafana.com/docs/agent/latest/); Promtail desde [02/03/2026](https://grafana.com/docs/loki/latest/send-data/promtail/). Não fazem parte da nova distribuição.
 - Pyroscope [2.4.2](https://github.com/grafana/pyroscope/releases/tag/v2.4.2), de 26/10/2026, é o backend e usa AGPLv3. Não é necessário instalar esse backend no cluster cliente para exportar profiles com Alloy. As três imagens entregues usam projetos principais Apache-2.0; dependências mantêm suas próprias licenças.
 

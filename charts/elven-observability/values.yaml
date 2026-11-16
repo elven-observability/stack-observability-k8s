@@ -93,6 +93,14 @@ modules:
   ebpf:
     enabled: false
     hostAccessApproved: false
+    # Prefer the SDK for an already instrumented process. Disable only for an
+    # explicit overlap experiment; dual HTTP spans are not extra coverage.
+    excludeSDKInstrumentedServices: true
+    # Separate from the Collector: kernel/program startup can peak well above
+    # steady RSS. Measure one worker before scaling; this is not a sizing SLA.
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: "1", memory: 1Gi}
     # Distribution floor: Linux >=5.11 with BTF. No automatic SYS_ADMIN fallback.
     additionalCapabilities: []
     additionalCapabilitiesApproved: false

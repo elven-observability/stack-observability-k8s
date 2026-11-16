@@ -535,9 +535,9 @@ func runtimeEnvironment(runtime, endpoint, namespace, serviceName, ratio string)
 	case "java":
 		values = append(values, [2]string{"JAVA_TOOL_OPTIONS", "-javaagent:" + sdkMount + "/javaagent.jar"}, [2]string{"OTEL_INSTRUMENTATION_COMMON_DB_QUERY_SANITIZATION_ENABLED", "true"})
 	case "nodejs", "nodejs20":
-		// Stable service and namespace attributes are supplied explicitly. Do not
-		// probe cloud metadata or collect process arguments from an application.
-		values = append(values, [2]string{"NODE_OPTIONS", "--require=" + sdkMount + "/autoinstrumentation.js"}, [2]string{"OTEL_NODE_RESOURCE_DETECTORS", "env"})
+		// An SDK-generated per-process instance ID prevents metric aliasing
+		// between replicas. Neither detector probes cloud/host/process metadata.
+		values = append(values, [2]string{"NODE_OPTIONS", "--require=" + sdkMount + "/autoinstrumentation.js"}, [2]string{"OTEL_NODE_RESOURCE_DETECTORS", "env,serviceinstance"})
 	case "python":
 		values = append(values, [2]string{"PYTHONPATH", sdkMount + "/opentelemetry/instrumentation/auto_instrumentation:" + sdkMount}, [2]string{"OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED", "true"})
 	}

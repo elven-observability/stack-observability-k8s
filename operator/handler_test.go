@@ -619,7 +619,7 @@ func TestServiceIdentityIsStableAndCannotInjectResourceAttributes(t *testing.T) 
 func TestNodeSDKUsesOnlyExplicitEnvironmentResourceDiscovery(t *testing.T) {
 	for _, runtime := range []string{"nodejs", "nodejs20"} {
 		env := environment(t, []patchOperation{{Op: "add", Path: "/env", Value: runtimeEnvironment(runtime, "https://elven-gateway:4318", "elven-demo", "elven-service", "1")}})
-		if env["OTEL_NODE_RESOURCE_DETECTORS"] != "env" {
+		if env["OTEL_NODE_RESOURCE_DETECTORS"] != "env,serviceinstance" {
 			t.Fatal("Node SDK probes cloud metadata or process arguments")
 		}
 		if env["OTEL_SERVICE_NAME"] != "elven-service" || !strings.Contains(env["OTEL_RESOURCE_ATTRIBUTES"], "k8s.namespace.name=elven-demo") {

@@ -52,7 +52,7 @@ O contrato completo está em `charts/elven-observability/values.yaml` e no schem
 | Destinos | `endpoints.logs/metrics/traces/profiles`, sempre HTTPS validado. |
 | Gateway/storage | `gateway.resources`, `gateway.persistence.enabled/size/storageClass`, `gateway.queueSizeBytes`, `gateway.terminationGracePeriodSeconds`. |
 | Escopo | `collection.namespaces`, `modules.*.enabled`, aprovações de host e workloads/targets explícitos. Estado cluster-wide sem namespaces exige `modules.clusterMetrics.clusterWideApproved: true`. |
-| Recursos opcionais | `nodeAgent.resources`, `clusterMetrics.resources`, `profiles.resources`, selectors/tolerations e `nodeAgent.hostAliases` revisados. |
+| Recursos opcionais | `nodeAgent.resources`, `modules.ebpf.resources` (independente do Collector), `clusterMetrics.resources`, `profiles.resources`, selectors/tolerations e `nodeAgent.hostAliases` revisados. |
 | Rede/portas | `ports`, `modules.kubeletMetrics.port`, `networkPolicy.*CIDRs`, `apiServerPorts`, `profilePorts`. |
 | TLS kubelet | `modules.kubeletMetrics.endpointAddress` (`ip` ou `hostname`), `caFile`, `caSecretName`; o endereço precisa coincidir com SAN e resolver corretamente. |
 | Privacidade | `privacy.logBodyMode`: `selective` por padrão; `strict` remove o corpo inteiro; `redact` é alias legado de seletivo. Links preservados são sanitizados recursivamente. Nenhum modo garante detectar qualquer PII de negócio. |
@@ -72,11 +72,13 @@ Valores de configuração, não consumo medido:
 |---|---|---|
 | Gateway | 100m / 128Mi | 1 CPU / 512Mi |
 | Collector de node | 100m / 128Mi | 500m / 256Mi |
-| Beyla, quando habilitado | 100m / 128Mi adicionais por node | 500m / 256Mi adicionais por node |
+| Beyla, quando habilitado | 100m / 256Mi adicionais por node | 1 CPU / 1Gi adicionais por node |
 | Coletor de estado Kubernetes | 100m / 128Mi | 500m / 256Mi |
 | Profiles | 100m / 128Mi | 500m / 256Mi |
 
-Conferir o manifesto renderizado para sidecars e módulos habilitados, inclusive Beyla. Collector de node + Beyla reservam 200m/256Mi e somam limites de 1 CPU/512Mi por node com os valores acima. Um DaemonSet multiplica sua reserva por node elegível; limites de containers não incluem todo o trabalho dos probes no kernel. Cardinalidade, volume de logs, RPS, número de processos, targets pprof e métricas do cluster alteram CPU/RAM/I/O. Não reaproveitar benchmarks de templates/clientes anteriores como prova desta revisão.
+Conferir o manifesto renderizado para sidecars e módulos habilitados, inclusive Beyla. Collector de node + Beyla reservam 200m/384Mi e somam limites de 1,5 CPU/1280Mi por node com os valores acima. O orçamento de eBPF é separado: no piloto SaaS de 16/11, 256Mi causou OOM de startup; 1Gi permitiu o teste em um worker, sem constituir sizing universal. Um DaemonSet multiplica sua reserva por node elegível; limites de containers não incluem todo o trabalho dos probes no kernel. Cardinalidade, volume de logs, RPS, número de processos, targets pprof e métricas do cluster alteram CPU/RAM/I/O. Não reaproveitar benchmarks de templates/clientes anteriores como prova desta revisão.
+
+O padrão `modules.ebpf.excludeSDKInstrumentedServices: true` prioriza SDKs já detectados. Use SDKs para a visibilidade interna e eBPF em workloads sem SDK; desative a exclusão somente em comparação explícita e com readback de duplicidade/correlação. O detector não é uma garantia universal: mantenha também a seleção de deployments disjunta quando possível. Não liberar HTTP bodies, bind values ou privilégios adicionais para tentar obter cobertura universal.
 
 Começar em escopo pequeno, com baseline de aplicações e telemetria existente. Medir p95/p99 e erros das aplicações, CPU, throttling, memória, OOMs, I/O/fsync, volume usado, tamanho/capacidade da fila e taxa de exportação. Reduzir requests não reduz automaticamente o trabalho; limites apertados podem adicionar perda/backpressure.
 

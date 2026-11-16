@@ -73,12 +73,24 @@ data:
       # Sanitization is not cardinality control. Keep the reviewed operational
       # datapoint labels after recursive masking; numeric measurements and
       # sanitized exemplars remain intact.
+      # OTLP backends need not promote arbitrary resource attributes. Copy only
+      # the sanitized topology identity, or all namespace/deployment gauges can
+      # collapse into the same unlabelled Prometheus series.
+      transform/resource_dimensions:
+        error_mode: propagate
+        metric_statements:
+          - context: datapoint
+            statements:
+              {{- range $key := (include "elven.metricResourceKeys" . | fromJsonArray) }}
+              - 'set(attributes[{{ $key | quote }}], resource.attributes[{{ $key | quote }}]) where resource.attributes[{{ $key | quote }}] != nil'
+              {{- end }}
       transform/cardinality:
         error_mode: propagate
         metric_statements:
           - context: datapoint
             statements:
-              - 'keep_keys(attributes, ["http.request.method", "http.response.status_code", "rpc.system", "rpc.method", "rpc.service", "db.system", "messaging.system", "messaging.operation.type", "error.type", "exporter", "receiver", "processor", "connector", "transport", "data_type", "state", "type", "condition", "phase", "reason", "status", "outcome", "cpu", "mode", "direction", "protocol", "resource", "unit", "job", "instance", "elven_instance", "elven_release", "service.name", "service.namespace", "service.instance.id", "k8s.namespace.name", "k8s.node.name", "k8s.pod.name", "k8s.container.name", "k8s.deployment.name", "k8s.statefulset.name", "k8s.daemonset.name", "k8s.replicaset.name", "k8s.job.name", "k8s.cronjob.name", "k8s.volume.name", "k8s.persistentvolumeclaim.name", "container.name", "container.image.name", "namespace", "node", "pod", "container", "deployment", "le", "quantile", "method", "code"])'
+              - 'keep_keys(attributes, {{ include "elven.metricKeys" (dict "runtime" true) }}) where IsMatch(metric.name, "^(jvm|v8js|nodejs|cpython|process|system)[.]")'
+              - 'keep_keys(attributes, {{ include "elven.metricKeys" (dict "runtime" false) }}) where not IsMatch(metric.name, "^(jvm|v8js|nodejs|cpython|process|system)[.]")'
     exporters:
       {{- range $signal := list "logs" "metrics" "traces" }}
       otlp_http/{{ $signal }}:
@@ -129,7 +141,7 @@ data:
           exporters: [otlp_http/logs]
         metrics:
           receivers: [otlp{{ if .Values.selfMonitoring.enabled }}, prometheus/self{{ end }}]
-          processors: [memory_limiter, resource/identity, elven_privacy, transform/cardinality]
+          processors: [memory_limiter, resource/identity, elven_privacy, transform/resource_dimensions, transform/cardinality]
           exporters: [otlp_http/metrics]
         traces:
           receivers: [otlp]
