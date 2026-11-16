@@ -561,6 +561,16 @@ def require_promoted_images(settings, development=False):
     lock = json.loads(lock_path.read_text())
     if lock.get("distribution", {}).get("publicationStatus") != "verified":
         raise Failure("Production installation blocked: Elven images have not been published, signed and promoted. Follow docs/supply-chain.md. --development-images is only for an explicitly accepted disposable laboratory.")
+    # A valid historical signature is not a current vulnerability approval.
+    # Keep revocations separate from immutable publication/attestation records.
+    blocked = lock.get("runtimeBlocks", {})
+    if not isinstance(blocked, dict) or any(
+            not re.fullmatch(r"sha256:[0-9a-f]{64}", digest)
+            or not isinstance(entry, dict)
+            or entry.get("component") not in ("collector", "beyla", "alloy")
+            or not isinstance(entry.get("reason"), str) or not entry["reason"].strip()
+            for digest, entry in blocked.items()):
+        raise Failure("Invalid runtime security policy; installation is blocked. Use a complete reviewed distribution.")
     required = ["collector"]
     modules = settings.get("modules", {})
     if modules.get("ebpf", {}).get("enabled"):
@@ -574,6 +584,12 @@ def require_promoted_images(settings, development=False):
                 or selected.get("digest") != approved["digest"]
                 or selected.get("repository", "").removeprefix("docker.io/") != approved.get("repository", "").removeprefix("docker.io/")):
             raise Failure(f"images.{name} does not match the signed/promoted release lock. Promote and review the exact image first; no automatic fallback to upstream or latest.")
+        if selected["digest"] in blocked:
+            entry = blocked[selected["digest"]]
+            module = {"beyla": "ebpf", "alloy": "profiles"}.get(name)
+            action = (f" Disable modules.{module}.enabled until a replacement is signed, scanned and promoted."
+                      if module else " A signed, scanned and promoted replacement is required.")
+            raise Failure(f"Runtime security policy blocks images.{name}: {entry['reason']}.{action} See docs/versions.md; a historical signature is not a security waiver.")
 
 
 def instrumentation_module():

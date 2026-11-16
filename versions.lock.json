@@ -127,6 +127,25 @@
       }
     }
   },
+  "runtimeBlocks": {
+    "sha256:6cd5a07c5523dc42bc1abdf5d1de1f35a3f2800fcaee34023bad547cd80bf57d": {
+      "component": "alloy",
+      "observedAt": "2026-11-16T16:02:24Z",
+      "reason": "CVE-2026-78661 (golang.org/x/net v0.61.0) and CVE-2026-109518 (apt/libapt-pkg6.0t64 2.8.3), HIGH on both supported architectures",
+      "evidence": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514132",
+      "advisories": [
+        "https://pkg.go.dev/vuln/GO-2026-6860",
+        "https://ubuntu.com/security/notices/USN-8996-1"
+      ]
+    },
+    "sha256:be51d39658483814b3739f35a9ef876fc39a7f72892d7cc36daf496dfc77ab7f": {
+      "component": "beyla",
+      "observedAt": "2026-11-16T16:02:25Z",
+      "reason": "CVE-2026-78661 (golang.org/x/net v0.61.0), HIGH on both supported architectures",
+      "evidence": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514132",
+      "advisories": ["https://pkg.go.dev/vuln/GO-2026-6860"]
+    }
+  },
   "schemaVersion": 1,
   "support": {
     "beyla": {

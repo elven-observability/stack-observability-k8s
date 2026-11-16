@@ -65,6 +65,50 @@ class ProductionGateTests(unittest.TestCase):
             with self.subTest(module=module), self.assertRaisesRegex(cli.Failure, f"images.{image}"):
                 self.check_with_lock(value, settings)
 
+    def test_security_block_overrides_a_valid_historical_promotion(self):
+        for module, image in (("ebpf", "beyla"), ("profiles", "alloy")):
+            settings, value = selected_values(), approved_lock()
+            settings["modules"][module] = {"enabled": True}
+            digest = value["images"][image]["distribution"]["digest"]
+            value["runtimeBlocks"] = {digest: {"component": image, "reason": "CVE fixture"}}
+            with self.subTest(module=module), self.assertRaisesRegex(
+                    cli.Failure, f"security policy blocks images.{image}.*Disable modules.{module}"):
+                self.check_with_lock(value, settings)
+
+    def test_disabled_optional_modules_do_not_block_the_unaffected_collector(self):
+        value = approved_lock()
+        value["runtimeBlocks"] = {
+            image["distribution"]["digest"]: {"component": name, "reason": "CVE fixture"}
+            for name, image in value["images"].items() if name != "collector"}
+        self.check_with_lock(value)
+
+    def test_a_collector_security_block_cannot_be_disabled_as_an_optional_module(self):
+        value = approved_lock()
+        digest = value["images"]["collector"]["distribution"]["digest"]
+        value["runtimeBlocks"] = {digest: {"component": "collector", "reason": "CVE fixture"}}
+        with self.assertRaisesRegex(cli.Failure, "security policy blocks images.collector"):
+            self.check_with_lock(value)
+
+    def test_malformed_runtime_security_policy_fails_closed(self):
+        for policy in ([], {"invalid": {"component": "beyla", "reason": "CVE fixture"}},
+                       {"sha256:" + "a" * 64: None},
+                       {"sha256:" + "a" * 64: {"component": "collector", "reason": ""}},
+                       {"sha256:" + "a" * 64: {"component": "unknown", "reason": "CVE fixture"}}):
+            value = approved_lock()
+            value["runtimeBlocks"] = policy
+            with self.subTest(policy=policy), self.assertRaisesRegex(cli.Failure, "Invalid runtime security policy"):
+                self.check_with_lock(value)
+
+    def test_repository_policy_blocks_both_known_unsafe_optional_release_images(self):
+        value = json.loads((Path(__file__).resolve().parents[1] / "versions.lock.json").read_text())
+        settings = {"modules": {}, "images": {name: dict(image["distribution"])
+                    for name, image in value["images"].items()}}
+        self.check_with_lock(value, settings)
+        for module, image in (("ebpf", "beyla"), ("profiles", "alloy")):
+            settings["modules"] = {module: {"enabled": True}}
+            with self.subTest(module=module), self.assertRaisesRegex(cli.Failure, f"security policy blocks images.{image}"):
+                self.check_with_lock(value, settings)
+
     def test_development_opt_in_is_explicit_and_warns(self):
         output = io.StringIO()
         with contextlib.redirect_stderr(output), mock.patch.object(cli.Path, "read_text", side_effect=AssertionError("not needed")):

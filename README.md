@@ -2,6 +2,8 @@
 
 Envie logs, métricas e traces do seu cluster para a Elven. A instalação não depende dos agentes ou do gateway que você já usa.
 
+Aviso de 16/11/2026: **não habilite os módulos opcionais eBPF/profiles da v1.0.0**, que aguardam atualização de segurança. Eles já ficam desligados no kit padrão. [Detalhes e estado da correção](docs/versions.md#gate-atual-e-contenção).
+
 ## Instalar com o kit da Elven
 
 1. [Baixe o kit completo v1.0.0](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.zip), [confira o checksum](kit/plataforma/PREPARAR.md#verificação-do-download) e extraia em uma pasta nova.

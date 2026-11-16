@@ -123,6 +123,17 @@ jobs:
           path: artifacts/images
           if-no-files-found: error
           retention-days: 7
+      - name: Preserve bounded security reports without requiring an OCI archive download
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: elven-security-reports
+          path: |
+            artifacts/images/release.json
+            artifacts/images/*.vulnerabilities.json
+            artifacts/images/*.spdx.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Preserve the exact Collector archive separately for bounded native validation downloads
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

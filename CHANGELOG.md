@@ -2,6 +2,7 @@
 
 ## Unreleased — qualificação SaaS de 16/11/2026
 
+- Novo scan bloqueou Beyla/Alloy pinados: x/net CVE-2026-78661 e APT CVE-2026-109518, sem waiver. O piloto retirou eBPF, mantém SDKs e nunca habilitou profiling. A candidata da CLI recusa esses digests opcionais via política separada de sua promoção histórica; não altera retroativamente os ZIPs publicados.
 - Installer verifica a injeção real de cada namespace/runtime por admission dry-run após Helm; timeout/fail-open não é mais confundido com SDK instalado. Nenhum Pod de probe é persistido e aplicações não recebem restart automático.
 - Métricas preservam dimensões operacionais antigas/novas e pools, heap, GC e estados de runtime, após sanitização. Labels de payload/SQL/usuário não são liberadas como dimensões arbitrárias.
 - Identidades Kubernetes sanitizadas são promovidas explicitamente a dimensões OTLP, sem depender de configuração específica do backend. A candidata do Operator usa `env,serviceinstance` em Node para evitar alias de métricas entre processos; requer nova imagem assinada/promovida antes de chegar à instalação publicada.
