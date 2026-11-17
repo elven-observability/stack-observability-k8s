@@ -96,6 +96,45 @@ class Teste(unittest.TestCase):
         with self.assertRaises(B.Refusa):
             B.perfis(cfg.replace("seletor_nodes_logs = { \"pool\" = \"piloto\" }", "seletor_nodes_logs = {}").encode())
 
+    def ebpf_config(self):
+        return self.config.replace("cidrs_api_k8s = []", 'cidrs_api_k8s = ["203.0.113.8/32"]') + '''
+[ebpf]
+habilitado = true
+acesso_host_aprovado = true
+seletor_nodes = { pool = "piloto" }
+todos_nodes_elegiveis_aprovados = false
+aplicacoes = [{ namespace = "app-piloto", deployment = "api-sem-sdk" }]
+'''
+
+    def test_ebpf_is_explicit_disjoint_and_keeps_the_default_privilege_budget(self):
+        with patch.object(B, "VERSION", "1.0.1"):
+            _, core, _ = B.perfis(self.ebpf_config().encode())
+        ebpf = core["modules"]["ebpf"]
+        self.assertTrue(ebpf["enabled"])
+        self.assertTrue(ebpf["hostAccessApproved"])
+        self.assertTrue(ebpf["excludeSDKInstrumentedServices"])
+        self.assertEqual(ebpf["workloads"], [{"namespace": "app-piloto", "deployment": "api-sem-sdk"}])
+        self.assertEqual(core["nodeAgent"]["nodeSelector"], {"pool": "piloto"})
+        self.assertNotIn("additionalCapabilities", ebpf)
+
+    def test_ebpf_refuses_unapproved_or_ambiguous_scope(self):
+        for old, new in (("acesso_host_aprovado = true", "acesso_host_aprovado = false"),
+                         ('seletor_nodes = { pool = "piloto" }', "seletor_nodes = {}"),
+                         ('namespace = "app-piloto"', 'namespace = "fora"'),
+                         ('deployment = "api-sem-sdk"', 'deployment = "*"'),
+                         ('cidrs_api_k8s = ["203.0.113.8/32"]', "cidrs_api_k8s = []")):
+            with self.subTest(old=old), patch.object(B, "VERSION", "1.0.1"), self.assertRaises(B.Refusa):
+                B.perfis(self.ebpf_config().replace(old, new).encode())
+        with patch.object(B, "VERSION", "1.0.0"), self.assertRaisesRegex(B.Refusa, "kit corrigido"):
+            B.perfis(self.ebpf_config().encode())
+
+    def test_logs_and_ebpf_cannot_silently_expand_each_others_node_scope(self):
+        cfg = self.ebpf_config().replace("logs_stdout = false", "logs_stdout = true").replace(
+            "acesso_host_logs_aprovado = false", "acesso_host_logs_aprovado = true").replace(
+            "seletor_nodes_logs = {}", 'seletor_nodes_logs = { pool = "outro" }')
+        with patch.object(B, "VERSION", "1.0.1"), self.assertRaisesRegex(B.Refusa, "mesmo escopo"):
+            B.perfis(cfg.encode())
+
     def test_bad_bundle_refused_before_extraction(self):
         fake = self.tmp / "bad.tar.gz"
         fake.write_bytes(b"not the pinned package")

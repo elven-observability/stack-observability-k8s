@@ -30,6 +30,7 @@ class EbpfSourceBuildTests(unittest.TestCase):
         self.assertLess(patch, generation)
         self.assertIn("BPF_TARGETS=amd64,arm64", recipe)
         self.assertIn("go mod vendor && go mod verify", recipe)
+        self.assertIn("GOFLAGS=-mod=mod", recipe)
         self.assertIn("GOPROXY=off", recipe)
         self.assertIn("go build -mod=vendor", recipe)
         self.assertIn("FROM scratch", recipe)

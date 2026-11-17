@@ -51,3 +51,14 @@ cidrs_api_k8s = []
 namespace_dns = "kube-system"
 labels_pods_dns = { "k8s-app" = "kube-dns" }
 cidrs_dns = []
+
+# Opcional no kit corrigido v1.0.1+: captura HTTP/gRPC sem SDK, sem reiniciar apps.
+# Exige Linux/BTF e revisão de permissões. Processos com SDK ficam excluídos.
+# Logs e eBPF compartilham o mesmo agente: use o mesmo escopo de nodes em ambos.
+[ebpf]
+habilitado = false
+acesso_host_aprovado = false
+seletor_nodes = {}
+todos_nodes_elegiveis_aprovados = false
+# Exemplo: [{ namespace = "minhas-apps", deployment = "api-sem-sdk" }]
+aplicacoes = []

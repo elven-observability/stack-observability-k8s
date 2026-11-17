@@ -38,7 +38,7 @@ FROM --platform=$BUILDPLATFORM ${GENERATOR_IMAGE} AS generated
 # Generation runs natively; cross compilation starts only in the final build stage.
 COPY --from=sources /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:/go/bin:/usr/lib/llvm22/bin:$PATH \
-    GOTOOLCHAIN=local GOTELEMETRY=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOMAXPROCS=2 GOGC=50
+    GOTOOLCHAIN=local GOTELEMETRY=off GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOMAXPROCS=2 GOGC=50 GOFLAGS=-mod=mod
 RUN apk add --no-cache ca-certificates curl git bash make
 COPY --from=sources /src/beyla/ /src/beyla/
 WORKDIR /src/beyla

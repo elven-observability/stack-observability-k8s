@@ -157,8 +157,9 @@ def perfis(raw):
         config = tomllib.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeError):
         raise Refusa("TOML inválido. O conteúdo não foi exibido.") from None
-    exigir(set(config) == {"alvo", "storage", "coleta", "instrumentacao", "rede"},
-           "Use apenas as cinco seções do exemplo; token e overrides arbitrários não são aceitos.")
+    obrigatorias = {"alvo", "storage", "coleta", "instrumentacao", "rede"}
+    exigir(obrigatorias <= set(config) <= obrigatorias | {"ebpf"},
+           "Use as seções do exemplo; token e overrides arbitrários não são aceitos.")
     alvo = secao(config, "alvo", ("kubeconfig", "contexto", "uid_cluster", "nome_cluster", "dominio_cluster", "tenant_id"))
     texto(alvo, "contexto", r"[A-Za-z0-9][A-Za-z0-9.:_/@-]{0,511}")
     texto(alvo, "nome_cluster", r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
@@ -200,11 +201,39 @@ def perfis(raw):
     exigir(sdk["nodejs20"] == sdk["excecao_eol_nodejs20_aprovada"], "Node.js 20 exige exceção EOL explícita.")
     texto(sdk, "amostragem_traces", r"(?:0\.[0-9]{1,8}|1(?:\.0{1,8})?)")
     exigir(float(sdk["amostragem_traces"]) > 0, "Use uma amostragem positiva para o piloto.")
+    ebpf = config.get("ebpf", {"habilitado": False, "acesso_host_aprovado": False,
+        "seletor_nodes": {}, "todos_nodes_elegiveis_aprovados": False, "aplicacoes": []})
+    secao({"ebpf": ebpf}, "ebpf", ("habilitado", "acesso_host_aprovado", "seletor_nodes", "todos_nodes_elegiveis_aprovados", "aplicacoes"))
+    bools(ebpf, ("habilitado", "acesso_host_aprovado", "todos_nodes_elegiveis_aprovados"))
+    nodes_ebpf = labels(ebpf["seletor_nodes"], "ebpf.seletor_nodes")
+    exigir("kubernetes.io/os" not in nodes_ebpf, "O agente eBPF deste kit já fixa Linux.")
+    workloads = ebpf["aplicacoes"]
+    exigir(type(workloads) is list and len(workloads) <= 100, "ebpf.aplicacoes: use lista de namespace/deployment explícitos.")
+    vistos = set()
+    for item in workloads:
+        secao({"aplicacao": item}, "aplicacao", ("namespace", "deployment"))
+        ns = texto(item, "namespace", IDENTIFIER)
+        deployment = texto(item, "deployment", DNS)
+        exigir(ns in namespaces, "O namespace eBPF precisa estar em coleta.namespaces.")
+        exigir((ns, deployment) not in vistos, "Há aplicações eBPF repetidas.")
+        vistos.add((ns, deployment))
+    if ebpf["habilitado"]:
+        exigir(VERSION != "1.0.0", "eBPF exige o kit corrigido v1.0.1 ou posterior; não habilite esse módulo na v1.0.0.")
+        exigir(ebpf["acesso_host_aprovado"] and workloads, "eBPF exige aprovação de acesso ao host e aplicações explícitas.")
+        exigir(bool(nodes_ebpf) != ebpf["todos_nodes_elegiveis_aprovados"], "eBPF exige seletor piloto OU aprovação de todos os nodes elegíveis.")
+        if coleta["logs_stdout"]:
+            exigir(nodes_ebpf == seletor and ebpf["todos_nodes_elegiveis_aprovados"] == coleta["todos_nodes_elegiveis_aprovados"],
+                   "Logs e eBPF usam o mesmo agente por node: aprove o mesmo escopo de nodes para ambos.")
+        else:
+            seletor = nodes_ebpf
+    else:
+        exigir(not ebpf["acesso_host_aprovado"] and not nodes_ebpf and not ebpf["todos_nodes_elegiveis_aprovados"] and not workloads,
+               "Com eBPF desligado, deixe suas aprovações, seletores e aplicações vazios.")
     rede = secao(config, "rede", ("cidrs_exportacao", "cidrs_origem_webhook", "cidrs_api_k8s",
                  "namespace_dns", "labels_pods_dns", "cidrs_dns"))
     exportacao = cidrs(rede["cidrs_exportacao"], "cidrs_exportacao", True)
     origem_webhook = cidrs(rede["cidrs_origem_webhook"], "cidrs_origem_webhook", True)
-    api = cidrs(rede["cidrs_api_k8s"], "cidrs_api_k8s", coleta["metricas_estado_k8s"])
+    api = cidrs(rede["cidrs_api_k8s"], "cidrs_api_k8s", coleta["metricas_estado_k8s"] or ebpf["habilitado"])
     dns_cidrs = cidrs(rede["cidrs_dns"], "cidrs_dns")
     dns_ns = texto(rede, "namespace_dns", IDENTIFIER)
     dns_labels = labels(rede["labels_pods_dns"], "labels_pods_dns", vazio=False)
@@ -214,7 +243,8 @@ def perfis(raw):
         "collection": {"namespaces": namespaces},
         "modules": {"logs": {"enabled": coleta["logs_stdout"], "hostAccessApproved": coleta["acesso_host_logs_aprovado"]},
                     "clusterMetrics": {"enabled": coleta["metricas_estado_k8s"], "clusterWideApproved": False},
-                    "kubeletMetrics": {"enabled": False}, "ebpf": {"enabled": False}, "profiles": {"enabled": False}},
+                    "kubeletMetrics": {"enabled": False}, "ebpf": {"enabled": ebpf["habilitado"], "hostAccessApproved": ebpf["acesso_host_aprovado"],
+                    "excludeSDKInstrumentedServices": True, "workloads": workloads}, "profiles": {"enabled": False}},
         "nodeAgent": {"nodeSelector": seletor},
         "privacy": {"logBodyMode": coleta["privacidade_logs"]},
         "networkPolicy": {"enabled": True, "exportCIDRs": exportacao, "apiServerCIDRs": api,
@@ -400,6 +430,10 @@ def confirmar_plano(alvo, core, operador, revisao):
     print("Namespaces autorizados: " + ", ".join(core["collection"]["namespaces"]))
     print("Logs stdout: " + ("habilitados com acesso ao host aprovado" if core["modules"]["logs"]["enabled"] else "desativados"))
     print("Métricas de estado Kubernetes: " + ("habilitadas" if core["modules"]["clusterMetrics"]["enabled"] else "desativadas"))
+    ebpf = core["modules"]["ebpf"]
+    print("eBPF: " + ("habilitado apenas nas aplicações e nodes aprovados; processos com SDK são excluídos" if ebpf["enabled"] else "desativado"))
+    if ebpf["enabled"]:
+        print("Aplicações eBPF: " + ", ".join(x["namespace"] + "/" + x["deployment"] for x in ebpf["workloads"]))
     print("Runtimes: " + ", ".join(k for k in ("java", "nodejs", "nodejs20", "python") if operador["runtimes"][k]))
     print(f"Revise os values e manifests em: {revisao.resolve()}")
     print("Nenhum recurso Kubernetes foi escrito. A instalação não reinicia aplicações.", flush=True)

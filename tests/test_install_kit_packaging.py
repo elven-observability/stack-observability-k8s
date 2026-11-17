@@ -157,7 +157,7 @@ class KitPackagingTests(unittest.TestCase):
             "m['confirmar_plano']({'nome_cluster':'synthetic-test','contexto':'no-cluster',"
             "'uid_cluster':'12345678-1234-4321-8765-123456789abc','tenant_id':'SyntheticTenant'},"
             "{'collection':{'namespaces':['synthetic-app']},'modules':{'logs':{'enabled':False},"
-            "'clusterMetrics':{'enabled':False}}},"
+            "'clusterMetrics':{'enabled':False},'ebpf':{'enabled':False}}},"
             "{'runtimes':{'java':True,'nodejs':False,'nodejs20':False,'python':False}},"
             f"pathlib.Path({str(self.folder)!r})); print('APPROVAL_OK',flush=True)"
         )
