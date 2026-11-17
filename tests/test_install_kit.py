@@ -28,6 +28,11 @@ class Teste(unittest.TestCase):
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
         self.tmp = Path(td.name)
+        # Main-flow cases simulate the standalone public kit, not a source tag
+        # whose image locks intentionally await promotion.
+        caminho_publico = patch.object(B, "__file__", str(self.tmp / "public-kit" / "plataforma" / "instalar.py"))
+        caminho_publico.start()
+        self.addCleanup(caminho_publico.stop)
         self.kube = self.tmp / "kubeconfig"
         self.kube.touch()
         self.config = (HERE / "cliente.exemplo.toml").read_text()

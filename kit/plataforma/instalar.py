@@ -468,6 +468,19 @@ def aprovar_revisao(alvo, core, operador, revisao, recibo):
         escrever(path, aprovado)
 
 
+def conferir_fonte_checkout():
+    """An image-build tag must not silently launch a kit from an older release."""
+    arquivo = Path(__file__).resolve()
+    raiz = arquivo.parents[2]
+    if arquivo != raiz / "kit" / "plataforma" / "instalar.py" or not (raiz / "elven").is_file():
+        return  # The standalone public ZIP has no adjacent repository checkout.
+    caminho = raiz / "versions.lock.json"
+    exigir(caminho.is_file(), "Fonte incompleta. Baixe o kit oficial em https://github.com/elven-observability/stack-observability-k8s/releases; nada foi instalado.")
+    distribuicao = json.loads(ler_limite(caminho, 300_000)).get("distribution", {})
+    exigir(distribuicao.get("publicationStatus") == "verified" and distribuicao.get("version") == VERSION,
+           "Esta fonte de build não contém um kit promovido compatível. Baixe o ZIP de instalação da release oficial; nada foi instalado.")
+
+
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
@@ -476,6 +489,7 @@ def main():
     parser.add_argument("--config", type=Path, default=Path("cliente.toml"))
     parser.add_argument("--revisao", type=Path, default=Path("revisao-v1.0.0"))
     args = parser.parse_args()
+    conferir_fonte_checkout()
     env = ambiente()
     exigir(args.config.is_file(),
            "Preencha plataforma/cliente.toml a partir de cliente.exemplo.toml. Não coloque o token no arquivo.")
