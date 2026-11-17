@@ -74,15 +74,15 @@ def runtime_checks(directory):
         if not obj or obj["kind"] != "ConfigMap":
             continue
         for key, contents in obj.get("data", {}).items():
-            if key not in ("collector.yaml", "profile.alloy"):
+            if key not in ("collector.yaml", "profile.alloy", "beyla.yaml"):
                 continue
             source = directory / f"{obj['metadata']['name']}-{key}"
             source.write_text(contents)
             source.chmod(0o644)
-            image_name = "alloy" if key.endswith("alloy") else "collector"
+            image_name = {"collector.yaml": "collector", "profile.alloy": "alloy", "beyla.yaml": "beyla"}[key]
             image = DEFAULTS["images"][image_name]
             ref = f"{image['repository']}:{image['tag']}@{image['digest']}"
-            image_variable = {"collector": "ELVEN_COLLECTOR_IMAGE", "alloy": "ELVEN_ALLOY_IMAGE"}[image_name]
+            image_variable = {"collector": "ELVEN_COLLECTOR_IMAGE", "alloy": "ELVEN_ALLOY_IMAGE", "beyla": "ELVEN_BEYLA_IMAGE"}[image_name]
             if os.environ.get(image_variable):
                 ref = os.environ[image_variable]
                 if "@sha256:" not in ref:
@@ -94,6 +94,8 @@ def runtime_checks(directory):
                     "-e", "ELVEN_TENANT_ID=synthetic-tenant", "-e", "ELVEN_API_TOKEN=synthetic-test-token",
                     "-e", "K8S_NODE_NAME=synthetic-node", "-e", "K8S_NODE_IP=127.0.0.1",
                     "-e", "KUBERNETES_SERVICE_HOST=127.0.0.1", "-e", "KUBERNETES_SERVICE_PORT=443",
+                    "-e", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:14318/v1/traces",
+                    "-e", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://127.0.0.1:14318/v1/metrics",
                     "--mount", f"type=bind,source={source},target=/config/{key},readonly",
                     "--mount", f"type=bind,source={tls},target=/etc/elven/tls,readonly",
                     "--mount", f"type=bind,source={tls},target=/var/run/secrets/kubernetes.io/serviceaccount,readonly",
@@ -103,6 +105,8 @@ def runtime_checks(directory):
                     ref, "validate", f"/config/{key}"]
             if image_name == "collector":
                 args[-1:] = ["--config", f"/config/{key}"]
+            elif image_name == "beyla":
+                args[-2:] = ["config", "validate", f"/config/{key}"]
             command(args)
             results.append({"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
                             "image": ref, "result": "passed"})

@@ -97,7 +97,7 @@ class Teste(unittest.TestCase):
             B.perfis(cfg.replace("seletor_nodes_logs = { \"pool\" = \"piloto\" }", "seletor_nodes_logs = {}").encode())
 
     def ebpf_config(self):
-        return self.config.replace("cidrs_api_k8s = []", 'cidrs_api_k8s = ["203.0.113.8/32"]') + '''
+        return self.config.split("\n[ebpf]", 1)[0].replace("cidrs_api_k8s = []", 'cidrs_api_k8s = ["203.0.113.8/32"]') + '''
 [ebpf]
 habilitado = true
 acesso_host_aprovado = true

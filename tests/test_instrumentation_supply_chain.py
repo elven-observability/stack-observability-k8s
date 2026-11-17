@@ -96,7 +96,7 @@ class SDKSupplyChainTests(unittest.TestCase):
 
     def test_workflow_cannot_publish_without_actual_native_injection_tests(self):
         workflow = yaml.safe_load((ROOT / ".github/workflows/instrumentation.yaml").read_text())
-        self.assertEqual(workflow["jobs"]["publish"]["needs"], "build-and-test")
+        self.assertEqual(workflow["jobs"]["publish"]["needs"], ["build-and-test", "native-arm"])
         steps = workflow["jobs"]["build-and-test"]["steps"]
         native = next(step for step in steps if "test-instrumentation-kind.py" in step.get("run", ""))
         self.assertNotIn("if", native)

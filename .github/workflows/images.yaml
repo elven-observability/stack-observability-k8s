@@ -86,15 +86,16 @@ jobs:
           docker system df
       - name: Gate every runtime/architecture on HIGH and CRITICAL vulnerabilities
         run: python3 scripts/images-release.py scan
-      - name: Load the exact scanned Collector and profiler archives and select immutable references
+      - name: Load the exact scanned runtimes and select immutable references
         run: |
           docker load --input artifacts/images/collector.oci.tar
           docker load --input artifacts/images/alloy.oci.tar
+          docker load --input artifacts/images/beyla.oci.tar
           python3 - <<'PY'
           import json, os
           manifest = json.load(open("artifacts/images/release.json"))
           with open(os.environ["GITHUB_ENV"], "a") as output:
-              for component, key in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE")):
+              for component, key in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE"), ("beyla", "ELVEN_BEYLA_IMAGE")):
                   image = manifest["images"][component]
                   output.write(key + "=" + image["tag"] + "@" + image["digest"] + "\n")
           PY
@@ -158,10 +159,68 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  native-arm:
+    needs: build-and-scan
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5 # v5.6.0
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: elven-oci-release
+          path: artifacts/images
+      - name: Load the same scanned bytes, never rebuild a native replacement
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          folder = pathlib.Path("artifacts/images")
+          manifest = json.loads((folder / "release.json").read_text())
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              for name, key in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE"), ("beyla", "ELVEN_BEYLA_IMAGE")):
+                  image = manifest["images"][name]
+                  archive = folder / image["archive"]
+                  with archive.open("rb") as stream:
+                      assert hashlib.file_digest(stream, "sha256").hexdigest() == image["archiveSha256"]
+                  assert image["scans"]["linux/arm64"]["status"] == "passed"
+                  subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+                  output.write(key + "=" + image["tag"] + "@" + image["digest"] + "\n")
+          PY
+          test "$(docker info --format '{{.Architecture}}')" = aarch64
+      - name: Install native ARM validation tools with published checksums
+        run: |
+          python3 -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - name: Native ARM configuration, pprof HTTPS, privacy, WAL and lifecycle
+        run: |
+          python3 scripts/validate.py --runtime
+          python3 tests/privacy-runtime.py
+          python3 scripts/test-kind.py --development-images --collector-image "$ELVEN_COLLECTOR_IMAGE" --collector-image-archive artifacts/images/collector.oci.tar --node-image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: elven-native-arm-runtime-evidence
+          include-hidden-files: true
+          path: |
+            .artifacts/validation-*/report.json
+            .artifacts/privacy-*/report.json
+            .artifacts/kind-*/report.json
+            .artifacts/kind-*/diagnostics.txt
+          if-no-files-found: warn
+          retention-days: 7
+
   publish:
     # No PR, branch push or default-branch manual dispatch may publish.
     if: startsWith(github.ref, 'refs/tags/v1.')
-    needs: build-and-scan
+    needs: [build-and-scan, native-arm]
     environment: elven-distribution-release
     runs-on: ubuntu-24.04
     timeout-minutes: 30

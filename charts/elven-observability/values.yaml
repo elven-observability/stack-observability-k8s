@@ -96,6 +96,8 @@ modules:
     # Prefer the SDK for an already instrumented process. Disable only for an
     # explicit overlap experiment; dual HTTP spans are not extra coverage.
     excludeSDKInstrumentedServices: true
+    # Approved normalized templates; unmatched paths collapse to a wildcard.
+    routePatterns: []
     # Separate from the Collector: kernel/program startup can peak well above
     # steady RSS. Measure one worker before scaling; this is not a sizing SLA.
     resources:

@@ -62,3 +62,5 @@ seletor_nodes = {}
 todos_nodes_elegiveis_aprovados = false
 # Exemplo: [{ namespace = "minhas-apps", deployment = "api-sem-sdk" }]
 aplicacoes = []
+# Opcional: templates estáveis, como ["/pedidos/{id}"]. Demais paths viram wildcard.
+rotas = []

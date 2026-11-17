@@ -203,11 +203,17 @@ def perfis(raw):
     exigir(float(sdk["amostragem_traces"]) > 0, "Use uma amostragem positiva para o piloto.")
     ebpf = config.get("ebpf", {"habilitado": False, "acesso_host_aprovado": False,
         "seletor_nodes": {}, "todos_nodes_elegiveis_aprovados": False, "aplicacoes": []})
-    secao({"ebpf": ebpf}, "ebpf", ("habilitado", "acesso_host_aprovado", "seletor_nodes", "todos_nodes_elegiveis_aprovados", "aplicacoes"))
+    if type(ebpf) is dict and "rotas" not in ebpf:
+        ebpf = {**ebpf, "rotas": []}
+    secao({"ebpf": ebpf}, "ebpf", ("habilitado", "acesso_host_aprovado", "seletor_nodes", "todos_nodes_elegiveis_aprovados", "aplicacoes", "rotas"))
     bools(ebpf, ("habilitado", "acesso_host_aprovado", "todos_nodes_elegiveis_aprovados"))
     nodes_ebpf = labels(ebpf["seletor_nodes"], "ebpf.seletor_nodes")
     exigir("kubernetes.io/os" not in nodes_ebpf, "O agente eBPF deste kit já fixa Linux.")
     workloads = ebpf["aplicacoes"]
+    rotas = ebpf["rotas"]
+    exigir(type(rotas) is list and len(rotas) <= 128 and all(type(r) is str and len(r) <= 256 and re.fullmatch(r"/[^?#\s]*", r) for r in rotas),
+           "ebpf.rotas: use templates explícitos, sem query string ou dados pessoais.")
+    exigir(len(set(rotas)) == len(rotas), "Há rotas eBPF repetidas.")
     exigir(type(workloads) is list and len(workloads) <= 100, "ebpf.aplicacoes: use lista de namespace/deployment explícitos.")
     vistos = set()
     for item in workloads:
@@ -227,7 +233,7 @@ def perfis(raw):
         else:
             seletor = nodes_ebpf
     else:
-        exigir(not ebpf["acesso_host_aprovado"] and not nodes_ebpf and not ebpf["todos_nodes_elegiveis_aprovados"] and not workloads,
+        exigir(not ebpf["acesso_host_aprovado"] and not nodes_ebpf and not ebpf["todos_nodes_elegiveis_aprovados"] and not workloads and not rotas,
                "Com eBPF desligado, deixe suas aprovações, seletores e aplicações vazios.")
     rede = secao(config, "rede", ("cidrs_exportacao", "cidrs_origem_webhook", "cidrs_api_k8s",
                  "namespace_dns", "labels_pods_dns", "cidrs_dns"))
@@ -243,8 +249,8 @@ def perfis(raw):
         "collection": {"namespaces": namespaces},
         "modules": {"logs": {"enabled": coleta["logs_stdout"], "hostAccessApproved": coleta["acesso_host_logs_aprovado"]},
                     "clusterMetrics": {"enabled": coleta["metricas_estado_k8s"], "clusterWideApproved": False},
-                    "kubeletMetrics": {"enabled": False}, "ebpf": {"enabled": ebpf["habilitado"], "hostAccessApproved": ebpf["acesso_host_aprovado"],
-                    "excludeSDKInstrumentedServices": True, "workloads": workloads}, "profiles": {"enabled": False}},
+                    "kubeletMetrics": {"enabled": False}, "ebpf": ({"enabled": True, "hostAccessApproved": True,
+                    "excludeSDKInstrumentedServices": True, "workloads": workloads, "routePatterns": rotas} if ebpf["habilitado"] else {"enabled": False}), "profiles": {"enabled": False}},
         "nodeAgent": {"nodeSelector": seletor},
         "privacy": {"logBodyMode": coleta["privacidade_logs"]},
         "networkPolicy": {"enabled": True, "exportCIDRs": exportacao, "apiServerCIDRs": api,

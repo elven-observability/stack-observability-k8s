@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import subprocess
 import unittest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,6 +55,30 @@ class EbpfSourceBuildTests(unittest.TestCase):
     def test_source_fetch_script_has_valid_shell_syntax(self):
         result = subprocess.run(["sh", "-n", str(ROOT / "images/ebpf/build-source.sh")], capture_output=True)
         self.assertEqual(result.returncode, 0)
+
+    def test_ci_validates_the_real_scanned_beyla_config_without_host_capabilities(self):
+        workflow = (ROOT / ".github/workflows/images.yaml").read_text()
+        validator = (ROOT / "scripts/validate.py").read_text()
+        self.assertIn("docker load --input artifacts/images/beyla.oci.tar", workflow)
+        self.assertIn('("beyla", "ELVEN_BEYLA_IMAGE")', workflow)
+        self.assertIn('"beyla.yaml": "beyla"', validator)
+        self.assertIn('["config", "validate", f"/config/{key}"]', validator)
+        self.assertIn('"--cap-drop", "ALL"', validator)
+
+    def test_native_arm_is_a_required_gate_over_the_same_scanned_archives(self):
+        for name, build in (("images.yaml", "build-and-scan"), ("instrumentation.yaml", "build-and-test")):
+            workflow = yaml.safe_load((ROOT / ".github/workflows" / name).read_text())
+            jobs = workflow["jobs"]
+            self.assertEqual(jobs["publish"]["needs"], [build, "native-arm"])
+            arm = jobs["native-arm"]
+            self.assertEqual(arm["runs-on"], "ubuntu-24.04-arm")
+            self.assertEqual(arm["needs"], build)
+            steps = json.dumps(arm["steps"])
+            self.assertIn("archiveSha256", steps)
+            self.assertIn("linux/arm64", steps)
+            self.assertIn("docker", steps)
+            self.assertNotIn("setup-qemu", steps)
+            self.assertNotIn("images-release.py build", steps)
 
 
 if __name__ == "__main__":

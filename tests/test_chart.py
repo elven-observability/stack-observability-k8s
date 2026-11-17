@@ -57,6 +57,28 @@ def all_modules():
 
 
 class ChartTests(unittest.TestCase):
+    def test_ebpf_red_metrics_and_traces_use_source_privacy_and_the_gateway(self):
+        values = all_modules()
+        values["modules"]["logs"]["enabled"] = False
+        values["modules"]["ebpf"]["routePatterns"] = ["/orders/{id}"]
+        rendered = objects(values)
+        cm = next(obj for obj in rendered if obj["kind"] == "ConfigMap" and obj["metadata"]["name"].endswith("-node"))
+        collector, beyla = (yaml.safe_load(cm["data"][key]) for key in ("collector.yaml", "beyla.yaml"))
+        for signal in ("traces", "metrics/ebpf"):
+            pipeline = collector["service"]["pipelines"][signal]
+            self.assertEqual(pipeline["receivers"], ["otlp/local"])
+            self.assertEqual(pipeline["processors"][-1], "elven_privacy")
+            self.assertEqual(pipeline["exporters"], ["otlp_http/gateway"])
+        self.assertIn("elven_privacy", collector["processors"])
+        self.assertEqual(beyla["otel_metrics_export"]["features"], ["application"])
+        self.assertEqual(beyla["otel_metrics_export"]["instrumentations"], ["http", "grpc"])
+        self.assertEqual(beyla["otel_metrics_export"]["histogram_aggregation"], "explicit_bucket_histogram")
+        self.assertEqual(beyla["routes"], {"unmatched": "wildcard", "patterns": ["/orders/{id}"]})
+        ds = next(obj for obj in rendered if obj["kind"] == "DaemonSet")
+        container = next(obj for obj in podspec(ds)["containers"] if obj["name"] == "beyla")
+        environment = {value["name"]: value.get("value") for value in container["env"]}
+        self.assertEqual(environment["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"], "http://127.0.0.1:14318/v1/metrics")
+
     def test_ebpf_budget_is_independent_of_the_node_collector_budget(self):
         values = all_modules()
         values["nodeAgent"] = {"resources": {"requests": {"cpu": "75m", "memory": "96Mi"},

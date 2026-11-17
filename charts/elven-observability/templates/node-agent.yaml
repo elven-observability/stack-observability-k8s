@@ -106,7 +106,7 @@ data:
         attributes:
           - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
           - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
-      {{- if .Values.modules.logs.enabled }}
+      {{- if or .Values.modules.logs.enabled .Values.modules.ebpf.enabled }}
       # Apply the same recursive policy at source and again before gateway WAL.
       # Partial regex replacement here could erase a credential's key while
       # leaving an unrecognizable suffix for the downstream sanitizer.
@@ -174,7 +174,11 @@ data:
         {{- if .Values.modules.ebpf.enabled }}
         traces:
           receivers: [otlp/local]
-          processors: [memory_limiter, resource/identity]
+          processors: [memory_limiter, resource/identity, elven_privacy]
+          exporters: [otlp_http/gateway]
+        metrics/ebpf:
+          receivers: [otlp/local]
+          processors: [memory_limiter, resource/identity, elven_privacy]
           exporters: [otlp_http/gateway]
         {{- end }}
   {{- if .Values.modules.ebpf.enabled }}
@@ -197,9 +201,18 @@ data:
       disabled_route_harvesters: [java, nodejs, go]
     ebpf:
       context_propagation: disabled
+    routes:
+      unmatched: wildcard
+      patterns: {{ .Values.modules.ebpf.routePatterns | toJson }}
     otel_traces_export:
       protocol: http/protobuf
       instrumentations: [http, grpc]
+    otel_metrics_export:
+      protocol: http/protobuf
+      interval: 15s
+      features: [application]
+      instrumentations: [http, grpc]
+      histogram_aggregation: explicit_bucket_histogram
   {{- end }}
 ---
 apiVersion: apps/v1
@@ -313,6 +326,7 @@ spec:
             - {name: BEYLA_ENFORCE_SYS_CAPS, value: "1"}
             - {name: OTEL_EBPF_KUBE_CLUSTER_NAME, value: {{ .Values.cluster.name | quote }}}
             - {name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces"}
+            - {name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/metrics"}
             - name: K8S_NODE_NAME
               valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
           securityContext:
