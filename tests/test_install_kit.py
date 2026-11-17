@@ -259,7 +259,7 @@ aplicacoes = [{ namespace = "app-piloto", deployment = "api-sem-sdk" }]
     def test_guiado_requires_explicit_approval_then_reuses_it(self):
         cfg = self.tmp / "cliente.toml"
         cfg.write_text(self.config)
-        review = self.tmp / "revisao-v1.0.0"
+        review = self.tmp / ("revisao-v" + B.VERSION)
         commands, order = [], []
         def executar(cmd, etapa, env, timeout=180, fds=()):
             commands.append(cmd)
@@ -295,7 +295,7 @@ aplicacoes = [{ namespace = "app-piloto", deployment = "api-sem-sdk" }]
     def test_declining_plan_cannot_approve_it_for_the_next_run(self):
         cfg = self.tmp / "cliente.toml"
         cfg.write_text(self.config)
-        review = self.tmp / "revisao-v1.0.0"
+        review = self.tmp / ("revisao-v" + B.VERSION)
         commands = []
         def executar(cmd, *_args, **_kwargs):
             commands.append(cmd)

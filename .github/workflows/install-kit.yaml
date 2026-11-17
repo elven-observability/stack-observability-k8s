@@ -50,8 +50,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf 'ELVEN_TEST_ARCHIVE=%s/elven-observability-v1.0.0.tar.gz\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
-          ELVEN_TEST_ARCHIVE="$RUNNER_TEMP/elven-observability-v1.0.0.tar.gz" python -I -c \
+          printf 'ELVEN_TEST_ARCHIVE=%s/elven-official-test-bundle.tar.gz\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          ELVEN_TEST_ARCHIVE="$RUNNER_TEMP/elven-official-test-bundle.tar.gz" python -I -c \
             'import os,pathlib,runpy; m=runpy.run_path("kit/plataforma/instalar.py"); pathlib.Path(os.environ["ELVEN_TEST_ARCHIVE"]).write_bytes(m["baixar_pacote"]())'
       - name: Bootstrap, approval, ZIP and real render contracts; no cluster
         run: |

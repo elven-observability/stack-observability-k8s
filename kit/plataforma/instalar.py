@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bootstrap interativo, independente, para o pacote oficial Elven v1.0.0."""
+"""Bootstrap interativo, independente, para o pacote oficial Elven v1.0.1."""
 import argparse
 import base64
 from contextlib import contextmanager
@@ -26,12 +26,12 @@ if sys.version_info < (3, 11):
     sys.exit("Elven: use Python 3.11 ou superior.")
 import tomllib
 
-VERSION = "1.0.0"
-ARCHIVE_NAME = "elven-observability-v1.0.0.tar.gz"
-ARCHIVE_SHA = "0231a910f0f22c4c132fb25e99878eaf86bc341439c557eb785d91d4d36bcf00"
-ARCHIVE_ROOT = "elven-observability-v1.0.0"
+VERSION = "1.0.1"
+ARCHIVE_NAME = f"elven-observability-v{VERSION}.tar.gz"
+ARCHIVE_SHA = "69c61f3bff569591ad7c1deb51d71b5a6c53f18b5d58cd270752572ebac76b95"
+ARCHIVE_ROOT = f"elven-observability-v{VERSION}"
 ARCHIVE_URL = ("https://github.com/elven-observability/stack-observability-k8s/"
-               "releases/download/v1.0.0/" + ARCHIVE_NAME)
+               f"releases/download/v{VERSION}/" + ARCHIVE_NAME)
 NAMESPACE, CORE, OPERATOR = "elven-observability", "elven", "elven-operator"
 INGEST_SECRET = "elven-ingest"
 IDENTIFIER = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
@@ -88,7 +88,7 @@ class RedirecionamentoHTTPS(HTTPRedirectHandler):
 def baixar_pacote():
     """Somente o asset fixado; nunca executa scripts remotos ou usa uma URL do cliente."""
     url_pacote(ARCHIVE_URL)
-    request = Request(ARCHIVE_URL, headers={"User-Agent": "elven-install-kit/1.0.0"})
+    request = Request(ARCHIVE_URL, headers={"User-Agent": "elven-install-kit/" + VERSION})
     with build_opener(RedirecionamentoHTTPS()).open(request, timeout=30) as response:
         url_pacote(response.geturl())
         raw = response.read(600_001)
@@ -270,7 +270,7 @@ def perfis(raw):
 
 def extrair(pacote, destino):
     raw = ler_limite(pacote, 600_000)
-    exigir(sha(raw) == ARCHIVE_SHA, "SHA-256 diferente do asset oficial v1.0.0. Não extraí nem executei o pacote.")
+    exigir(sha(raw) == ARCHIVE_SHA, f"SHA-256 diferente do asset oficial v{VERSION}. Não extraí nem executei o pacote.")
     total, vistos = 0, set()
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
         for membro in tar:
@@ -487,7 +487,7 @@ def main():
     parser.add_argument("acao", choices=("plano", "instalar", "guiado"))
     parser.add_argument("--pacote", type=Path, default=Path(ARCHIVE_NAME))
     parser.add_argument("--config", type=Path, default=Path("cliente.toml"))
-    parser.add_argument("--revisao", type=Path, default=Path("revisao-v1.0.0"))
+    parser.add_argument("--revisao", type=Path, default=Path("revisao-v" + VERSION))
     args = parser.parse_args()
     conferir_fonte_checkout()
     env = ambiente()
