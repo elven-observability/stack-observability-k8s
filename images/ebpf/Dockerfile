@@ -6,7 +6,8 @@ ARG JAVA_BUILD_IMAGE=docker.io/library/gradle:9.6.1-jdk21-noble@sha256:8074080ea
 
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS sources
 COPY images/ebpf/build-source.sh /usr/local/bin/elven-ebpf-source
-RUN /bin/sh /usr/local/bin/elven-ebpf-source /src/beyla
+COPY images/ebpf/elven-config-validation.patch /opt/elven/elven-config-validation.patch
+RUN /bin/sh /usr/local/bin/elven-ebpf-source /src/beyla /opt/elven/elven-config-validation.patch
 
 FROM --platform=$BUILDPLATFORM ${JAVA_BUILD_IMAGE} AS jdk
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS jni

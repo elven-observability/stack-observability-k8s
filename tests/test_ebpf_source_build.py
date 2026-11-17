@@ -1,5 +1,6 @@
 """Beyla's official latest image is not a security fix unless its binary is fixed."""
 import json
+import hashlib
 from pathlib import Path
 import re
 import subprocess
@@ -48,7 +49,7 @@ class EbpfSourceBuildTests(unittest.TestCase):
     def test_local_build_code_is_an_explicit_deny_all_context_exception(self):
         context = (ROOT / "images/ebpf/Dockerfile.dockerignore").read_text()
         self.assertTrue(context.startswith("**\n"))
-        for name in ("build-source.sh", "license-bundle.go"):
+        for name in ("build-source.sh", "license-bundle.go", "elven-config-validation.patch"):
             self.assertIn("!images/ebpf/" + name, context)
         self.assertNotIn("!**", context)
 
@@ -62,10 +63,26 @@ class EbpfSourceBuildTests(unittest.TestCase):
         self.assertIn("docker load --input artifacts/images/beyla.oci.tar", workflow)
         self.assertIn('("beyla", "ELVEN_BEYLA_IMAGE")', workflow)
         self.assertIn('"beyla.yaml": "beyla"', validator)
-        self.assertIn('["config", "migrate", f"/config/{key}"]', validator)
-        self.assertIn('["config", "validate", "/config/beyla-v2.yaml"]', validator)
+        self.assertIn('["elven-validate-config", f"/config/{key}"]', validator)
         self.assertNotIn('"--allow-partial"', validator)
         self.assertIn('"--cap-drop", "ALL"', validator)
+
+    def test_config_validator_patch_is_pinned_and_reuses_the_runtime_without_starting_it(self):
+        build = json.loads((ROOT / "versions.lock.json").read_text())["images"]["beyla"]["sourceBuild"]
+        self.assertEqual(len(build["patches"]), 1)
+        patch = build["patches"][0]
+        source = (ROOT / patch["path"]).read_bytes()
+        self.assertEqual(hashlib.sha256(source).hexdigest(), patch["sha256"])
+        recipe = (ROOT / "images/ebpf/build-source.sh").read_text()
+        self.assertIn(patch["sha256"], recipe)
+        self.assertIn('apply --check "$validation_patch"', recipe)
+        additions = "\n".join(line[1:] for line in source.decode().splitlines() if line.startswith("+") and not line.startswith("+++"))
+        self.assertIn('cfg, version, _ := loadConfig(&path)', additions)
+        self.assertIn('cfg.Validate()', additions)
+        self.assertIn('len(os.Args) != 3', additions)
+        self.assertNotIn('components.RunBeyla', additions)
+        self.assertNotIn('CheckOSCapabilities', additions)
+        self.assertNotIn('http.ListenAndServe', additions)
 
     def test_native_arm_is_a_required_gate_over_the_same_scanned_archives(self):
         for name, build in (("images.yaml", "build-and-scan"), ("instrumentation.yaml", "build-and-test")):

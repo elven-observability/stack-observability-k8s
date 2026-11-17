@@ -6,6 +6,9 @@ Built from Beyla revision 70b1a981edd77257f96025bf9f16c1cf8c6f5f7a and its pinne
 OBI submodule revision 5abaf031651c103a31dfb67b129361917efaf969. Elven pins
 golang.org/x/net 0.62.0 and Go 1.27.3 to correct known vulnerabilities.
 The Beyla Java overlay and native libraries are rebuilt from those sources.
+Elven adds a config-only validation command using the unchanged runtime loader
+and validation method. It does not start listeners, discovery or kernel probes.
+The complete source patch and its SHA-256 are published in the Elven build recipe.
 Source: https://github.com/grafana/beyla/tree/v3.42.0
 Upstream NOTICE and third_party_licenses.csv are included unchanged alongside this file.
 This packaging does not imply endorsement by Grafana Labs or OpenTelemetry.

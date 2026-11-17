@@ -106,29 +106,30 @@ def runtime_checks(directory):
             if image_name == "collector":
                 args[-1:] = ["--config", f"/config/{key}"]
             elif image_name == "beyla":
-                # This pinned runtime supports legacy v1, while its validate
-                # subcommand accepts only v2. Strict migration uses the v1
-                # parser and rejects unknown/lossy fields; never allow-partial.
-                # Endpoints/capability policy are explicit in the source YAML,
-                # not only env overlays which the migration intentionally ignores.
-                args[-2:] = ["config", "migrate", f"/config/{key}"]
-                migrated = command(args)
-                document = yaml.safe_load(migrated)
-                if document.get("file_format") != "1.0" or document.get("extensions", {}).get("obi", {}).get("version") != "2.0":
-                    raise RuntimeError("Beyla did not produce a complete strict v2 migration")
-                converted = directory / f"{obj['metadata']['name']}-beyla-v2.yaml"
-                converted.write_text(migrated)
-                converted.chmod(0o644)
-                # Replace the sole config bind while preserving all isolation.
-                source_mount = f"type=bind,source={source},target=/config/{key},readonly"
-                args[args.index(source_mount)] = f"type=bind,source={converted},target=/config/beyla-v2.yaml,readonly"
-                args[-3:] = ["config", "validate", "/config/beyla-v2.yaml"]
+                # The upstream v2-only validator cannot validate supported v1
+                # HTTP exporters without a lossy migration. Our reviewed source
+                # patch calls the actual unchanged runtime loader/Validate and
+                # returns before discovery, listeners or kernel work.
+                args[-2:] = ["elven-validate-config", f"/config/{key}"]
             command(args)
             result = {"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
                       "image": ref, "result": "passed"}
             if image_name == "beyla":
-                result["strict_v1_to_v2_sha256"] = hashlib.sha256(migrated.encode()).hexdigest()
-                result["lossy_migration_allowed"] = False
+                result["validation_mode"] = "same runtime loader and Validate; no startup"
+                invalid = directory / "invalid-beyla.yaml"
+                invalid.write_text("discovery: [\n")
+                invalid.chmod(0o644)
+                bad_yaml = list(args)
+                mount = f"type=bind,source={source},target=/config/{key},readonly"
+                bad_yaml[bad_yaml.index(mount)] = f"type=bind,source={invalid},target=/config/{key},readonly"
+                bad_environment = list(args)
+                image_index = bad_environment.index(ref)
+                bad_environment[image_index:image_index] = ["-e", "BEYLA_LOG_LEVEL=elven-invalid-log-level"]
+                for negative in (bad_yaml, bad_environment):
+                    rejected = subprocess.run(negative, text=True, capture_output=True, timeout=30)
+                    if rejected.returncode == 0:
+                        raise RuntimeError("Elven eBPF validator incorrectly accepted invalid configuration")
+                result["negative_config_checks_passed"] = 2
             results.append(result)
     if not any("gateway" in result["config"] for result in results):
         raise AssertionError("No gateway config was exercised")

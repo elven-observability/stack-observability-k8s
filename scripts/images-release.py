@@ -114,6 +114,12 @@ def lock_data():
                 raise ValueError(f"{name}: Go toolchain pin differs between Dockerfile and lock")
             if not (ROOT / recipe["manifest"]).is_file():
                 raise ValueError(f"{name}: missing minimal component build manifest")
+            for patch in recipe.get("patches", []):
+                path = ROOT / patch["path"]
+                if (not path.resolve().is_relative_to((ROOT / image["dockerfile"]).parent.resolve())
+                        or path.is_symlink() or not path.is_file()
+                        or sha256(path) != patch.get("sha256")):
+                    raise ValueError(f"{name}: source patch differs from the approved immutable build input")
         digest = image["distribution"].get("digest")
         if digest is not None and not DIGEST.fullmatch(digest):
             raise ValueError(f"{name}: invalid distribution digest")

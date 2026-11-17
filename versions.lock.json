@@ -41,6 +41,12 @@
         "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9",
         "manifest": "images/ebpf/build-source.sh",
         "obiRevision": "5abaf031651c103a31dfb67b129361917efaf969",
+        "patches": [
+          {
+            "path": "images/ebpf/elven-config-validation.patch",
+            "sha256": "069dd3c038916f31bf840422246725165c9f55821184855b9a6f9a76443278e7"
+          }
+        ],
         "reason": "The official Beyla 3.42.0 binary still contains HIGH CVE-2026-78661; build pinned upstream code with patched dependencies instead of waiving the scanner.",
         "revision": "70b1a981edd77257f96025bf9f16c1cf8c6f5f7a",
         "securityOverrides": {
