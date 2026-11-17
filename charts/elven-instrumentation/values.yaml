@@ -26,23 +26,23 @@ images:
   operator:
     repository: "docker.io/elvenobservability/elven-instrumentation-operator"
     tag: "v1.0.1"
-    digest: ""
+    digest: "sha256:02bbd134aeb266b847acdcbce101b87f939d1dcfc0504644e658ad7ec169d9fb"
   java:
     repository: "docker.io/elvenobservability/elven-auto-java"
     tag: "v1.0.1"
-    digest: ""
+    digest: "sha256:d12eb4f89103253645a387728a882a6834b5a7f2016bd3809ab4987cff2be87d"
   nodejs:
     repository: "docker.io/elvenobservability/elven-auto-nodejs"
     tag: "v1.0.1"
-    digest: ""
+    digest: "sha256:8b0d5f780b98346a4d2cfe3ae7f91fa40acb631465fcd0f855075c27b29a09c0"
   python:
     repository: "docker.io/elvenobservability/elven-auto-python"
     tag: "v1.0.1"
-    digest: ""
+    digest: "sha256:877ef1d6825eabe4911377a2103ede2024add278df504554de8789afeabf220b"
   nodejs20:
     repository: "docker.io/elvenobservability/elven-auto-nodejs20"
     tag: "v1.0.1"
-    digest: ""
+    digest: "sha256:4181555e365edab084427d771025648ed58ba18744c6cb7c70b0dac6ca102aab"
 imagePullSecrets: []
 replicas: 1
 samplingRatio: "1"

@@ -5,7 +5,7 @@
       "linux/amd64",
       "linux/arm64"
     ],
-    "publicationStatus": "not-published",
+    "publicationStatus": "verified",
     "registry": "docker.io/elvenobservability",
     "repository": "https://github.com/elven-observability/stack-observability-k8s",
     "version": "1.0.1"
@@ -14,10 +14,25 @@
     "java": {
       "compatibility": "Java 17 and 21; upstream agent supports Java 8+",
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
+            "sha256": "sha256:3298402025810b1071792dc09fb030b919970759acb1714113a47c530376b46c"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:e0bd970be6a522888e6c42c11f4c383c1ac2ddbddf14b6e110cf778774a2d0bb",
+            "linux/arm64": "sha256:16781a1e03d4327d218c88190e2528d86ee73ed6a2ed52e9a93d256428507108"
+          },
+          "subjectDigest": "sha256:d12eb4f89103253645a387728a882a6834b5a7f2016bd3809ab4987cff2be87d"
+        },
+        "digest": "sha256:d12eb4f89103253645a387728a882a6834b5a7f2016bd3809ab4987cff2be87d",
         "repository": "docker.io/elvenobservability/elven-auto-java",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:44.933865+00:00"
       },
       "dockerfile": "images/autoinstrumentation/java/Dockerfile",
       "payloadPaths": [
@@ -37,10 +52,25 @@
     "nodejs": {
       "compatibility": "Node.js >=22.15.0; Node.js 20 is NOT supported by this image",
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
+            "sha256": "sha256:b56bdf8e0506ba87f582fc7ccbd585e7a4e23a4a2883d70e7c87434378e5753e"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:49bbc1a901eef2ee83f4b05e979a2b9020bf997ba918a9bab704f71792be1ad5",
+            "linux/arm64": "sha256:b0dc0bc325f9c86a2bcfec16d2085542a8642a0e4ca52cef2c070879dfc09952"
+          },
+          "subjectDigest": "sha256:8b0d5f780b98346a4d2cfe3ae7f91fa40acb631465fcd0f855075c27b29a09c0"
+        },
+        "digest": "sha256:8b0d5f780b98346a4d2cfe3ae7f91fa40acb631465fcd0f855075c27b29a09c0",
         "repository": "docker.io/elvenobservability/elven-auto-nodejs",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:51.932915+00:00"
       },
       "dockerfile": "images/autoinstrumentation/nodejs/Dockerfile",
       "payloadPaths": [
@@ -60,10 +90,25 @@
     "nodejs20": {
       "compatibility": "Explicit legacy exception for Node.js >=20.6.0; runtime Node.js 20 is EOL since 2026-04-30",
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
+            "sha256": "sha256:0a213efe01e99a75508af90a70904ab14ca12a4ab7e37fd9e686f795f1c34b0d"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:f5ffaf6bbe2be2cc4deade519df62e9943bfa682ad8277fc693b00ee6ca4f75f",
+            "linux/arm64": "sha256:b72136ae0b4fe9e9e8ee6df5e6ceb2c397a7e08e1d483948879f6f4e274331c6"
+          },
+          "subjectDigest": "sha256:4181555e365edab084427d771025648ed58ba18744c6cb7c70b0dac6ca102aab"
+        },
+        "digest": "sha256:4181555e365edab084427d771025648ed58ba18744c6cb7c70b0dac6ca102aab",
         "repository": "docker.io/elvenobservability/elven-auto-nodejs20",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:15.017776+00:00"
       },
       "dockerfile": "images/autoinstrumentation/nodejs20/Dockerfile",
       "payloadPaths": [
@@ -82,10 +127,25 @@
     },
     "operator": {
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
+            "sha256": "sha256:366543685ecec6baeccd00c15d3186afceb0384a218f6eb240e177291df677fa"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:e2bba7f66219bec10e0500d315a45d9e38b9315b3483e501885431d08a361fec",
+            "linux/arm64": "sha256:d5cfe2ebf8ef9b34e110fd3f1a0767ef738a7f0bccd90f7a3451596d87549942"
+          },
+          "subjectDigest": "sha256:02bbd134aeb266b847acdcbce101b87f939d1dcfc0504644e658ad7ec169d9fb"
+        },
+        "digest": "sha256:02bbd134aeb266b847acdcbce101b87f939d1dcfc0504644e658ad7ec169d9fb",
         "repository": "docker.io/elvenobservability/elven-instrumentation-operator",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:27.685566+00:00"
       },
       "dockerfile": "images/operator/Dockerfile",
       "license": "Apache-2.0",
@@ -98,10 +158,25 @@
     "python": {
       "compatibility": "Python 3.x supported by upstream; optional beta auto-instrumentation; glibc/musl must be selected explicitly",
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
+            "sha256": "sha256:18d20aab37bb55213ba17cd8758599edfe620f4d203926d0d000d41169250381"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:df6dbabcb0dae64e3498d87c0309fd3742afdf5fdea710517fb7e34c5739b181",
+            "linux/arm64": "sha256:99494a78a41eaea78f1019a0bfd4da54e46e6c774bc7927d3b2450465354aa27"
+          },
+          "subjectDigest": "sha256:877ef1d6825eabe4911377a2103ede2024add278df504554de8789afeabf220b"
+        },
+        "digest": "sha256:877ef1d6825eabe4911377a2103ede2024add278df504554de8789afeabf220b",
         "repository": "docker.io/elvenobservability/elven-auto-python",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:39.223093+00:00"
       },
       "dockerfile": "images/autoinstrumentation/python/Dockerfile",
       "payloadPaths": [

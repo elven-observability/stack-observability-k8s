@@ -53,6 +53,18 @@ def release_identity(core, sdk):
             "sourceRepository": "https://github.com/elven-observability/stack-observability-k8s"}
 
 
+def validate_image_defaults(raw, lock):
+    """A promoted lock alone is insufficient if the shipped chart is stale."""
+    for name, image in lock["images"].items():
+        block = re.search(r"(?m)^  " + re.escape(name) + r":\n(?:(?:    .*|)\n)+", raw)
+        if not block:
+            raise ValueError(name + ": image defaults missing from the client chart")
+        for key in ("repository", "tag", "digest"):
+            value = re.search(r"(?m)^    " + key + r": (\"[^\"\n]*\")$", block.group())
+            if not value or json.loads(value[1]) != image["distribution"][key]:
+                raise ValueError(name + ": chart " + key + " differs from its promoted release lock")
+
+
 def archive(source, manifest):
     prefix = "elven-observability-v" + manifest["version"]
     expected = {prefix + "/" + name for name in ("elven", "versions.lock.json", "instrumentation.lock.json",
@@ -67,6 +79,12 @@ def archive(source, manifest):
                 raise ValueError("Unsafe or duplicate member in Git archive.")
             if len(path.parts) > 1 and path.parts[1] in {"kit", "legacy", ".git", ".artifacts", "artifacts", "helmfile.yaml"}:
                 raise ValueError("Private, legacy or recursive kit content cannot ship.")
+            # The outer kit pins this archive and cannot be embedded recursively.
+            # Its source-only tests remain in Git/CI, not in an inner payload
+            # where their intentionally absent bootstrap would fail imports.
+            if len(path.parts) > 2 and path.parts[1] == "tests" and member.isfile() and path.name.startswith("test_install_kit"):
+                seen.add(member.name)
+                continue
             total += member.size
             if total > 30_000_000 or member.size > 4_000_000:
                 raise ValueError("Distribution content exceeded the reviewed size bound.")
@@ -98,6 +116,8 @@ def main():
     core = module("elven_package_core", "images-release.py").lock_data()
     sdk = module("elven_package_sdk", "images-instrumentation.py").read_lock()
     manifest = release_identity(core, sdk)
+    for chart, lock in (("elven-observability", core), ("elven-instrumentation", sdk)):
+        validate_image_defaults((ROOT / "charts" / chart / "values.yaml").read_text(), lock)
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     manifest["installConfigRevision"] = revision
     prefix = "elven-observability-v" + manifest["version"]

@@ -25,6 +25,21 @@ def locks():
 
 
 class DistributionPackagingTests(unittest.TestCase):
+    def test_every_shipped_image_default_must_match_the_promoted_digest_and_tag(self):
+        for lock in locks():
+            lines = ["images:"]
+            for name, image in lock["images"].items():
+                lines.append("  " + name + ":")
+                for key in ("repository", "tag", "digest"):
+                    lines.append("    " + key + ": " + json.dumps(image["distribution"][key]))
+            raw = "\n".join(lines) + "\n"
+            P.validate_image_defaults(raw, lock)
+            for image in lock["images"].values():
+                for key in ("repository", "tag", "digest"):
+                    stale = raw.replace(json.dumps(image["distribution"][key]), json.dumps("stale-unpromoted-value"), 1)
+                    with self.subTest(key=key), self.assertRaisesRegex(ValueError, "differs"):
+                        P.validate_image_defaults(stale, lock)
+
     def test_both_complete_locks_and_one_stable_source_are_required(self):
         core, sdk = locks()
         identity = P.release_identity(core, sdk)
@@ -71,6 +86,12 @@ class DistributionPackagingTests(unittest.TestCase):
         for name in ("kit/instalar", "legacy/v0/apply.sh", ".artifacts/credential", "../escape", "elven", "INSTALL-MANIFEST.json"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 P.archive(self.source((name,)), P.release_identity(*locks()))
+
+    def test_source_only_outer_kit_tests_do_not_enter_the_inner_package(self):
+        raw = P.archive(self.source(("tests/test_install_kit.py", "tests/test_install_kit_source_guard.py", "tests/test_chart.py")), P.release_identity(*locks()))
+        with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as package:
+            self.assertIn("elven-observability-v1.0.1/tests/test_chart.py", package.getnames())
+            self.assertFalse(any(Path(name).name.startswith("test_install_kit") for name in package.getnames()))
 
     def test_allowlist_never_archives_the_whole_repository_implicitly(self):
         self.assertNotIn(".", P.PATHS)

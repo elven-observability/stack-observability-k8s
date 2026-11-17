@@ -5,7 +5,7 @@
       "linux/amd64",
       "linux/arm64"
     ],
-    "publicationStatus": "not-published",
+    "publicationStatus": "verified",
     "registry": "docker.io/elvenobservability",
     "repository": "https://github.com/elven-observability/stack-observability-k8s",
     "version": "1.0.1"
@@ -13,10 +13,25 @@
   "images": {
     "alloy": {
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:6d72b4202c0f54a31efb7989537697e55a1b85abf307ca20cfa9843eec6a8bb5"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:1a1cf8e525a22a896b79c6fa7d83b8cf566dc02ea61fa298b17276846d59f3c5",
+            "linux/arm64": "sha256:bcbb8349fcb4968a4d4dfd5ee7fb3bd848b44ef8b3b385091aee5359ab7af326"
+          },
+          "subjectDigest": "sha256:f22e2e8099706ea1cec50d0fced8a7747598fe24956752df200dd5bff2eb3c1d"
+        },
+        "digest": "sha256:f22e2e8099706ea1cec50d0fced8a7747598fe24956752df200dd5bff2eb3c1d",
         "repository": "docker.io/elvenobservability/elven-profiler",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:25.295590+00:00"
       },
       "dockerfile": "images/profiler/Dockerfile",
       "upstream": {
@@ -31,10 +46,25 @@
     },
     "beyla": {
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:c71b8a1e3f40ae541bc799f5d8cd4583cad55ab1748f36a7d239f3fd7ac50e2f"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:12ddba25720694b83cdabc78ff3e778f963559f20928a14f327d60a18ac24a25",
+            "linux/arm64": "sha256:50a1ecc0cd7bc5bfbf3ddc978d0ca16c9096253b9414415bb824584e9f8f24d0"
+          },
+          "subjectDigest": "sha256:68cd44f1aeafce7305a555e124f9687b1760db62bf7ea3e81e7d67af4f538f62"
+        },
+        "digest": "sha256:68cd44f1aeafce7305a555e124f9687b1760db62bf7ea3e81e7d67af4f538f62",
         "repository": "docker.io/elvenobservability/elven-ebpf",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:32.609555+00:00"
       },
       "dockerfile": "images/ebpf/Dockerfile",
       "sourceBuild": {
@@ -66,10 +96,25 @@
     },
     "collector": {
       "distribution": {
-        "digest": null,
+        "attestations": {
+          "build": {
+            "predicateType": "https://elvenobservability.com/attestations/build/v1",
+            "sha256": "sha256:394f7f71218e3046bdb8c2d8914f49c6eee993fce760f48ba691fc7f0f31d134"
+          },
+          "canonicalization": "elven-json-v1",
+          "schemaVersion": 1,
+          "spdx": {
+            "linux/amd64": "sha256:600791ef2c1560b8746b481f669af14c4fe64308c147445b12023edee4fe5055",
+            "linux/arm64": "sha256:9fc61e0af8031970362eec00304983890884419dd79b49ff19d85324d4d74900"
+          },
+          "subjectDigest": "sha256:d6cb61db477227ed6b6bb673a43ba87dd2c893a61c6eb3febfeda3476ae398e4"
+        },
+        "digest": "sha256:d6cb61db477227ed6b6bb673a43ba87dd2c893a61c6eb3febfeda3476ae398e4",
         "repository": "docker.io/elvenobservability/elven-collector",
-        "status": "not-published",
-        "tag": "v1.0.1"
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
+        "status": "verified",
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:39.713591+00:00"
       },
       "dockerfile": "images/collector/Dockerfile",
       "sourceBuild": {

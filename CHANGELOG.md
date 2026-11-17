@@ -1,12 +1,14 @@
 # Changelog
 
-## Candidata 1.0.1 — 17/11/2026
+## 1.0.1 — 17/11/2026
 
 - Rebuild mínimo Collector 0.165.0; Beyla 3.42.0 compilado de fonte imutável com x/net 0.62.0 e Java/JNI completos; profiler Alloy 1.22.0; Node atual 0.83.0-3. Novos scans e promoção obrigatórios, sem reutilizar recibos da v1.0.0.
 - Gates nativos amd64/arm64 sobre os mesmos archives escaneados. SPDX, proveniência, assinaturas e proteção de publicação continuam obrigatórios.
 - Kit com eBPF opt-in, deployments e nodes explícitos, HTTP/gRPC RED e rotas aprovadas; exclui SDKs por padrão. Sanitização na origem e gateway preserva texto útil e estrutura SQL sem exportar os literais sensíveis suportados.
 - Packaging fechado da distribuição promovida e do kit público com manifest/checksum, sem secrets, kubeconfig, legado ou dependência da máquina de desenvolvimento.
 - Profiles não usa mais um hostname presumido: backend HTTPS qualificado é obrigatório para habilitar o módulo opcional. O kit padrão mantém profiles desligado.
+- Validação eBPF pelo mesmo loader do runtime, sem iniciar captura. Recursão protobuf hostil é recusada sem relaxar a defesa do Collector; sanitização acima do budget é testada separadamente.
+- Fonte de build não pode instalar silenciosamente um kit antigo. Reaplicação do kit público exige preservar identidades de storage/Secrets; o instalador não reinicia aplicações.
 
 ## Unreleased — qualificação SaaS de 16/11/2026
 

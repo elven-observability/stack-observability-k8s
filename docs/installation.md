@@ -4,7 +4,7 @@ Este guia é para a equipe de plataforma. Escolha um caminho: **baixar o kit com
 
 ## Instalar com o kit público
 
-Baixe `elven-instalacao-v1.0.0.zip` e `elven-instalacao-v1.0.0.zip.sha256` na [release v1.0.0](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.0). Confira o checksum antes de extrair. O ZIP inclui launcher, bootstrap, modelo TOML e o pacote técnico original, com SHA-256 fixado. O [manifesto do kit](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.manifest.json) vincula os arquivos à revisão Git do instalador. A tag, as imagens e o pacote original da v1.0.0 não são substituídos.
+Baixe `elven-instalacao-v1.0.1.zip` e `elven-instalacao-v1.0.1.zip.sha256` na [release v1.0.1](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.1). Confira o checksum antes de extrair. O ZIP inclui launcher, bootstrap, modelo TOML e o pacote técnico original, com SHA-256 fixado. O [manifesto do kit](https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.1/elven-instalacao-v1.0.1.manifest.json) vincula os arquivos à revisão Git do instalador. A tag de build identifica as imagens; os manifests distinguem a revisão de configuração instalável. Nenhum asset histórico da v1.0.0 foi substituído.
 
 Siga [Preparar a configuração](../kit/plataforma/PREPARAR.md), também incluído no download. Preencha `plataforma/cliente.toml` uma vez, sem token, e rode `./instalar`. O modo guiado gera o plano de leitura e exige confirmação explícita antes da primeira escrita. Cancelar não cria aprovação; reexecuções conferem os hashes dos arquivos aprovados. Mudanças de configuração exigem preservar e revisar outro plano. O token é pedido sem eco só quando não há Secret próprio compatível com o tenant.
 
@@ -18,14 +18,14 @@ Mantenedores podem gerar o ZIP a partir de um checkout **limpo e commitado**, se
 
 ### Baixe o pacote certo
 
-Na [release v1.0.0](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.0), baixe `elven-observability-v1.0.0.tar.gz` e `SHA256SUMS` para uma pasta nova. O download automático **Source code** aponta para a revisão de build anterior à promoção dos digests; ele não é o pacote de instalação.
+Na [release v1.0.1](https://github.com/elven-observability/stack-observability-k8s/releases/tag/v1.0.1), baixe `elven-observability-v1.0.1.tar.gz` e `SHA256SUMS` para uma pasta nova. O download automático **Source code** aponta para a revisão de build anterior à promoção dos digests; ele não é o pacote de instalação.
 
 Com os dois arquivos na mesma pasta, verifique o checksum antes de extrair:
 
 ```sh
-grep '  elven-observability-v1\.0\.0\.tar\.gz$' SHA256SUMS | shasum -a 256 -c - &&
-  tar -xzf elven-observability-v1.0.0.tar.gz &&
-  cd elven-observability-v1.0.0
+grep '  elven-observability-v1\.0\.1\.tar\.gz$' SHA256SUMS | shasum -a 256 -c - &&
+  tar -xzf elven-observability-v1.0.1.tar.gz &&
+  cd elven-observability-v1.0.1
 ```
 
 Prossiga apenas se a verificação retornar `OK`. O pacote usa imagens Elven assinadas e fixadas por digest. O instalador confere se elas coincidem com os locks promovidos; veja como verificar as assinaturas na [cadeia de fornecimento](supply-chain.md#assinatura-identidade-e-promoção). Confirme também os limites de pull do registry no ambiente. O PAT de publicação da Elven não faz parte da instalação.
