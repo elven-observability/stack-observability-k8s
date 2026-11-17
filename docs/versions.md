@@ -12,6 +12,8 @@ O pipeline reconstrói os oito componentes, verifica High/Critical por arquitetu
 
 eBPF exporta traces e métricas HTTP/gRPC RED pelo Collector local sanitizante e pelo gateway próprio. Padrões de rota aprovados evitam transformar URLs dinâmicas em dimensões; rotas não reconhecidas viram wildcard. Serviços com SDK são excluídos por padrão e os seletores devem permanecer disjuntos.
 
+O carregador Beyla pinado continua aceitando o formato v1 por compatibilidade. Seu novo subcomando `config validate` aceita apenas Config v2; a validação Elven do arquivo v1 executa primeiro `config migrate` em modo estrito e valida o documento resultante com o mesmo binário. Não usa `--allow-partial`. Endpoints locais e a exigência de capabilities estão explícitos no YAML, pois o migrador não incorpora automaticamente os overrides de ambiente do runtime.
+
 Em 17/11, logs (`loki`), métricas (`mimir`) e traces (`tempo`) passaram verificação independente de hostname/CA TLS. O hostname anteriormente sugerido para profiles não possui DNS público no ambiente verificado. Por isso, a candidata **não fornece um endpoint fictício para profiles**: o módulo continua opcional/desligado e exige backend HTTPS explicitamente provisionado e qualificado. Um ensaio pprof sintético comprova o componente, não esse backend SaaS ausente.
 
 ## Histórico da qualificação — 16/11/2026

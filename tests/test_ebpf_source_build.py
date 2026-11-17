@@ -62,7 +62,9 @@ class EbpfSourceBuildTests(unittest.TestCase):
         self.assertIn("docker load --input artifacts/images/beyla.oci.tar", workflow)
         self.assertIn('("beyla", "ELVEN_BEYLA_IMAGE")', workflow)
         self.assertIn('"beyla.yaml": "beyla"', validator)
-        self.assertIn('["config", "validate", f"/config/{key}"]', validator)
+        self.assertIn('["config", "migrate", f"/config/{key}"]', validator)
+        self.assertIn('["config", "validate", "/config/beyla-v2.yaml"]', validator)
+        self.assertNotIn('"--allow-partial"', validator)
         self.assertIn('"--cap-drop", "ALL"', validator)
 
     def test_native_arm_is_a_required_gate_over_the_same_scanned_archives(self):
@@ -79,6 +81,20 @@ class EbpfSourceBuildTests(unittest.TestCase):
             self.assertIn("docker", steps)
             self.assertNotIn("setup-qemu", steps)
             self.assertNotIn("images-release.py build", steps)
+
+    def test_fast_configuration_qualification_cannot_publish_or_change_image_sources(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/images.yaml").read_text())
+        jobs = workflow["jobs"]
+        self.assertIn("inputs.candidate_run == ''", jobs["publish"]["if"])
+        self.assertEqual(jobs["candidate-runtime"]["permissions"], {"contents": "read", "actions": "read"})
+        steps = json.dumps(jobs["candidate-runtime"]["steps"])
+        self.assertIn("inputsSha256", steps)
+        self.assertIn("archiveSha256", steps)
+        self.assertIn("highCriticalCount", steps)
+        self.assertIn("timedelta(hours=24)", steps)
+        self.assertNotIn("id-token", steps)
+        self.assertNotIn("images-release.py publish", steps)
+        self.assertNotIn("cosign sign", steps)
 
 
 if __name__ == "__main__":

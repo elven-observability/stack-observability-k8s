@@ -184,6 +184,7 @@ data:
   {{- if .Values.modules.ebpf.enabled }}
   beyla.yaml: |
     log_level: WARN
+    enforce_sys_caps: true
     attributes:
       kubernetes:
         enable: true
@@ -205,9 +206,11 @@ data:
       unmatched: wildcard
       patterns: {{ .Values.modules.ebpf.routePatterns | toJson }}
     otel_traces_export:
+      endpoint: http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces
       protocol: http/protobuf
       instrumentations: [http, grpc]
     otel_metrics_export:
+      endpoint: http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/metrics
       protocol: http/protobuf
       interval: 15s
       features: [application]

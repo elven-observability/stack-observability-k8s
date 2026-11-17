@@ -6,6 +6,12 @@ on:
   push:
     tags: ['v1.*']
   workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: "Config/runtime-only qualification of an existing same-source scanned OCI artifact; never publishes"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -20,6 +26,7 @@ concurrency:
 
 jobs:
   build-and-scan:
+    if: github.event_name != 'workflow_dispatch' || inputs.candidate_run == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -159,6 +166,76 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  candidate-runtime:
+    if: github.event_name == 'workflow_dispatch' && inputs.candidate_run != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-oci-release
+          path: artifacts/images
+          run-id: ${{ inputs.candidate_run }}
+          github-token: ${{ github.token }}
+      - name: Require unchanged image inputs and exact recently scanned archives
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, hashlib, importlib.util, json, os, pathlib, subprocess
+          specification = importlib.util.spec_from_file_location("elven_oci", "scripts/images-release.py")
+          oci = importlib.util.module_from_spec(specification)
+          specification.loader.exec_module(oci)
+          lock = oci.lock_data()
+          folder = pathlib.Path("artifacts/images")
+          manifest = json.loads((folder / "release.json").read_text())
+          assert set(manifest["images"]) == set(lock["images"])
+          with open(os.environ["GITHUB_ENV"], "a") as output:
+              for name, key in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE"), ("beyla", "ELVEN_BEYLA_IMAGE")):
+                  image = manifest["images"][name]
+                  inputs = {str(path.relative_to(oci.ROOT)): oci.sha256(path) for path in oci.build_input_files(lock["images"][name])}
+                  assert image["inputsSha256"] == inputs, "Image sources changed; do a new build/scan"
+                  with (folder / image["archive"]).open("rb") as stream:
+                      assert hashlib.file_digest(stream, "sha256").hexdigest() == image["archiveSha256"]
+                  for platform in ("linux/amd64", "linux/arm64"):
+                      scan = image["scans"][platform]
+                      assert scan["status"] == "passed" and scan["highCriticalCount"] == 0
+                      assert scan["scanner"] == "trivy/" + lock["tools"]["trivy"]
+                      assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["scannedAt"]) < dt.timedelta(hours=24)
+                      assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["database"]["UpdatedAt"].replace("Z", "+00:00")) < dt.timedelta(hours=48)
+                  subprocess.run(["docker", "load", "--input", str(folder / image["archive"])], check=True)
+                  output.write(key + "=" + image["tag"] + "@" + image["digest"] + "\n")
+          PY
+      - name: Install pinned test tooling
+        run: |
+          python3 -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - name: Qualify configuration, pprof, selective privacy and WAL without publishing
+        run: |
+          python3 scripts/validate.py --runtime
+          python3 tests/privacy-runtime.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: elven-candidate-runtime-evidence
+          include-hidden-files: true
+          path: |
+            .artifacts/validation-*/report.json
+            .artifacts/privacy-*/report.json
+          if-no-files-found: error
+          retention-days: 7
+
   native-arm:
     needs: build-and-scan
     runs-on: ubuntu-24.04-arm
@@ -219,7 +296,7 @@ jobs:
 
   publish:
     # No PR, branch push or default-branch manual dispatch may publish.
-    if: startsWith(github.ref, 'refs/tags/v1.')
+    if: startsWith(github.ref, 'refs/tags/v1.') && (github.event_name != 'workflow_dispatch' || inputs.candidate_run == '')
     needs: [build-and-scan, native-arm]
     environment: elven-distribution-release
     runs-on: ubuntu-24.04

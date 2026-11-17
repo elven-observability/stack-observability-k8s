@@ -106,10 +106,30 @@ def runtime_checks(directory):
             if image_name == "collector":
                 args[-1:] = ["--config", f"/config/{key}"]
             elif image_name == "beyla":
-                args[-2:] = ["config", "validate", f"/config/{key}"]
+                # This pinned runtime supports legacy v1, while its validate
+                # subcommand accepts only v2. Strict migration uses the v1
+                # parser and rejects unknown/lossy fields; never allow-partial.
+                # Endpoints/capability policy are explicit in the source YAML,
+                # not only env overlays which the migration intentionally ignores.
+                args[-2:] = ["config", "migrate", f"/config/{key}"]
+                migrated = command(args)
+                document = yaml.safe_load(migrated)
+                if document.get("file_format") != "1.0" or document.get("extensions", {}).get("obi", {}).get("version") != "2.0":
+                    raise RuntimeError("Beyla did not produce a complete strict v2 migration")
+                converted = directory / f"{obj['metadata']['name']}-beyla-v2.yaml"
+                converted.write_text(migrated)
+                converted.chmod(0o644)
+                # Replace the sole config bind while preserving all isolation.
+                source_mount = f"type=bind,source={source},target=/config/{key},readonly"
+                args[args.index(source_mount)] = f"type=bind,source={converted},target=/config/beyla-v2.yaml,readonly"
+                args[-3:] = ["config", "validate", "/config/beyla-v2.yaml"]
             command(args)
-            results.append({"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
-                            "image": ref, "result": "passed"})
+            result = {"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
+                      "image": ref, "result": "passed"}
+            if image_name == "beyla":
+                result["strict_v1_to_v2_sha256"] = hashlib.sha256(migrated.encode()).hexdigest()
+                result["lossy_migration_allowed"] = False
+            results.append(result)
     if not any("gateway" in result["config"] for result in results):
         raise AssertionError("No gateway config was exercised")
     profile_test = ROOT / "tests/profiles-runtime.py"
