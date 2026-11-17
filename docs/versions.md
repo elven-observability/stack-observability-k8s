@@ -2,7 +2,19 @@
 
 Seleção inicial do núcleo em **29/10/2026**; hardening de SDKs, Operator, tooling e novos scans em **03/11/2026**, com releases oficiais, manifests OCI e advisories públicos. As fontes consumíveis por automação são [`versions.lock.json`](../versions.lock.json) e o lock independente [`instrumentation.lock.json`](../instrumentation.lock.json). Tags nunca substituem os digests no deployment. Não usar `latest`.
 
-## Pesquisa atualizada — 16/11/2026
+## Candidata v1.0.1 — pesquisa e gates de 17/11/2026
+
+Os locks desta branch selecionam Collector **0.165.0**, Alloy **1.22.0** e auto-instrumentação Node **0.83.0-3**. Java **2.33.1-2**, Node20 legado **0.81.2-1** e Python beta **0.66b2-2** mantêm seus contratos explícitos. A release npm Node 0.83.1 existe, mas não foi inventada uma tag de container correspondente. Só referências OCI existentes e verificadas entram no lock.
+
+**Atualizar a tag não bastou para o eBPF.** Trivy **0.76.2**, com DB atualizada em 17/11, ainda encontrou x/net 0.61.0 / CVE-2026-78661 na imagem oficial Beyla **3.42.0** em amd64 e arm64. A candidata Elven passa a compilar essa revisão e seu submódulo OBI imutáveis com **x/net 0.62.0**. Preserva o agent Java, o overlay Beyla, as duas bibliotecas JNI, os avisos e as licenças. Não declara o binário como um repasse upstream sem modificações. A imagem oficial Alloy 1.22.0 passou o scan High/Critical nas duas arquiteturas; o artefato Elven derivado ainda exige seu próprio gate.
+
+O pipeline reconstrói os oito componentes, verifica High/Critical por arquitetura, SPDX/proveniência, configuração com os binários exatos e privacidade antes da WAL. Publicação exige também testes **nativos amd64 e arm64** dos mesmos archives escaneados, sem substituir o binário por um rebuild não escaneado. Somente a execução e os recibos concluídos autorizam a promoção; um workflow escrito não é prova de sucesso. Enquanto os locks dizem `not-published`, o caminho normal de produção permanece bloqueado.
+
+eBPF exporta traces e métricas HTTP/gRPC RED pelo Collector local sanitizante e pelo gateway próprio. Padrões de rota aprovados evitam transformar URLs dinâmicas em dimensões; rotas não reconhecidas viram wildcard. Serviços com SDK são excluídos por padrão e os seletores devem permanecer disjuntos.
+
+Em 17/11, logs (`loki`), métricas (`mimir`) e traces (`tempo`) passaram verificação independente de hostname/CA TLS. O hostname anteriormente sugerido para profiles não possui DNS público no ambiente verificado. Por isso, a candidata **não fornece um endpoint fictício para profiles**: o módulo continua opcional/desligado e exige backend HTTPS explicitamente provisionado e qualificado. Um ensaio pprof sintético comprova o componente, não esse backend SaaS ausente.
+
+## Histórico da qualificação — 16/11/2026
 
 Esta pesquisa não substitui os digests assinados da v1.0.0 nem aprova automaticamente uma atualização. O piloto SaaS usa as imagens Elven promovidas; as correções de chart/installer são uma candidata separada, não uma alteração silenciosa do ZIP publicado.
 
@@ -36,7 +48,7 @@ No SaaS, as 11 aplicações de laboratório permaneceram prontas após retirar a
 
 Para ampliar os canários, foram selecionados [Go 1.27.3](https://go.dev/doc/devel/release), [.NET 10 LTS com servicing 10.0.15](https://dotnet.microsoft.com/en-us/platform/support/policy) e [PHP 8.5.12](https://www.php.net/downloads.php), com imagens de laboratório por digest e sem ingress público. Esses fixtures não equivalem a novos módulos de auto-injeção ou imagens SDK Elven promovidas. A [limitação documentada de sqlite3](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/sqlite3/sqlite3.html) requer cursor explícito; `connection.execute` não foi apresentado como caminho coberto.
 
-## Runtimes selecionados
+## Snapshot histórico dos runtimes da v1.0.0
 
 | Papel Elven | Upstream | Release | Justificativa / exceção |
 |---|---|---|---|
@@ -48,7 +60,7 @@ Os três manifests OCI upstream foram consultados anonimamente, incluindo `linux
 
 Os archives OCI de desenvolvimento da rodada de hardening eram evidência local, não imagens publicadas. A [release v1.0.0](release-v1.0.0.md) posterior aponta para imagens Elven assinadas, fixadas pelos digests promovidos. O Collector upstream não contém o processor próprio `elven_privacy` e não é fallback compatível.
 
-## SDKs e Operator Elven opcionais — 03/11/2026
+## Snapshot histórico de SDKs e Operator — 03/11/2026
 
 O webhook de injeção é código Elven mínimo, sem CRDs/controllers externos ou cliente da API no runtime. As imagens SDK Elven preservam payloads, licenças e rastreabilidade dos agentes upstream pinados no lock independente:
 

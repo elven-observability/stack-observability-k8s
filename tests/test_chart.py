@@ -40,6 +40,7 @@ def all_modules():
     return {
         "cluster": {"name": "synthetic-cluster"},
         "collection": {"namespaces": ["synthetic-app"]},
+        "endpoints": {"profiles": "https://profiles.example.invalid"},
         "networkPolicy": {"exportCIDRs": ["192.0.2.10/32"], "apiServerCIDRs": ["192.0.2.11/32"],
                           "kubeletCIDRs": ["192.0.2.12/32"], "profileCIDRs": ["192.0.2.13/32"],
                           "profilePorts": [443, 8443]},
@@ -57,6 +58,14 @@ def all_modules():
 
 
 class ChartTests(unittest.TestCase):
+    def test_profiles_never_uses_an_unprovisioned_guessed_backend(self):
+        self.assertEqual(DEFAULTS["endpoints"]["profiles"], "")
+        values = all_modules()
+        values["endpoints"]["profiles"] = ""
+        result = render(values, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("explicitly qualified HTTPS backend", result.stderr)
+
     def test_ebpf_red_metrics_and_traces_use_source_privacy_and_the_gateway(self):
         values = all_modules()
         values["modules"]["logs"]["enabled"] = False

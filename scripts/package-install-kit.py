@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("elven_install_bootstrap", ROOT / "kit/plataforma/instalar.py")
 BOOTSTRAP = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BOOTSTRAP)
-NAME = "elven-instalacao-v1.0.0"
+NAME = "elven-instalacao-v" + BOOTSTRAP.VERSION
 FILES = ("instalar", "COMECE-AQUI.md", "plataforma/PREPARAR.md",
          "plataforma/cliente.exemplo.toml", "plataforma/instalar.py")
 

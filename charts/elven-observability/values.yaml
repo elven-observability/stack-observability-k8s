@@ -31,7 +31,9 @@ endpoints:
   logs: https://loki.elvenobservability.com/otlp/v1/logs
   metrics: https://mimir.elvenobservability.com/otlp/v1/metrics
   traces: https://tempo.elvenobservability.com/http/v1/traces
-  profiles: https://pyroscope.elvenobservability.com
+  # Optional backend: require a real, independently qualified HTTPS endpoint.
+  # No guessed public hostname is shipped for a service that is not provisioned.
+  profiles: ""
 exportTLS:
   # Optional private export CA supplied as a separate Secret, key ca.crt.
   existingCASecret: ""

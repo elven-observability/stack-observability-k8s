@@ -23,7 +23,7 @@
     "tls": {"$ref": "#/definitions/existingSecret"},
     "endpoints": {
       "type": "object", "additionalProperties": false, "required": ["logs", "metrics", "traces", "profiles"],
-      "properties": {"logs": {"$ref": "#/definitions/httpsEndpoint"}, "metrics": {"$ref": "#/definitions/httpsEndpoint"}, "traces": {"$ref": "#/definitions/httpsEndpoint"}, "profiles": {"$ref": "#/definitions/httpsEndpoint"}}
+      "properties": {"logs": {"$ref": "#/definitions/httpsEndpoint"}, "metrics": {"$ref": "#/definitions/httpsEndpoint"}, "traces": {"$ref": "#/definitions/httpsEndpoint"}, "profiles": {"anyOf": [{"const": ""}, {"$ref": "#/definitions/httpsEndpoint"}]}}
     },
     "exportTLS": {
       "type": "object", "additionalProperties": false, "required": ["existingCASecret"],
