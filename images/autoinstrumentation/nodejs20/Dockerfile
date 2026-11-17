@@ -1,7 +1,7 @@
 # Explicit EOL Node.js 20 compatibility exception; never the default Node.js profile.
 ARG UPSTREAM_IMAGE=ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.81.2-1@sha256:7c5852f71d38ee12ba19df81aa8b7d866a254ce19fd3cf12966201de1efbc283
 FROM ${UPSTREAM_IMAGE}
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG REVISION=unreleased
 ARG CREATED
 LABEL org.opencontainers.image.title="Elven Node.js 20 Legacy Auto-Instrumentation" \

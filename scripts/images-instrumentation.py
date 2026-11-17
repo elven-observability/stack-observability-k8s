@@ -316,7 +316,7 @@ def main():
     parser.add_argument("--component", choices=("all", *REPOSITORIES), default="all")
     parser.add_argument("--lock", type=Path, default=ROOT / "instrumentation.lock.json")
     parser.add_argument("--evidence-dir", type=Path, default=ROOT / "artifacts/instrumentation")
-    parser.add_argument("--version", default="1.0.0-dev")
+    parser.add_argument("--version", default="1.0.1-dev")
     parser.add_argument("--platform", default="linux/amd64,linux/arm64")
     args = parser.parse_args()
     lock = read_lock(args.lock)

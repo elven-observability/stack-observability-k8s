@@ -49,7 +49,7 @@ jobs:
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           docker system df
           python3 scripts/images-instrumentation.py check
-          version=1.0.0-dev
+          version=1.0.1-dev
           if [[ "$RELEASE_REF" =~ ^refs/tags/v1\.[0-9]+\.[0-9]+$ ]]; then
             version="${RELEASE_REF#refs/tags/}"
           fi

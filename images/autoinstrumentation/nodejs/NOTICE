@@ -2,8 +2,8 @@ Elven Node.js auto-instrumentation packaging
 Copyright The OpenTelemetry Authors and the respective dependency authors.
 Elven packaging copyright Elven Observability contributors, Apache-2.0.
 Upstream auto-instrumentation image and all inherited dependency notices are preserved.
-Official image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.82.0-3@sha256:609216a9e468279bd41b56829c1fd5e73cb29b5b1002ed95921bf59da854e09a
-Official source/release: https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.82.0
+Official image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs:0.83.0-3@sha256:9b53ce65c9c43ec5d5d3fdade6e6918d3c8231f97dfa4145d4aad36dbbdb6b48
+Official source/release: https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.83.0
 Packaging source: https://github.com/elven-observability/stack-observability-k8s
 SDK payload paths are not changed by this wrapper: /autoinstrumentation.
 Elven branding does not imply upstream endorsement or transfer of third-party ownership.

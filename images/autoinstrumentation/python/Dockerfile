@@ -1,7 +1,7 @@
 # Preserve the upstream SDK payload, copy utility, entrypoint and dependency licenses.
 ARG UPSTREAM_IMAGE=ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-python:0.66b2-2@sha256:d3a1dae864158a561a99fd7bb8e4ac1c7c5f2f80a4d9d095b1813866da52693a
 FROM ${UPSTREAM_IMAGE}
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG REVISION=unreleased
 ARG CREATED
 LABEL org.opencontainers.image.title="Elven Python Auto-Instrumentation" \

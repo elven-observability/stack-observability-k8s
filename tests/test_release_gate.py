@@ -100,11 +100,16 @@ class ProductionGateTests(unittest.TestCase):
                 self.check_with_lock(value)
 
     def test_repository_policy_blocks_both_known_unsafe_optional_release_images(self):
-        value = json.loads((Path(__file__).resolve().parents[1] / "versions.lock.json").read_text())
-        settings = {"modules": {}, "images": {name: dict(image["distribution"])
-                    for name, image in value["images"].items()}}
-        self.check_with_lock(value, settings)
+        actual = json.loads((Path(__file__).resolve().parents[1] / "versions.lock.json").read_text())
+        # Historical revocations survive a new, temporarily unpublished release.
+        # Promotion status below belongs only to this synthetic test fixture.
         for module, image in (("ebpf", "beyla"), ("profiles", "alloy")):
+            value = approved_lock()
+            value["runtimeBlocks"] = actual["runtimeBlocks"]
+            digest = next(key for key, entry in actual["runtimeBlocks"].items() if entry["component"] == image)
+            value["images"][image]["distribution"]["digest"] = digest
+            settings = {"modules": {}, "images": {name: dict(item["distribution"]) for name, item in value["images"].items()}}
+            self.check_with_lock(value, settings)
             settings["modules"] = {module: {"enabled": True}}
             with self.subTest(module=module), self.assertRaisesRegex(cli.Failure, f"security policy blocks images.{image}"):
                 self.check_with_lock(value, settings)

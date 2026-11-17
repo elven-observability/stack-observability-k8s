@@ -34,9 +34,9 @@ class ImageCIResourcesTests(unittest.TestCase):
         self.assertNotIn("continue-on-error", self.steps[guard])
 
     def test_job_and_build_have_distinct_bounded_timeouts(self):
-        self.assertEqual(self.job["timeout-minutes"], 75)
+        self.assertEqual(self.job["timeout-minutes"], 90)
         build = next(step for step in self.steps if "images-release.py build" in step.get("run", ""))
-        self.assertEqual(build["timeout-minutes"], 40)
+        self.assertEqual(build["timeout-minutes"], 55)
 
     def test_cleanup_targets_only_the_action_created_builder(self):
         builder = next(step for step in self.steps if step.get("id") == "builder")

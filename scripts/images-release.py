@@ -608,7 +608,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["check", "build", "scan", "govulncheck", "publish", "verify", "promote"])
     parser.add_argument("--component", choices=["all", "collector", "beyla", "alloy"], default="all")
-    parser.add_argument("--version", default="1.0.0-dev")
+    parser.add_argument("--version", default="1.0.1-dev")
     parser.add_argument("--platform", default="linux/arm64", help="Explicit local architecture; release requires both linux/amd64,linux/arm64")
     parser.add_argument("--evidence-dir", type=Path, default=ROOT / "artifacts/images")
     args = parser.parse_args()

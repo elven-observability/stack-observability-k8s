@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build-and-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,12 +53,12 @@ jobs:
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           docker system df
       - name: Validate locks and build both architectures without publishing
-        timeout-minutes: 40
+        timeout-minutes: 55
         env:
           RELEASE_REF: ${{ github.ref }}
         run: |
           python3 scripts/images-release.py check
-          version=1.0.0-dev
+          version=1.0.1-dev
           if [[ "$RELEASE_REF" =~ ^refs/tags/v1\.[0-9]+\.[0-9]+$ ]]; then
             version="${RELEASE_REF#refs/tags/}"
           fi

@@ -1,7 +1,7 @@
 # Preserve the upstream SDK payload, copy utility, entrypoint and dependency licenses.
 ARG UPSTREAM_IMAGE=ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1-2@sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452
 FROM ${UPSTREAM_IMAGE}
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG REVISION=unreleased
 ARG CREATED
 LABEL org.opencontainers.image.title="Elven Java Auto-Instrumentation" \

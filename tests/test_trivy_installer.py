@@ -22,8 +22,8 @@ class TrivyInstallerTests(unittest.TestCase):
     def test_both_locks_pin_the_official_binary_for_their_exact_version(self):
         for name in ("versions.lock.json", "instrumentation.lock.json"):
             version, pin = MODULE.read_pin(ROOT / name)
-            self.assertEqual(version, "0.76.1")
-            self.assertEqual(pin["sha256"], "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0")
+            self.assertEqual(version, "0.76.2")
+            self.assertEqual(pin["sha256"], "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf")
 
     def test_url_version_or_checksum_mismatch_is_rejected(self):
         valid = json.loads((ROOT / "versions.lock.json").read_text())

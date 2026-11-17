@@ -7,3 +7,6 @@
 !images/ebpf/NOTICE
 !images/ebpf/UPSTREAM-NOTICE
 !images/ebpf/third_party_licenses.csv
+!images/ebpf/build-source.sh
+!images/ebpf/license-bundle.go
+!images/ebpf/license-bundle_test.go
