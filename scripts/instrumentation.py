@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlsplit
 
 
@@ -517,6 +518,10 @@ def verify_admission(args, settings):
     every injection. A server-side dry-run exercises that actual admission path
     without scheduling, pulling an image or starting any application container.
     """
+    # Deployment Ready can precede API-server webhook/EndpointSlice cache
+    # convergence during upgrades. Retry only the non-persisting proof; never
+    # accept Ready, an old SDK mutation, or a permanently ignored webhook.
+    deadline = time.monotonic() + 60
     for namespace in settings["namespaces"]:
         for runtime in ("java", "nodejs", "nodejs20", "python"):
             if not settings["runtimes"].get(runtime):
@@ -538,22 +543,27 @@ def verify_admission(args, settings):
                                             "capabilities": {"drop": ["ALL"]}},
                         "resources": {"requests": {"cpu": "1m", "memory": "16Mi"},
                                       "limits": {"cpu": "10m", "memory": "32Mi"}}}]}}
-            try:
-                rendered = json.loads(kube(args, "create", "--dry-run=server", "-f", "-", "-o", "json",
-                                           data=json.dumps(probe)))
-                sdk = [entry for entry in rendered["spec"].get("initContainers", [])
-                       if entry.get("name") == "elven-instrumentation-init"]
-                marker = rendered["metadata"].get("annotations", {}).get("elven.observability/injected")
-                application = next(c for c in rendered["spec"]["containers"] if c["name"] == "application")
-                endpoint = {e["name"]: e.get("value") for e in application.get("env", [])}.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-                if (len(sdk) != 1 or sdk[0].get("image") != reference or marker != runtime
-                        or endpoint != settings["gateway"]["endpoint"].rstrip("/")):
-                    raise ValueError("Missing or unexpected SDK mutation")
-            except (Failure, ValueError, TypeError, KeyError, AttributeError, StopIteration):
-                raise Failure(f"Operator reconciled but real admission verification failed for {namespace}/{runtime}. "
-                              "No probe Pod was persisted and no application was restarted. Check webhook TLS, selectors, "
-                              "admission policy and the actual post-NAT control-plane source CIDRs; do not widen the network "
-                              "or treat Ready as proof of injection. Owned resources and TLS Secrets were retained.") from None
+            for attempt in range(12):
+                try:
+                    rendered = json.loads(kube(args, "create", "--dry-run=server", "-f", "-", "-o", "json",
+                                               data=json.dumps(probe)))
+                    sdk = [entry for entry in rendered["spec"].get("initContainers", [])
+                           if entry.get("name") == "elven-instrumentation-init"]
+                    marker = rendered["metadata"].get("annotations", {}).get("elven.observability/injected")
+                    application = next(c for c in rendered["spec"]["containers"] if c["name"] == "application")
+                    endpoint = {e["name"]: e.get("value") for e in application.get("env", [])}.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+                    if (len(sdk) != 1 or sdk[0].get("image") != reference or marker != runtime
+                            or endpoint != settings["gateway"]["endpoint"].rstrip("/")):
+                        raise ValueError("Missing or unexpected SDK mutation")
+                    break
+                except (Failure, ValueError, TypeError, KeyError, AttributeError, StopIteration):
+                    remaining = deadline - time.monotonic()
+                    if attempt == 11 or remaining <= 0:
+                        raise Failure(f"Operator reconciled but real admission verification failed for {namespace}/{runtime}. "
+                                      "No probe Pod was persisted and no application was restarted. Check webhook TLS, selectors, "
+                                      "admission policy and the actual post-NAT control-plane source CIDRs; do not widen the network "
+                                      "or treat Ready as proof of injection. Owned resources and TLS Secrets were retained.") from None
+                    time.sleep(min(2, remaining))
     print("Actual SDK admission verified for every selected namespace/runtime by server-side dry-run; no probe Pod was persisted.")
 
 
