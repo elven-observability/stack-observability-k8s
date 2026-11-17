@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.1",
+  "observedAt": "2026-11-17T15:32:12.429070+00:00",
+  "result": "PASS_IN_DECLARED_SCOPE",
+  "assets": {
+    "kit": {
+      "url": "https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.1/elven-instalacao-v1.0.1.zip",
+      "sha256": "fb0e03af04b73fb7c7303775df4e87b23e5139d000608cb53dc2dbbc095737ce",
+      "sourceRevision": "49b7b48155eab89b5ffc22c793bec8deaa32e3ad"
+    },
+    "distribution": {
+      "sha256": "fdd3dfb6fe621a5c69b6f8a79dc6f4601c6e764b524b66c00681deb56da352db",
+      "installConfigRevision": "1419d3303ac0b22768bb45b25c3db948a6e556c1",
+      "imageSourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494"
+    },
+    "evidence": {
+      "url": "https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.1/elven-observability-v1.0.1-evidence.tar.gz",
+      "sha256": "2db1d2cf6a15ae0d7b2a31f2b448dd5b32611c5c03a46e327d62ff057c4b7219"
+    },
+    "downloadAuthentication": "anonymous HTTPS",
+    "allSixPayloadHashesVerified": true
+  },
+  "supplyChain": {
+    "images": 8,
+    "platforms": ["linux/amd64", "linux/arm64"],
+    "scans": 16,
+    "highCritical": 0,
+    "signaturesAndExactPredicatesIndependentlyVerified": true,
+    "coreRun": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/44100325545",
+    "sdkRun": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/44100325488",
+    "coreLifecycleChecksPerArchitecture": 25,
+    "privacyGroupsPerArchitecture": 6,
+    "sdkChecksPerArchitecture": 20,
+    "contracts": {"run": 396, "failures": 0, "errors": 0, "skipped": 0}
+  },
+  "installation": {
+    "command": "./instalar",
+    "developmentMode": false,
+    "localFinalKitExitCode": 0,
+    "publicDownloadedKitExitCode": 0,
+    "sameVersionReapplyPreservedAllOwnedPodUids": true,
+    "secretAndPvcUidsPreserved": true,
+    "readyPods": 15,
+    "runtimeDigestChecks": 11,
+    "applicationRolloutsByBootstrap": 0,
+    "explicitOwnSdkCanaryRolloutsByAcceptanceHarness": 6
+  },
+  "acceptance": {
+    "tenant": "elven-demo",
+    "applications": 11,
+    "requests": 110,
+    "successfulRequests": 110,
+    "sdkCanaries": 6,
+    "correlatedServices": 4,
+    "correlatedSpans": 9,
+    "duplicateSdkSpanIds": 0,
+    "maskedLogsWithUsefulMessage": 110,
+    "sqlSystems": ["h2", "sqlite"],
+    "sqlShapePreservedAndLiteralsRemoved": true,
+    "ebpfApplications": 4,
+    "ebpfServerSpansPerApplication": 10,
+    "sdkEbpfOverlap": false,
+    "redHistogramsRouteAndHttpStatusVerified": true,
+    "node20ProcessInstances": 2,
+    "node22ProcessInstances": 2,
+    "allThreeQueuesObservedAtZeroWithinBoundedWindow": true,
+    "mtlsNegativeControlsRejected": true,
+    "publicMissingAndInvalidBearerStatus": 401,
+    "spoofedIngressTenantHeaderCannotOverrideFixedExportTenant": true,
+    "applicationSecretOnlyContainsTls": true,
+    "crossCustomerQueriesOrWrites": 0
+  },
+  "sharedResourceBaseline": {
+    "controllersPerWindow": 273,
+    "windows": 2,
+    "uidChanges": 0,
+    "templateChanges": 0,
+    "desiredReplicaChanges": 0,
+    "readinessChangedControllersPerWindow": [1, 1],
+    "causalAttributionOfReadinessChanges": "UNKNOWN; no external resources were changed by this work"
+  },
+  "limits": [
+    "Own SaaS pilot, two owned namespaces, one amd64 Linux 6.8 node for eBPF; not every customer kernel/CNI/CSI",
+    "Client Kubernetes 1.35-1.37, permissions, connectivity, capacity and storage still require preflight",
+    "Node20 requires explicit EOL approval; Python auto-instrumentation remains beta",
+    "Go/.NET/PHP exercised through eBPF, not Elven SDK injection",
+    "Profiles backend not provisioned; profiles disabled in the kit",
+    "No universal method/statement or PII coverage, gateway HA or permanent zero-loss guarantee",
+    "First pre-final attempt failed after Ready; exact transient cause was not recorded. Final installer has bounded non-persisting admission retries with fail-closed regression tests"
+  ]
+}

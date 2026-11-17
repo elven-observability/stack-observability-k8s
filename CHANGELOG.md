@@ -9,8 +9,12 @@
 - Profiles não usa mais um hostname presumido: backend HTTPS qualificado é obrigatório para habilitar o módulo opcional. O kit padrão mantém profiles desligado.
 - Validação eBPF pelo mesmo loader do runtime, sem iniciar captura. Recursão protobuf hostil é recusada sem relaxar a defesa do Collector; sanitização acima do budget é testada separadamente.
 - Fonte de build não pode instalar silenciosamente um kit antigo. Reaplicação do kit público exige preservar identidades de storage/Secrets; o instalador não reinicia aplicações.
+- Piloto real do kit público: `./instalar` sem desenvolvimento retorna zero e preserva Pods, Secret e PVC. 110/110 requests em 11 aplicações, três sinais no tenant próprio, SQL H2/SQLite sanitizado e captura eBPF nos quatro alvos; recibos em `docs/evidence/2026-11-17/`.
+- Checagem real de admission aguarda convergência do webhook com prazo/tentativas limitados, sem aceitar SDK antigo, fail-open ou falha persistente. 396 testes e schemas da faixa declarada aprovados.
 
-## Unreleased — qualificação SaaS de 16/11/2026
+## Histórico pré-1.0.1 — qualificação SaaS de 16/11/2026
+
+Registro da candidata antes do rebuild e da promoção acima; não descreve o estado atual da v1.0.1 publicada.
 
 - Novo scan bloqueou Beyla/Alloy pinados: x/net CVE-2026-78661 e APT CVE-2026-109518, sem waiver. O piloto retirou eBPF, mantém SDKs e nunca habilitou profiling. A candidata da CLI recusa esses digests opcionais via política separada de sua promoção histórica; não altera retroativamente os ZIPs publicados.
 - Installer verifica a injeção real de cada namespace/runtime por admission dry-run após Helm; timeout/fail-open não é mais confundido com SDK instalado. Nenhum Pod de probe é persistido e aplicações não recebem restart automático.

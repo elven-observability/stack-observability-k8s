@@ -30,6 +30,18 @@ O source das imagens é `7dea21b4391f5d0107bec8c280518fe097f9c494`, fixado pela 
 
 Collector 0.165.0 mantém a defesa contra recursão protobuf hostil. O teste separa rejeição HTTP 400 da sanitização de ramos acima do budget, sem aumentar limites. Beyla 3.42.0 é compilado de fontes imutáveis com x/net 0.62.0, preservando Java/JNI e licenças. Um patch Elven fixado por hash oferece validação pelo mesmo loader do startup sem iniciar captura. [Versões e decisões](versions.md).
 
+## Aceite do kit público no SaaS — 17/11/2026
+
+O [recibo de aceite](evidence/2026-11-17/release-v1.0.1.json) registra os hashes dos assets, os cenários e seus limites. O ZIP foi baixado anonimamente por HTTPS, extraído numa pasta nova e executado com `./instalar`, sem modo de desenvolvimento. Tanto a instalação do kit final quanto a reaplicação do download público terminaram com código zero, preservando o Secret e o PVC; a reaplicação não substituiu nenhum Pod dos dois namespaces próprios.
+
+No tenant próprio do piloto, 110/110 requisições em 11 aplicações geraram 110 logs com mensagem útil e PII mascarada. Seis canaries SDK tiveram seus traces encontrados, sem span IDs duplicados; uma cadeia atravessou quatro serviços com nove spans. H2/SQLite preservaram a forma da query com literais removidos. Os quatro alvos eBPF tiveram dez spans de servidor cada, métricas RED com buckets, rota aprovada e status HTTP, sem sobreposição com SDK. As métricas de processos Node 20/22 mantiveram duas identidades distintas em cada runtime. As três filas foram observadas zeradas dentro de uma janela limitada, com produtores ainda ativos.
+
+mTLS recusou ausência de certificado, CA alheia e SAN incorreto. Os três endpoints públicos recusaram bearer ausente/inválido com HTTP 401. Um header de tenant de ingresso forjado não mudou o destino fixo dos três sinais. As aplicações receberam somente material TLS, nunca o token SaaS.
+
+O ensaio foi limitado aos dois namespaces próprios e a um node Linux amd64/kernel 6.8. Nenhum UID, template ou réplica desejada dos 273 controllers externos mudou nas duas comparações. Houve variação de readiness em um controller externo em cada janela; isto não é prova de causa nem garantia de ausência de impacto. O snapshot final da stack foi aproximadamente 51m CPU/485Mi, incluindo eBPF 13m/377Mi: fotografia de laboratório, não dimensionamento garantido de cliente.
+
+Uma primeira tentativa anterior ao kit final retornou erro após os deployments ficarem Ready; os dry-runs reais seguintes passaram. A causa transitória exata não foi registrada pelo wrapper. O instalador final agora repete apenas a prova não persistente por prazo/tentativas limitados, com regressões cobrindo transporte transitório, mutação antiga, falha persistente e deadline. Não houve relaxamento de TLS, NetworkPolicy, imagem esperada ou critério de injeção.
+
 ## Limites e atualização
 
 Kubernetes 1.35–1.37 é a faixa declarada; admissão, CNI/CSI, capacidade e kernels exigem qualificação no cliente. Java 17/21 e Node 22.15+ têm os perfis atuais; Node20 é exceção EOL explícita e Python permanece beta opt-in. Não há promessa de todos os métodos/statements, PII universal, profiling automático, SDK injection Go/.NET/PHP ou HA de gateway.

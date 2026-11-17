@@ -1,0 +1,12 @@
+{
+  "at": "2026-11-17T15:32:12.429070+00:00",
+  "clusterUid": "d28d41ec-0d69-4f9e-9e6a-20936815d22d",
+  "command": "./instalar",
+  "developmentMode": false,
+  "exitCode": 0,
+  "gatewayPvcUidPreserved": true,
+  "ingestSecretUidPreserved": true,
+  "namespace": "elven-observability",
+  "sameVersionPublicReapplyPreservesPods": true,
+  "tenant": "elven-demo"
+}
