@@ -40,6 +40,8 @@ class EbpfSourceBuildTests(unittest.TestCase):
                       "/usr/share/elven-ebpf/build/obi-java-agent.jar", "generateLicenseReport"):
             self.assertIn(value, recipe)
         self.assertNotIn("unmodified", (ROOT / "images/ebpf/NOTICE").read_text().lower())
+        self.assertIn("gcc-aarch64-linux-gnu libc6-dev-arm64-cross", recipe)
+        self.assertIn("gcc-x86-64-linux-gnu libc6-dev-amd64-cross", recipe)
 
     def test_local_build_code_is_an_explicit_deny_all_context_exception(self):
         context = (ROOT / "images/ebpf/Dockerfile.dockerignore").read_text()

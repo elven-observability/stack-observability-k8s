@@ -17,8 +17,8 @@ COPY --from=sources /src/beyla/.obi-src/pkg/internal/java/agent/Makefile.jni /bu
 WORKDIR /build
 RUN apt-get update && \
     case "$BUILDARCH" in \
-      amd64) apt-get install --yes --no-install-recommends gcc-aarch64-linux-gnu ;; \
-      arm64) apt-get install --yes --no-install-recommends gcc-x86-64-linux-gnu ;; \
+      amd64) apt-get install --yes --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross ;; \
+      arm64) apt-get install --yes --no-install-recommends gcc-x86-64-linux-gnu libc6-dev-amd64-cross ;; \
       *) exit 1 ;; \
     esac && \
     case "$BUILDARCH" in amd64) native=amd64; cross=aarch64; cc=aarch64-linux-gnu-gcc ;; arm64) native=aarch64; cross=amd64; cc=x86_64-linux-gnu-gcc ;; esac && \
