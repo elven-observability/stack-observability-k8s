@@ -115,6 +115,8 @@ class EbpfSourceBuildTests(unittest.TestCase):
         self.assertNotIn("id-token", steps)
         self.assertNotIn("images-release.py publish", steps)
         self.assertNotIn("cosign sign", steps)
+        self.assertIn("test-kind.py --development-images", steps)
+        self.assertEqual({item["arch"] for item in jobs["candidate-runtime"]["strategy"]["matrix"]["include"]}, {"amd64", "arm64"})
 
 
 if __name__ == "__main__":

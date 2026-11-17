@@ -168,8 +168,14 @@ jobs:
 
   candidate-runtime:
     if: github.event_name == 'workflow_dispatch' && inputs.candidate_run != ''
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, arch: amd64, dockerArch: x86_64}
+          - {runner: ubuntu-24.04-arm, arch: arm64, dockerArch: aarch64}
     permissions:
       contents: read
       actions: read
@@ -191,7 +197,10 @@ jobs:
           run-id: ${{ inputs.candidate_run }}
           github-token: ${{ github.token }}
       - name: Require unchanged image inputs and exact recently scanned archives
+        env:
+          EXPECTED_DOCKER_ARCH: ${{ matrix.dockerArch }}
         run: |
+          test "$(docker info --format '{{.Architecture}}')" = "$EXPECTED_DOCKER_ARCH"
           python3 - <<'PY'
           import datetime as dt, hashlib, importlib.util, json, os, pathlib, subprocess
           specification = importlib.util.spec_from_file_location("elven_oci", "scripts/images-release.py")
@@ -212,6 +221,8 @@ jobs:
                       scan = image["scans"][platform]
                       assert scan["status"] == "passed" and scan["highCriticalCount"] == 0
                       assert scan["scanner"] == "trivy/" + lock["tools"]["trivy"]
+                      for key in ("report", "sbom"):
+                          assert oci.sha256(folder / scan[key]) == scan[key + "Sha256"]
                       assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["scannedAt"]) < dt.timedelta(hours=24)
                       assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["database"]["UpdatedAt"].replace("Z", "+00:00")) < dt.timedelta(hours=48)
                   subprocess.run(["docker", "load", "--input", str(folder / image["archive"])], check=True)
@@ -221,18 +232,21 @@ jobs:
         run: |
           python3 -m pip install --requirement requirements-test.txt
           bash scripts/images-install-ci-tools.sh
-      - name: Qualify configuration, pprof, selective privacy and WAL without publishing
+      - name: Qualify configuration, pprof, privacy, WAL and full lifecycle without publishing
         run: |
           python3 scripts/validate.py --runtime
           python3 tests/privacy-runtime.py
+          python3 scripts/test-kind.py --development-images --collector-image "$ELVEN_COLLECTOR_IMAGE" --collector-image-archive artifacts/images/collector.oci.tar --node-image kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: elven-candidate-runtime-evidence
+          name: elven-candidate-runtime-evidence-${{ matrix.arch }}
           include-hidden-files: true
           path: |
             .artifacts/validation-*/report.json
             .artifacts/privacy-*/report.json
+            .artifacts/kind-*/report.json
+            .artifacts/kind-*/diagnostics.txt
           if-no-files-found: error
           retention-days: 7
 

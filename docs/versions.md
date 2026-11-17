@@ -14,6 +14,8 @@ eBPF exporta traces e métricas HTTP/gRPC RED pelo Collector local sanitizante e
 
 O carregador Beyla pinado continua aceitando v1 por compatibilidade, mas `config validate` aceita apenas v2 e o migrador não preserva os exportadores HTTP desse perfil. Não usamos migração parcial como gate. Um patch mínimo Elven, publicado e fixado por SHA-256 no lock, acrescenta `elven-validate-config`: usa exatamente o mesmo loader e `Validate` do startup e retorna antes de listeners, descoberta ou probes. Assim, a configuração real, incluindo ambiente e HTTP suportado, é exercitada sem instrumentar o host durante esse teste. O startup normal permanece no caminho upstream.
 
+O Collector 0.165.0 acrescenta um [limite de recursão protobuf de 100 níveis](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.165.0) contra stack overflow. O ensaio mantém essa defesa: mensagem hostil com 40 mapas aninhados deve ser recusada com HTTP 400; outra mensagem, acima do budget do processor mas dentro do decoder, deve ter somente o ramo profundo mascarado. Não misturar a entrada rejeitada ao lote útil nem aumentar o limite para fazer o teste passar.
+
 Em 17/11, logs (`loki`), métricas (`mimir`) e traces (`tempo`) passaram verificação independente de hostname/CA TLS. O hostname anteriormente sugerido para profiles não possui DNS público no ambiente verificado. Por isso, a candidata **não fornece um endpoint fictício para profiles**: o módulo continua opcional/desligado e exige backend HTTPS explicitamente provisionado e qualificado. Um ensaio pprof sintético comprova o componente, não esse backend SaaS ausente.
 
 ## Histórico da qualificação — 16/11/2026
