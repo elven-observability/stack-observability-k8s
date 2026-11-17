@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -61,7 +62,31 @@ def certificates(directory):
         path.chmod(0o644)
 
 
+def resolve_runtime_images(defaults, lock, environment):
+    """Never silently validate stale/blocked defaults for an unpublished build."""
+    references = {}
+    for name, variable in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE"), ("beyla", "ELVEN_BEYLA_IMAGE")):
+        explicit = environment.get(variable)
+        if explicit:
+            reference = explicit
+        else:
+            approved = lock.get("images", {}).get(name, {}).get("distribution", {})
+            selected = defaults["images"][name]
+            if (lock.get("distribution", {}).get("publicationStatus") != "verified"
+                    or approved.get("status") != "verified" or selected["digest"] != approved.get("digest")
+                    or selected["repository"].removeprefix("docker.io/") != approved.get("repository", "").removeprefix("docker.io/")):
+                raise ValueError(variable + " is required for the exact scanned candidate; unpublished/stale defaults are not a fallback")
+            reference = f"{selected['repository']}:{selected['tag']}@{selected['digest']}"
+        if not re.fullmatch(r"[^@\s]+@sha256:[0-9a-f]{64}", reference):
+            raise ValueError(variable + " must be digest-pinned")
+        if reference.rsplit("@", 1)[1] in lock.get("runtimeBlocks", {}):
+            raise ValueError(variable + " identifies a security-blocked runtime; validation refused")
+        references[name] = reference
+    return references
+
+
 def runtime_checks(directory):
+    references = resolve_runtime_images(DEFAULTS, json.loads((ROOT / "versions.lock.json").read_text()), os.environ)
     if not shutil.which("docker"):
         raise RuntimeError("Docker is required for --runtime; no runtime config checks ran.")
     command(["docker", "info", "--format", "{{.OSType}}"])
@@ -80,13 +105,7 @@ def runtime_checks(directory):
             source.write_text(contents)
             source.chmod(0o644)
             image_name = {"collector.yaml": "collector", "profile.alloy": "alloy", "beyla.yaml": "beyla"}[key]
-            image = DEFAULTS["images"][image_name]
-            ref = f"{image['repository']}:{image['tag']}@{image['digest']}"
-            image_variable = {"collector": "ELVEN_COLLECTOR_IMAGE", "alloy": "ELVEN_ALLOY_IMAGE", "beyla": "ELVEN_BEYLA_IMAGE"}[image_name]
-            if os.environ.get(image_variable):
-                ref = os.environ[image_variable]
-                if "@sha256:" not in ref:
-                    raise ValueError(image_variable + " must be digest-pinned")
+            ref = references[image_name]
             args = ["docker", "run", "--rm", "--network", "none", "--read-only",
                     "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                     "--user", "10001:10001", "-e", "TENANT_ID=synthetic-tenant",

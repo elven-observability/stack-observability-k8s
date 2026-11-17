@@ -221,8 +221,8 @@ jobs:
                       scan = image["scans"][platform]
                       assert scan["status"] == "passed" and scan["highCriticalCount"] == 0
                       assert scan["scanner"] == "trivy/" + lock["tools"]["trivy"]
-                      for key in ("report", "sbom"):
-                          assert oci.sha256(folder / scan[key]) == scan[key + "Sha256"]
+                      for report_key in ("report", "sbom"):
+                          assert oci.sha256(folder / scan[report_key]) == scan[report_key + "Sha256"]
                       assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["scannedAt"]) < dt.timedelta(hours=24)
                       assert dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(scan["database"]["UpdatedAt"].replace("Z", "+00:00")) < dt.timedelta(hours=48)
                   subprocess.run(["docker", "load", "--input", str(folder / image["archive"])], check=True)
