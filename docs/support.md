@@ -1,6 +1,6 @@
 # Suporte, compatibilidade e critérios de release
 
-Rodada de hardening: 03/11/2026. A [release v1.0.0](release-v1.0.0.md) foi publicada. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes. Evidência de 29/10 é histórica e não valida automaticamente o novo processor ou Operator.
+Rodada de release: 17/11/2026. A [v1.0.1](release-v1.0.1.md) substitui a v1.0.0 para novas instalações, preservando seus assets históricos. Versão aceita pelo schema, requisito upstream, teste de laboratório e suporte comprovado em uma plataforma são categorias diferentes. Os recibos da release identificam os digests e cenários efetivamente exercitados.
 
 A CLI exige lock `verified` e correspondência dos repository/digests selecionados; não faz fallback para contrib upstream ou `latest`. Use o [guia de instalação](installation.md) e valide o piloto no ambiente-alvo. `--development-images` existe somente para ensaio explicitamente aceito e não amplia o suporte declarado. Recuperação de uma release já instalada não depende desse gate nem da disponibilidade do SaaS.
 
@@ -12,7 +12,7 @@ A CLI exige lock `verified` e correspondência dos repository/digests selecionad
 | Helm | 4.3.1+ preferido; 3.22.1+ como ponte de compatibilidade | Versões mais novas da mesma major precisam de CI/revisão; um limite mínimo não comprova toda versão futura. |
 | CLI local | Python 3.11+, kubectl compatível, OpenSSL para gerar PKI inicial | Sem dependencies pip; o acesso/credencial Kubernetes é fornecido pelo operador humano. |
 | Gateway e módulos sem eBPF | Linux amd64/arm64 conforme imagens e compatibilidade de plataforma | Verificar manifests multiarch e testes do digest entregue. Não há suporte Windows declarado para os agents desta linha. |
-| eBPF/Beyla | Piso desta distribuição Linux ≥5.11, BTF, arquitetura suportada, permissões/admission aprovadas | O mínimo upstream 5.8 não é nossa validação. Captura por kernel/runtime segue pendente; capacidades adicionais exigem aprovação específica, sem fallback privileged. |
+| eBPF/Beyla | Piso desta distribuição Linux ≥5.11, BTF, arquitetura suportada, permissões/admission aprovadas | O mínimo upstream 5.8 não é nossa validação. Captura precisa de prova por kernel/runtime; capacidades adicionais exigem aprovação específica, sem fallback privileged. |
 | Storage | StorageClass/CSI que ofereça o PVC RWO e permissões necessárias ao gateway | Validar persistência, fsync, expansão, recuperação e retenção no CSI real. |
 | NetworkPolicy | CNI com enforcement e destinos/portas efetivos revisados | Objeto aceito não demonstra enforcement, DNS/DNAT ou ausência de bypass pela plataforma. |
 | Profiles | Alvos pprof HTTPS/mTLS explícitos | Não instrumenta automaticamente Java/Python/Node nem instala pprof na aplicação. |

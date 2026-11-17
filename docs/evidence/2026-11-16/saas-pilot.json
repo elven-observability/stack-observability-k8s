@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-16",
+  "classification": "SCOPED_SDK_PILOT_OPERATIONAL_OPTIONAL_IMAGES_SECURITY_BLOCKED",
+  "productionCertification": false,
+  "scope": {
+    "ownedNamespaces": 2,
+    "nodeAgentWorkers": 1,
+    "applicationPodsReady": 11,
+    "sdkInjectedPods": 6,
+    "linuxKernel": "6.8.0-101-generic",
+    "kubernetes": "v1.35.2",
+    "architecture": "amd64",
+    "developmentImageBypassUsed": false,
+    "sharedControlPlaneOrCniChanges": false,
+    "customerCredentialsUsed": false
+  },
+  "installation": {
+    "publicKit": "https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.0/elven-instalacao-v1.0.0.zip",
+    "kitSha256": "6637644a53049fbadb132b3139e9bb58e6e4763ae31a4f12546a27ecad33ee17",
+    "images": "Existing signed/promoted v1.0.0 digests; tags, locks and release assets were not rewritten.",
+    "platformAdaptations": [
+      "Reviewed post-SNAT control-plane sources as exact /32s for the owned webhook NetworkPolicy.",
+      "Owned gateway-only egress to the SaaS ingress Pods:8443 for the LoadBalancer hairpin; public TLS/bearer/tenant checks remain in the path.",
+      "Namespace-scoped logs and Kubernetes state; one worker for host modules."
+    ]
+  },
+  "sdkReadback": {
+    "runtimes": ["Java 17", "Java 21", "Node.js 20 explicit EOL exception", "Node.js 22", "Python 3.12 beta auto-instrumentation"],
+    "exampleDistributedChain": ["Node.js 22", "Java 21", "Python", "Node.js 20"],
+    "exampleTraceSpans": 9,
+    "traceGraph": "Internal parent links retained; the sole external parent is the synthetic driver context.",
+    "databaseCoverageExercised": ["JDBC/H2", "sqlite3 explicit cursor"],
+    "sqlShape": "SELECT ? AS email , ? AS card_number , ? AS answer",
+    "sqlLiteralCanariesAbsent": true,
+    "logWindowRecords": 80,
+    "logUsefulMessagesPreserved": 80,
+    "logTraceIdFieldsPreserved": 80,
+    "logRecordsWithSelectiveMasking": 80,
+    "rawSensitiveCanariesAbsent": true,
+    "customCounterAndHistogramPersisted": true,
+    "runtimeDimensionsPreserved": ["JVM memory pool/type", "JVM GC", "JVM thread daemon/state", "V8 heap space"],
+    "kubernetesDeploymentsDistinguishedInBackend": 11
+  },
+  "ebpfReadback": {
+    "publishedBeyla": "3.40.0",
+    "captureIsHistorical": true,
+    "currentlyEnabled": false,
+    "kernelCapture": {
+      "Node.js without SDK": {"requests": 10, "serverSpans": 10},
+      "Go 1.27.3 without SDK": {"requests": 10, "serverSpans": 10},
+      ".NET 10.0.15 without SDK": {"requests": 10, "serverSpans": 10},
+      "PHP 8.5.12 without SDK": {"requests": 10, "serverSpans": 10}
+    },
+    "sameProcessOverlap": {"requests": 10, "sdkServerSpans": 10, "ebpfServerSpans": 10, "fullyCorrelated": false},
+    "placementBeforeSecurityContainment": "Disjoint SDK and eBPF deployments; excludeSDKInstrumentedServices=true.",
+    "finalPlacement": "Beyla removed from the owned DaemonSet after the fresh security gate failed. Collector-only node agent, no hostPID; SDK apps retained.",
+    "startupOomObservedAtMiB": 256,
+    "qualifiedPilotLimitMiB": 1024,
+    "unqualifiedFeatures": ["Node.js eBPF runtime injection/correlation", "pinned-map profile correlation", "full pre-existing netns connection enumeration", "universal DB/method tracing"],
+    "privileged": false,
+    "sysAdminAdded": false,
+    "hostTracefsWriteAdded": false
+  },
+  "securityReadback": {
+    "validMtlsAccepted": true,
+    "missingClientCertificateRejected": true,
+    "untrustedCaRejected": true,
+    "wrongSanRejected": true,
+    "missingAndInvalidBearer": "401 for logs, metrics and traces",
+    "noOptInAndOutsideNamespace": "Not injected, verified by server-side dry-run.",
+    "ambiguousContainerAndExistingSdkEnvironment": "Explicit admission rejection.",
+    "probePodsPersisted": 0,
+    "applicationTlsSecretHasNoTenantOrBackendToken": true
+  },
+  "currentSecurityGate": {
+    "scanRun": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514132",
+    "scanSourceRevision": "a569aafaacff6f7c74d28bb1d82886090529f7ac",
+    "scanMethod": "New source rebuilds of the same pinned upstream bases; not a rescan of the historical signed OCI indices.",
+    "scanner": "trivy/0.76.1",
+    "databaseUpdatedAt": "2026-11-16T13:03:44.830426244Z",
+    "highCriticalCounts": {
+      "beyla": {"linux/amd64": {"high": 1, "critical": 0}, "linux/arm64": {"high": 1, "critical": 0}},
+      "alloy": {"linux/amd64": {"high": 3, "critical": 0}, "linux/arm64": {"high": 3, "critical": 0}},
+      "collector": {"linux/amd64": {"high": 0, "critical": 0}, "linux/arm64": {"high": 0, "critical": 0}}
+    },
+    "blockingFindings": [
+      {"cve": "CVE-2026-78661", "components": ["beyla", "alloy"], "package": "golang.org/x/net", "installed": "v0.61.0", "fixed": "0.62.0", "advisory": "https://pkg.go.dev/vuln/GO-2026-6860"},
+      {"cve": "CVE-2026-109518", "components": ["alloy"], "packages": ["apt", "libapt-pkg6.0t64"], "installed": "2.8.3", "fixed": "2.8.4ubuntu0.1", "advisory": "https://ubuntu.com/security/notices/USN-8996-1"}
+    ],
+    "exploitabilityInThisProfile": "Not established; dependency presence is not proof of exploitation and does not waive the gate.",
+    "corePostScanRuntimeAndKindSteps": "Skipped after the gate failed, not passed.",
+    "sdkOperatorCiRun": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514508",
+    "sdkOperatorCi": "Passed both-architecture scans, real TLS fixtures and native injection; publish job skipped.",
+    "candidateRuntimeBlockPolicy": "Rejects the two affected optional v1.0.0 digests before normal installation/upgrade writes, separately from historical signature validity.",
+    "publishedV100ZipContainsNewBlockPolicy": false,
+    "publishedZipMitigation": "Keep optional ebpf/profiles modules disabled; both are disabled in the default kit.",
+    "newImagesPublished": false,
+    "mainMerged": false
+  },
+  "postContainmentReadback": {
+    "verifiedAt": "2026-11-16T16:24:34.380132Z",
+    "applicationDeploymentsReady": 11,
+    "ebpfEnabled": false,
+    "profilesEnabled": false,
+    "nodeContainers": ["collector"],
+    "nodeHostPID": false,
+    "httpRequests": 80,
+    "httpSuccessful": 80,
+    "sdkServicesWithFreshBackendTraces": 6,
+    "maskedUsefulLogRecords": 80,
+    "customCounterAndHistogramPresent": true,
+    "pilotCredentialExpiresAt": "2026-11-23T14:14:18Z",
+    "localBackendTunnelsClosedAfterReadback": true
+  },
+  "nodeInstanceCandidate": {
+    "detectors": "env,serviceinstance",
+    "node20Processes": 2,
+    "node20DistinctBackendInstances": 2,
+    "node22Processes": 2,
+    "node22DistinctBackendInstances": 2,
+    "method": "Isolated subprocesses using the published mounted SDK payload, with one SDK bootstrap each.",
+    "installedOperatorChanged": false,
+    "newSignedOperatorImageAndApprovedRolloutRequired": true
+  },
+  "sharedBaseline": {
+    "controllersCompared": 272,
+    "controllerUidChanges": 0,
+    "unchangedTemplates": 271,
+    "oneTemplateChange": "Consistent with the existing hourly monitoring-agent restart CronJob; not issued by the pilot.",
+    "aggregateReadinessUnchanged": false,
+    "csiFlapping": "Observed on a node outside the pilot, with thousands of cumulative restarts; not repaired or attributed to a new cause here.",
+    "blanketNoImpactClaim": false
+  },
+  "localChecks": {
+    "pythonTestsRun": 362,
+    "pythonTestsPassed": 360,
+    "optInTestsSkipped": 2,
+    "pythonFailuresOrErrors": 0,
+    "strictSchemas": ["1.35.0", "1.36.0", "1.37.0"],
+    "goOperatorTestsIncludingRaceDetector": "passed",
+    "nativeKindAndNewImageCi": "SDK/Operator CI passed separately. Core runtime/Kind steps did not run after the current vulnerability gate failed."
+  },
+  "candidatePullRequest": "https://github.com/elven-observability/stack-observability-k8s/pull/5",
+  "releaseGates": [
+    "Replace, scan, sign and promote the security-blocked optional eBPF/profiler images before enabling them again; never bypass the vulnerability gate with development mode.",
+    "Publish, sign, scan and promote a new Operator image for the Node instance identity fix.",
+    "Package these installer/chart changes in a new immutable distribution and installation kit.",
+    "Qualify newer upstream Collector/Node/Beyla/OBI versions before changing the release locks.",
+    "Review multi-replica workloads, sustained load, all required application libraries and the actual customer platform.",
+    "Profiles, browser/RUM, business-method tracing and .NET/PHP/Go SDK injection are not certified by this HTTP eBPF pilot."
+  ]
+}

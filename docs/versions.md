@@ -2,19 +2,69 @@
 
 Seleção inicial do núcleo em **29/10/2026**; hardening de SDKs, Operator, tooling e novos scans em **03/11/2026**, com releases oficiais, manifests OCI e advisories públicos. As fontes consumíveis por automação são [`versions.lock.json`](../versions.lock.json) e o lock independente [`instrumentation.lock.json`](../instrumentation.lock.json). Tags nunca substituem os digests no deployment. Não usar `latest`.
 
-## Runtimes selecionados
+## Release v1.0.1 — pesquisa e gates de 17/11/2026
+
+Os locks desta release promovem Collector **0.165.0**, Alloy **1.22.0** e auto-instrumentação Node **0.83.0-3**. Java **2.33.1-2**, Node20 legado **0.81.2-1** e Python beta **0.66b2-2** mantêm seus contratos explícitos. A release npm Node 0.83.1 existe, mas não foi inventada uma tag de container correspondente. Só referências OCI existentes e verificadas entram no lock.
+
+**Atualizar a tag não bastou para o eBPF.** Trivy **0.76.2**, com DB atualizada em 17/11, ainda encontrou x/net 0.61.0 / CVE-2026-78661 na imagem oficial Beyla **3.42.0** em amd64 e arm64. A candidata Elven passa a compilar essa revisão e seu submódulo OBI imutáveis com **x/net 0.62.0**. Preserva o agent Java, o overlay Beyla, as duas bibliotecas JNI, os avisos e as licenças. Não declara o binário como um repasse upstream sem modificações. A imagem oficial Alloy 1.22.0 passou o scan High/Critical nas duas arquiteturas; o artefato Elven derivado ainda exige seu próprio gate.
+
+Os oito componentes foram publicados e promovidos após 16 scans High/Critical, SPDX/proveniência, configuração com os binários exatos, privacidade antes da WAL e testes **nativos amd64 e arm64** dos mesmos archives escaneados. O [núcleo da tag](https://github.com/elven-observability/stack-observability-k8s/actions/runs/44100325545) e os [SDKs da tag](https://github.com/elven-observability/stack-observability-k8s/actions/runs/44100325488) concluíram com sucesso. A publicação protegida assinou por GitHub OIDC e verificou as assinaturas e os predicados exatos antes da promoção. [Digests, instalação e limites da release](release-v1.0.1.md). Um scan sem High/Critical não significa ausência de outros achados ou de vulnerabilidades futuras.
+
+eBPF exporta traces e métricas HTTP/gRPC RED pelo Collector local sanitizante e pelo gateway próprio. Padrões de rota aprovados evitam transformar URLs dinâmicas em dimensões; rotas não reconhecidas viram wildcard. Serviços com SDK são excluídos por padrão e os seletores devem permanecer disjuntos.
+
+O carregador Beyla pinado continua aceitando v1 por compatibilidade, mas `config validate` aceita apenas v2 e o migrador não preserva os exportadores HTTP desse perfil. Não usamos migração parcial como gate. Um patch mínimo Elven, publicado e fixado por SHA-256 no lock, acrescenta `elven-validate-config`: usa exatamente o mesmo loader e `Validate` do startup e retorna antes de listeners, descoberta ou probes. Assim, a configuração real, incluindo ambiente e HTTP suportado, é exercitada sem instrumentar o host durante esse teste. O startup normal permanece no caminho upstream.
+
+O Collector 0.165.0 acrescenta um [limite de recursão protobuf de 100 níveis](https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.165.0) contra stack overflow. O ensaio mantém essa defesa: mensagem hostil com 40 mapas aninhados deve ser recusada com HTTP 400; outra mensagem, acima do budget do processor mas dentro do decoder, deve ter somente o ramo profundo mascarado. Não misturar a entrada rejeitada ao lote útil nem aumentar o limite para fazer o teste passar.
+
+Em 17/11, logs (`loki`), métricas (`mimir`) e traces (`tempo`) passaram verificação independente de hostname/CA TLS. O hostname anteriormente sugerido para profiles não possui DNS público no ambiente verificado. Por isso, a candidata **não fornece um endpoint fictício para profiles**: o módulo continua opcional/desligado e exige backend HTTPS explicitamente provisionado e qualificado. Um ensaio pprof sintético comprova o componente, não esse backend SaaS ausente.
+
+## Histórico da qualificação — 16/11/2026
+
+Esta pesquisa não substitui os digests assinados da v1.0.0 nem aprova automaticamente uma atualização. O piloto SaaS usa as imagens Elven promovidas; as correções de chart/installer são uma candidata separada, não uma alteração silenciosa do ZIP publicado.
+
+**Bloqueio de segurança confirmado em 16/11:** o novo scan nas duas arquiteturas encontrou High nas bases pinadas de eBPF e profiling da v1.0.0. O eBPF foi desabilitado no piloto; profiling nunca esteve habilitado. O Collector passou nesse gate, mas isso não certifica a instalação inteira. A candidata da CLI bloqueia os dois digests opcionais em `runtimeBlocks`, sem alterar os registros históricos de assinatura/promoção. **O ZIP v1.0.0 já publicado é imutável e não contém esse novo bloqueio: não habilitar eBPF/profiles nele.**
+
+| Upstream verificado | Novidade / decisão |
+|---|---|
+| [OBI 1.0.0, 30/10](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v1.0.0) | Primeira versão estável; configuração v2 e matriz de suporte precisam de qualificação própria. Métricas de runtime experimentais não viram substituto universal de SDK. |
+| [Beyla 3.42.0, 12/11](https://github.com/grafana/beyla/releases/tag/v3.42.0) | A API oficial consultada em 16/11 retorna `prerelease=false`; as notas incluem atualização de x/net para 0.62.0 e correções de spans Go/propagação .NET. A imagem Elven publicada permanece no 3.40.0 e está bloqueada para nova habilitação. A sanitização SQL opt-in entrou na [3.41.0](https://github.com/grafana/beyla/releases/tag/v3.41.0); não habilitar captura de parâmetros/payload para obter mais detalhe. |
+| [Alloy 1.22.0, publicado em 13/11](https://github.com/grafana/alloy/releases/tag/v1.22.0) | Atualiza x/net para 0.62.0, OTel 0.164.1 e profiling; contém mudanças incompatíveis em conectores/enrichment. Candidato, não evidência de correção de todos os pacotes da imagem. Exigir scan de SO e binário por arquitetura, configuração real e entrega pprof antes de assinar/promover. |
+| [Collector 0.165.0, 07/11](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.165.0) | Candidato a novo build mínimo Elven, não troca direta pelo contrib completo. Repetir regressões de privacy/WAL, SCA, SBOM, assinatura e gates nativos. |
+| [Auto-instrumentação Node 0.83.1, 12/11](https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.83.1) | Candidata; a imagem atual continua 0.82.0. Validar CJS/ESM, dependências e mTLS antes de promover. |
+| [Java agent 2.33.1](https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1) | Já é a base pinada e exercitada com Java 17/21. Python pinado 0.66b2/SDK 1.45.2 foi exercitado com Flask/sqlite3; continua beta. |
+| [Operator upstream 0.163.0, 11/11](https://github.com/open-telemetry/opentelemetry-operator/releases/tag/v0.163.0) | Referência técnica atualizada; não é dependência de runtime do nosso webhook Elven mínimo. |
+
+Arquitetura exercitada por sinal: SDK como autoridade de spans internos/runtime; eBPF complementar em deployments sem SDK; logs stdout por namespace aprovado; sanitização recursiva antes do WAL/export. O ensaio com SDK+eBPF no mesmo processo produziu traces paralelos sem correlação completa; o padrão da candidata exclui SDKs detectados e recomenda seletores disjuntos. A captura eBPF comprovada é histórica: o módulo está agora desabilitado até a correção de segurança. Não é seguro vender isso como “captura tudo”.
+
+### Gate atual e contenção
+
+O [CI 43900514132](https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514132) reconstruiu as mesmas bases upstream pinadas, sem publicar, e usou Trivy 0.76.1 com DB atualizada em **16/11 às 13:03 UTC**. São scans desses novos archives OCI, não um novo scan dos índices assinados históricos; os wrappers preservam os binários e pacotes upstream que motivaram o bloqueio preventivo daqueles digests.
+
+| Base do módulo | High/Critical por arquitetura | Achados que bloquearam |
+|---|---|---|
+| Beyla 3.40.0 | 1 / 0 | [CVE-2026-78661 / GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860): x/net 0.61.0; correção 0.62.0. |
+| Alloy 1.21.3 | 3 / 0 | Mesmo x/net; [CVE-2026-109518 / USN-8996-1](https://ubuntu.com/security/notices/USN-8996-1) em `apt` e `libapt-pkg6.0t64` 2.8.3; correção Ubuntu 24.04: 2.8.4ubuntu0.1. |
+| Collector mínimo Elven | 0 / 0 | Nenhum High/Critical nesse scan. Não é alegação de ausência de outros achados ou vulnerabilidades futuras. |
+
+Contagens iguais em amd64/arm64. A presença de dependência vulnerável não demonstra exploração no perfil específico; também não é uma dispensa do gate. O pipeline corretamente não executou os testes posteriores de runtime/WAL/Kind do núcleo nem publicou imagens após a falha. O [pipeline SDK/Operator da mesma candidata](https://github.com/elven-observability/stack-observability-k8s/actions/runs/43900514508) passou seus scans nas duas arquiteturas e o ensaio nativo de injeção, sem publicar.
+
+No SaaS, as 11 aplicações de laboratório permaneceram prontas após retirar apenas o Beyla do DaemonSet próprio. SDKs, logs, métricas e traces continuam no piloto; o node agent voltou a conter somente o Collector e não usa `hostPID`. Profiling permanece desligado. Assinaturas válidas continuam válidas como prova de origem, mas não autorizam usar os componentes bloqueados. Ver [recibo sanitizado do piloto](evidence/2026-11-16/saas-pilot.json).
+
+Para ampliar os canários, foram selecionados [Go 1.27.3](https://go.dev/doc/devel/release), [.NET 10 LTS com servicing 10.0.15](https://dotnet.microsoft.com/en-us/platform/support/policy) e [PHP 8.5.12](https://www.php.net/downloads.php), com imagens de laboratório por digest e sem ingress público. Esses fixtures não equivalem a novos módulos de auto-injeção ou imagens SDK Elven promovidas. A [limitação documentada de sqlite3](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/sqlite3/sqlite3.html) requer cursor explícito; `connection.execute` não foi apresentado como caminho coberto.
+
+## Snapshot histórico dos runtimes da v1.0.0
 
 | Papel Elven | Upstream | Release | Justificativa / exceção |
 |---|---|---|---|
 | Collector | Elven mínimo: OCB/core **0.164.0**, contrib **0.164.1** | [core/artefatos de 26/10/2026](https://github.com/open-telemetry/opentelemetry-collector-releases/releases/tag/v0.164.0) | Exceção de segurança: o runtime completo oficial tem CVE High publicada após a release. Build com Go 1.27.3, go-jose 4.1.6 quando transitivo e x/net 0.62.0. O [patch contrib 0.164.1](https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.164.1) corrige módulos OTTL; não presumir imagem oficial `:0.164.1`. |
-| eBPF opcional | Grafana Beyla **3.40.0** | [26/10/2026](https://github.com/grafana/beyla/releases/tag/v3.40.0) | Maior versão estável publicada. Um patch da série antiga 3.38.1 saiu depois: ordenar releases por data, sozinho, selecionaria a série errada. |
+| eBPF opcional | Grafana Beyla **3.40.0** | [26/10/2026](https://github.com/grafana/beyla/releases/tag/v3.40.0) | Versão selecionada no snapshot da v1.0.0, não a mais nova em 16/11. Um patch da série antiga 3.38.1 saiu depois: ordenar releases por data, sozinho, selecionaria a série errada. |
 | Profiler opcional | Grafana Alloy **1.21.3** | [28/10/2026](https://github.com/grafana/alloy/releases/tag/v1.21.3) | Componentes nativos para pprof/eBPF. O runtime mantém suas dependências upstream integradas (OTel 0.162.0, Beyla 3.38.1), não substituídas manualmente. O chart usa o Beyla standalone quando habilitado. |
 
 Os três manifests OCI upstream foram consultados anonimamente, incluindo `linux/amd64` e `linux/arm64`; seus digests estão no lock. **Isso não é execução nativa em ambas as arquiteturas.** Beyla/Alloy preservam os runtimes upstream. O Collector passa a ser build mínimo próprio devido ao achado de segurança, com receita pública/revisável, componentes pinados e informações de build incluídas na imagem.
 
 Os archives OCI de desenvolvimento da rodada de hardening eram evidência local, não imagens publicadas. A [release v1.0.0](release-v1.0.0.md) posterior aponta para imagens Elven assinadas, fixadas pelos digests promovidos. O Collector upstream não contém o processor próprio `elven_privacy` e não é fallback compatível.
 
-## SDKs e Operator Elven opcionais — 03/11/2026
+## Snapshot histórico de SDKs e Operator — 03/11/2026
 
 O webhook de injeção é código Elven mínimo, sem CRDs/controllers externos ou cliente da API no runtime. As imagens SDK Elven preservam payloads, licenças e rastreabilidade dos agentes upstream pinados no lock independente:
 
@@ -34,7 +84,7 @@ Nos scans SDK de 03/11, os dois perfis Node mantêm achados Medium **CVE-2026-11
 ## Mudanças upstream que afetam a arquitetura
 
 - Alloy 1.21 passou a exigir `--stability.level=experimental` para `loki.write.wal.enabled=true`; sem a flag a configuração não carrega. O caminho de logs duráveis desta distribuição utiliza as filas persistentes do Collector, não esse WAL experimental. [Release 1.21.0](https://github.com/grafana/alloy/releases/tag/v1.21.0).
-- Beyla foi doado ao OpenTelemetry como **OBI**. O upstream OBI está em [0.15.2](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v0.15.2), de 16/10/2026. A migração de código não torna os números/configurações intercambiáveis nem significa abandono do runtime Beyla atualmente publicado. [Aviso do projeto](https://github.com/grafana/beyla/blob/v3.40.0/README.md#important-update-for-current-and-future-beyla-contributors).
+- Beyla foi doado ao OpenTelemetry como **OBI**. A revisão inicial consultou [0.15.2](https://github.com/open-telemetry/opentelemetry-ebpf-instrumentation/releases/tag/v0.15.2), de 16/10/2026; a pesquisa de 16/11 já confirma **1.0.0**. A migração de código não torna os números/configurações intercambiáveis nem significa abandono do runtime Beyla atualmente publicado. [Aviso do projeto](https://github.com/grafana/beyla/blob/v3.40.0/README.md#important-update-for-current-and-future-beyla-contributors).
 - Grafana Agent está EOL desde [01/11/2025](https://grafana.com/docs/agent/latest/); Promtail desde [02/03/2026](https://grafana.com/docs/loki/latest/send-data/promtail/). Não fazem parte da nova distribuição.
 - Pyroscope [2.4.2](https://github.com/grafana/pyroscope/releases/tag/v2.4.2), de 26/10/2026, é o backend e usa AGPLv3. Não é necessário instalar esse backend no cluster cliente para exportar profiles com Alloy. As três imagens entregues usam projetos principais Apache-2.0; dependências mantêm suas próprias licenças.
 
@@ -65,6 +115,6 @@ Advisories oficiais revisados incluem Collector [OIDC/chaves revogadas](https://
 
 Permanece **1 achado de severidade UNKNOWN** no Collector mínimo: [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) para pacotes abandonados `golang.org/x/crypto/openpgp*`, sem versão corrigida. Não equivale a vulnerabilidade em todos os pacotes x/crypto. `govulncheck 1.9.0` analisou os símbolos de **ambos os binários reais**, com saída 0 e sem símbolos vulneráveis identificados. É evidência de código vulnerável não presente na análise estática, **não** prova de ausência de vulnerabilidades ou de execução nativa amd64; o UNKNOWN continua visível no relatório, sem ignorelist.
 
-Os wrappers finais Beyla e Alloy também foram construídos/escaneados nas duas arquiteturas, com **0 High/Critical** por arquitetura. Permanecem 3 UNKNOWN no Beyla; no Alloy, 22 Medium, 4 Low e 3 UNKNOWN por arquitetura. Os UNKNOWN são **CVE-2026-78661**, **CVE-2026-97045** (x/net HTML, corrigidas no Collector mínimo mas ainda presentes nos wrappers upstream) e **GO-2026-5932**. Não houve análise de símbolos dos wrappers nem patch manual de seus binários. O gate atual bloqueia High/Critical; os demais achados continuam registrados para triagem, não são declarados inexistentes. A validação local executou o Collector e o profiler em arm64, inclusive entrega pprof HTTPS autenticada; captura Beyla/eBPF e execução nativa amd64 ainda exigem evidência própria. O workflow de publicação exige o teste Kind nativo amd64 da imagem escaneada antes de habilitar a etapa de aprovação.
+**Resultado histórico de 29/10, superado pelo scan de 16/11 acima:** os wrappers finais Beyla e Alloy foram construídos/escaneados nas duas arquiteturas, com **0 High/Critical** por arquitetura naquele momento. Havia 3 UNKNOWN no Beyla; no Alloy, 22 Medium, 4 Low e 3 UNKNOWN por arquitetura. Os UNKNOWN incluíam **CVE-2026-78661**, **CVE-2026-97045** (x/net HTML, corrigidas no Collector mínimo mas ainda presentes nos wrappers upstream) e **GO-2026-5932**. O novo scan classifica CVE-2026-78661 como High e inclui o novo advisory APT. Não houve análise de símbolos dos wrappers nem patch manual de seus binários. A validação local histórica executou o Collector e o profiler em arm64, inclusive entrega pprof HTTPS autenticada; o piloto SaaS posterior capturou HTTP eBPF em amd64 antes da contenção. Nada disso converte o gate atual bloqueado em aprovado.
 
 Cadência Elven: revisar patches/advisories semanalmente; triagem de Critical em até um dia útil e High em até três; publicar correção somente após reprodução/regressão/gates, com prazo e mitigação comunicados caso bloqueados. A linha v1 mantém um lock publicado por release; não há suporte automático a versões arbitrárias do upstream. Minor/breaking change exige novo piloto e migração explícita. Cada atualização atualiza lock, Dockerfiles, SBOM, scans, assinatura, compatibilidade e exemplos juntos. Nunca trocar digest sob uma tag previamente promovida. Ver [supply chain](supply-chain.md).

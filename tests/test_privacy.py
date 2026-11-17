@@ -83,6 +83,37 @@ class PrivacyChartTests(unittest.TestCase):
         for signal in ("logs", "traces"):
             self.assertNotIn("transform/cardinality", config["service"]["pipelines"][signal]["processors"])
 
+    def test_runtime_dimensions_are_preserved_without_allowing_arbitrary_payload_labels(self):
+        statements = gateway_config()["processors"]["transform/cardinality"]["metric_statements"][0]["statements"]
+        self.assertEqual(len(statements), 2)
+        runtime, other = statements
+        self.assertIn('where IsMatch(metric.name, "^(jvm|v8js|nodejs|cpython|process|system)[.]")', runtime)
+        self.assertIn('where not IsMatch(metric.name,', other)
+        for key in ("jvm.memory.pool.name", "jvm.memory.type", "jvm.thread.state", "jvm.gc.name", "v8js.heap.space.name", "v8js.gc.type"):
+            self.assertIn('"' + key + '"', runtime)
+            self.assertNotIn('"' + key + '"', other)
+        for statement in statements:
+            for key in ("http.method", "http.status_code", "http.request.method", "http.response.status_code"):
+                self.assertIn('"' + key + '"', statement)
+            for key in ("user.email", "db.statement", "db.query.text", "url.full", "http.request.body", "authorization"):
+                self.assertNotIn('"' + key + '"', statement)
+
+    def test_sanitized_resource_identity_survives_otlp_to_prometheus_translation(self):
+        config = gateway_config()
+        processors = config["service"]["pipelines"]["metrics"]["processors"]
+        self.assertLess(processors.index("elven_privacy"), processors.index("transform/resource_dimensions"))
+        self.assertLess(processors.index("transform/resource_dimensions"), processors.index("transform/cardinality"))
+        promote = config["processors"]["transform/resource_dimensions"]
+        self.assertEqual(promote["error_mode"], "propagate")
+        statements = promote["metric_statements"][0]["statements"]
+        self.assertIn('set(attributes["k8s.deployment.name"], resource.attributes["k8s.deployment.name"]) where resource.attributes["k8s.deployment.name"] != nil', statements)
+        self.assertIn('set(attributes["k8s.cluster.name"], resource.attributes["k8s.cluster.name"]) where resource.attributes["k8s.cluster.name"] != nil', statements)
+        for key in ("user.email", "db.statement", "db.query.text", "url.full", "authorization"):
+            self.assertNotIn('"' + key + '"', " ".join(statements))
+        allowed = config["processors"]["transform/cardinality"]["metric_statements"][0]["statements"]
+        for key in ("service.instance.id", "k8s.cluster.name", "k8s.namespace.name", "k8s.deployment.name", "k8s.pod.uid"):
+            self.assertTrue(all('"' + key + '"' in statement for statement in allowed))
+
     def test_source_log_collector_uses_the_same_recursive_policy_as_gateway(self):
         rendered = objects(all_modules())
         node = next(obj for obj in rendered if obj["kind"] == "ConfigMap"

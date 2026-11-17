@@ -1,10 +1,10 @@
 # Minimal Elven Collector: explicit upstream components, no cloud/JWT receivers.
 ARG GO_IMAGE=docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9
-ARG UPSTREAM_IMAGE=docker.io/otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+ARG UPSTREAM_IMAGE=docker.io/otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS build
 ARG TARGETOS
 ARG TARGETARCH
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG SOURCE_DATE_EPOCH
 ENV CGO_ENABLED=0 GOMAXPROCS=2 GOGC=50 GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOTOOLCHAIN=local GOTELEMETRY=off
 WORKDIR /src
@@ -14,7 +14,7 @@ COPY processor/elvenprivacyprocessor /src/elvenprivacyprocessor/
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     go test /src/license-bundle.go /src/license-bundle_test.go && \
     cd /src/elvenprivacyprocessor && go mod verify && go test ./... && \
-    cd /src && go install go.opentelemetry.io/collector/cmd/builder@v0.164.0 && \
+    cd /src && go install go.opentelemetry.io/collector/cmd/builder@v0.165.0 && \
     sed "s/^  version:.*/  version: ${VERSION#v}/" builder-config.yaml > build.yaml && \
     /go/bin/builder --config=/src/build.yaml --skip-compilation && \
     cp /src/LICENSE /src/_build/LICENSE && \
@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     go run /src/license-bundle.go /out/licenses < /out/modules.json
 FROM ${UPSTREAM_IMAGE} AS certificates
 FROM scratch
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG REVISION=unreleased
 ARG CREATED
 LABEL org.opencontainers.image.title="Elven Collector" \
@@ -38,10 +38,10 @@ LABEL org.opencontainers.image.title="Elven Collector" \
       org.opencontainers.image.created="${CREATED}" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.base.name="scratch" \
-      org.elvenobservability.collector.core="0.164.0" \
-      org.elvenobservability.collector.contrib="0.164.1" \
+      org.elvenobservability.collector.core="0.165.0" \
+      org.elvenobservability.collector.contrib="0.165.0" \
       org.elvenobservability.collector.privacy="elven_privacy" \
-      org.elvenobservability.ca-source.digest="sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b"
+      org.elvenobservability.ca-source.digest="sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea"
 COPY --from=certificates /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/elven-collector /elven-collector
 COPY --from=build /out/go.mod /out/go.sum /out/build-info.txt /usr/share/elven-collector/build/

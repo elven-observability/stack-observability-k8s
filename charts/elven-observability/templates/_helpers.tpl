@@ -53,3 +53,16 @@ seccompProfile: {type: RuntimeDefault}
 {{- define "elven.gatewayEndpoint" -}}
 {{- printf "https://%s-gateway.%s.svc.%s:%v" (include "elven.fullname" .) .Release.Namespace .Values.cluster.domain .Values.ports.otlpHttp -}}
 {{- end -}}
+{{/* Stable operational dimensions, never arbitrary application payload keys.
+Runtime dimensions must survive: dropping heap/pool/type aliases distinct time
+series without aggregating them and destroys the meaning of the measurements. */}}
+{{- define "elven.metricKeys" -}}
+{{- $keys := list "http.route" "http.request.method" "http.response.status_code" "http.method" "http.status_code" "server.address" "server.port" "network.protocol.name" "network.protocol.version" "rpc.system" "rpc.method" "rpc.service" "rpc.grpc.status_code" "db.system" "db.system.name" "db.operation" "db.operation.name" "messaging.system" "messaging.operation" "messaging.operation.type" "error.type" "exporter" "receiver" "processor" "connector" "transport" "data_type" "state" "type" "condition" "phase" "reason" "status" "outcome" "cpu" "mode" "direction" "protocol" "resource" "unit" "job" "instance" "elven_instance" "elven_release" "service.name" "service.namespace" "service.instance.id" "k8s.cluster.name" "k8s.namespace.name" "k8s.node.name" "k8s.pod.name" "k8s.pod.uid" "k8s.container.name" "k8s.deployment.name" "k8s.statefulset.name" "k8s.daemonset.name" "k8s.replicaset.name" "k8s.job.name" "k8s.cronjob.name" "k8s.volume.name" "k8s.persistentvolumeclaim.name" "container.name" "container.image.name" "namespace" "node" "pod" "container" "deployment" "le" "quantile" "method" "code" -}}
+{{- if .runtime -}}
+{{- $keys = concat $keys (list "jvm.memory.pool.name" "jvm.memory.type" "jvm.buffer.pool.name" "jvm.gc.name" "jvm.gc.action" "jvm.thread.daemon" "jvm.thread.state" "v8js.heap.space.name" "v8js.heap.type" "v8js.gc.type" "nodejs.eventloop.state" "cpython.gc.generation" "generation" "process.context_switch_type" "system.cpu.logical_number" "system.cpu.state" "device" "interface" "system.device" "system.network.interface" "network.interface.name") -}}
+{{- end -}}
+{{- toJson $keys -}}
+{{- end -}}
+{{- define "elven.metricResourceKeys" -}}
+{{- toJson (list "service.name" "service.namespace" "service.instance.id" "k8s.cluster.name" "k8s.namespace.name" "k8s.node.name" "k8s.pod.name" "k8s.pod.uid" "k8s.container.name" "k8s.deployment.name" "k8s.statefulset.name" "k8s.daemonset.name" "k8s.replicaset.name" "k8s.job.name" "k8s.cronjob.name" "k8s.volume.name" "k8s.persistentvolumeclaim.name" "container.name") -}}
+{{- end -}}

@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -61,7 +62,31 @@ def certificates(directory):
         path.chmod(0o644)
 
 
+def resolve_runtime_images(defaults, lock, environment):
+    """Never silently validate stale/blocked defaults for an unpublished build."""
+    references = {}
+    for name, variable in (("collector", "ELVEN_COLLECTOR_IMAGE"), ("alloy", "ELVEN_ALLOY_IMAGE"), ("beyla", "ELVEN_BEYLA_IMAGE")):
+        explicit = environment.get(variable)
+        if explicit:
+            reference = explicit
+        else:
+            approved = lock.get("images", {}).get(name, {}).get("distribution", {})
+            selected = defaults["images"][name]
+            if (lock.get("distribution", {}).get("publicationStatus") != "verified"
+                    or approved.get("status") != "verified" or selected["digest"] != approved.get("digest")
+                    or selected["repository"].removeprefix("docker.io/") != approved.get("repository", "").removeprefix("docker.io/")):
+                raise ValueError(variable + " is required for the exact scanned candidate; unpublished/stale defaults are not a fallback")
+            reference = f"{selected['repository']}:{selected['tag']}@{selected['digest']}"
+        if not re.fullmatch(r"[^@\s]+@sha256:[0-9a-f]{64}", reference):
+            raise ValueError(variable + " must be digest-pinned")
+        if reference.rsplit("@", 1)[1] in lock.get("runtimeBlocks", {}):
+            raise ValueError(variable + " identifies a security-blocked runtime; validation refused")
+        references[name] = reference
+    return references
+
+
 def runtime_checks(directory):
+    references = resolve_runtime_images(DEFAULTS, json.loads((ROOT / "versions.lock.json").read_text()), os.environ)
     if not shutil.which("docker"):
         raise RuntimeError("Docker is required for --runtime; no runtime config checks ran.")
     command(["docker", "info", "--format", "{{.OSType}}"])
@@ -74,19 +99,13 @@ def runtime_checks(directory):
         if not obj or obj["kind"] != "ConfigMap":
             continue
         for key, contents in obj.get("data", {}).items():
-            if key not in ("collector.yaml", "profile.alloy"):
+            if key not in ("collector.yaml", "profile.alloy", "beyla.yaml"):
                 continue
             source = directory / f"{obj['metadata']['name']}-{key}"
             source.write_text(contents)
             source.chmod(0o644)
-            image_name = "alloy" if key.endswith("alloy") else "collector"
-            image = DEFAULTS["images"][image_name]
-            ref = f"{image['repository']}:{image['tag']}@{image['digest']}"
-            image_variable = {"collector": "ELVEN_COLLECTOR_IMAGE", "alloy": "ELVEN_ALLOY_IMAGE"}[image_name]
-            if os.environ.get(image_variable):
-                ref = os.environ[image_variable]
-                if "@sha256:" not in ref:
-                    raise ValueError(image_variable + " must be digest-pinned")
+            image_name = {"collector.yaml": "collector", "profile.alloy": "alloy", "beyla.yaml": "beyla"}[key]
+            ref = references[image_name]
             args = ["docker", "run", "--rm", "--network", "none", "--read-only",
                     "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
                     "--user", "10001:10001", "-e", "TENANT_ID=synthetic-tenant",
@@ -94,6 +113,8 @@ def runtime_checks(directory):
                     "-e", "ELVEN_TENANT_ID=synthetic-tenant", "-e", "ELVEN_API_TOKEN=synthetic-test-token",
                     "-e", "K8S_NODE_NAME=synthetic-node", "-e", "K8S_NODE_IP=127.0.0.1",
                     "-e", "KUBERNETES_SERVICE_HOST=127.0.0.1", "-e", "KUBERNETES_SERVICE_PORT=443",
+                    "-e", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:14318/v1/traces",
+                    "-e", "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://127.0.0.1:14318/v1/metrics",
                     "--mount", f"type=bind,source={source},target=/config/{key},readonly",
                     "--mount", f"type=bind,source={tls},target=/etc/elven/tls,readonly",
                     "--mount", f"type=bind,source={tls},target=/var/run/secrets/kubernetes.io/serviceaccount,readonly",
@@ -103,9 +124,34 @@ def runtime_checks(directory):
                     ref, "validate", f"/config/{key}"]
             if image_name == "collector":
                 args[-1:] = ["--config", f"/config/{key}"]
-            command(args)
-            results.append({"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
-                            "image": ref, "result": "passed"})
+            elif image_name == "beyla":
+                # The upstream v2-only validator cannot validate supported v1
+                # HTTP exporters without a lossy migration. Our reviewed source
+                # patch calls the actual unchanged runtime loader/Validate and
+                # returns before discovery, listeners or kernel work.
+                args[-2:] = ["elven-validate-config", f"/config/{key}"]
+            validation_output = command(args)
+            result = {"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
+                      "image": ref, "result": "passed"}
+            if image_name == "beyla":
+                if not validation_output.strip().endswith("Elven eBPF configuration validation passed: v1"):
+                    raise RuntimeError("Elven eBPF did not confirm the supported v1 runtime validation path")
+                result["validation_mode"] = "same runtime loader and Validate; no startup"
+                invalid = directory / "invalid-beyla.yaml"
+                invalid.write_text("discovery: [\n")
+                invalid.chmod(0o644)
+                bad_yaml = list(args)
+                mount = f"type=bind,source={source},target=/config/{key},readonly"
+                bad_yaml[bad_yaml.index(mount)] = f"type=bind,source={invalid},target=/config/{key},readonly"
+                bad_environment = list(args)
+                image_index = bad_environment.index(ref)
+                bad_environment[image_index:image_index] = ["-e", "BEYLA_LOG_LEVEL=elven-invalid-log-level"]
+                for negative, marker in ((bad_yaml, "wrong configuration"), (bad_environment, "Elven eBPF invalid log level:")):
+                    rejected = subprocess.run(negative, text=True, capture_output=True, timeout=30)
+                    if rejected.returncode not in (1, 255) or marker not in rejected.stdout + rejected.stderr:
+                        raise RuntimeError("Elven eBPF did not prove rejection of invalid configuration; a Docker/runtime failure is not rejection proof")
+                result["negative_config_checks_passed"] = 2
+            results.append(result)
     if not any("gateway" in result["config"] for result in results):
         raise AssertionError("No gateway config was exercised")
     profile_test = ROOT / "tests/profiles-runtime.py"

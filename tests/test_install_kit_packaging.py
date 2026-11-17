@@ -75,7 +75,7 @@ class KitPackagingTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "kit" / name, target)
         (source / "kit/plataforma/cliente.toml").write_text("PRIVATE-CUSTOMER-CONFIG")
-        review = source / "kit/plataforma/revisao-v1.0.0"
+        review = source / ("kit/plataforma/revisao-v" + P.BOOTSTRAP.VERSION)
         review.mkdir()
         (review / "revisao.json").write_text("PRIVATE-REVIEW")
         archive, *_ = self.build(root=source)
@@ -113,7 +113,7 @@ class KitPackagingTests(unittest.TestCase):
         canonical = platform.resolve()
         self.assertEqual(result.stdout.splitlines()[2:], ["-I", str(canonical / "instalar.py"), "guiado",
             "--pacote", str(canonical / P.BOOTSTRAP.ARCHIVE_NAME), "--config", str(canonical / "cliente.toml"),
-            "--revisao", str(canonical / "revisao-v1.0.0")])
+            "--revisao", str(canonical / ("revisao-v" + P.BOOTSTRAP.VERSION))])
         for extra in ("--development-images", "synthetic-token"):
             result = subprocess.run(["/bin/sh", str(kit / "instalar"), extra], capture_output=True, text=True)
             self.assertEqual(result.returncode, 2)
@@ -157,7 +157,7 @@ class KitPackagingTests(unittest.TestCase):
             "m['confirmar_plano']({'nome_cluster':'synthetic-test','contexto':'no-cluster',"
             "'uid_cluster':'12345678-1234-4321-8765-123456789abc','tenant_id':'SyntheticTenant'},"
             "{'collection':{'namespaces':['synthetic-app']},'modules':{'logs':{'enabled':False},"
-            "'clusterMetrics':{'enabled':False}}},"
+            "'clusterMetrics':{'enabled':False},'ebpf':{'enabled':False}}},"
             "{'runtimes':{'java':True,'nodejs':False,'nodejs20':False,'python':False}},"
             f"pathlib.Path({str(self.folder)!r})); print('APPROVAL_OK',flush=True)"
         )

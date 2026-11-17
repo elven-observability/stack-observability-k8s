@@ -21,8 +21,8 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-printf '%s\n' 'Elven Observability 1.0.0' 'Conferindo a configuração do ambiente…'
+printf '%s\n' 'Elven Observability 1.0.1' 'Conferindo a configuração do ambiente…'
 exec python3 -I "$plataforma/instalar.py" guiado \
-    --pacote "$plataforma/elven-observability-v1.0.0.tar.gz" \
+    --pacote "$plataforma/elven-observability-v1.0.1.tar.gz" \
     --config "$plataforma/cliente.toml" \
-    --revisao "$plataforma/revisao-v1.0.0"
+    --revisao "$plataforma/revisao-v1.0.1"

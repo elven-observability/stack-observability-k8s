@@ -179,6 +179,7 @@ class ProcessBoundaries(unittest.TestCase):
              mock.patch.object(cli, "generate_serving", return_value=private), \
              mock.patch.object(cli, "render", return_value=("", {}, ["--namespace", args.namespace])) as render, \
              mock.patch.object(cli, "create_secret") as create, mock.patch.object(cli, "helm", return_value="") as helm, \
+             mock.patch.object(cli, "verify_admission") as verify, \
              contextlib.redirect_stdout(io.StringIO()):
             cli.install(args, current, plan, Path(temporary), 4)
         override = render.call_args.args[2]
@@ -188,6 +189,89 @@ class ProcessBoundaries(unittest.TestCase):
         self.assertEqual(create.call_args_list[1].args[1:3], ("elven-synthetic-app", "elven-instrumentation-tls"))
         self.assertNotIn(PRIVATE, str(helm.call_args))
         self.assertIn("--rollback-on-failure", helm.call_args.args)
+        verify.assert_called_once_with(args, current)
+
+    def test_admission_verifies_every_enabled_runtime_namespace_without_persisting_pods(self):
+        args, current = arguments(), settings()
+        current["namespaces"] = ["elven-synthetic-a", "elven-synthetic-b"]
+        current["runtimes"].update(python=True, nodejs20=True, legacyNode20Approved=True)
+        def reply(_args, *command, data=None):
+            self.assertEqual(command, ("create", "--dry-run=server", "-f", "-", "-o", "json"))
+            pod = json.loads(data)
+            self.assertFalse(pod["spec"]["automountServiceAccountToken"])
+            self.assertNotIn("env", pod["spec"]["containers"][0])
+            runtime = pod["metadata"]["labels"]["elven.observability/inject"]
+            pod["metadata"]["annotations"]["elven.observability/injected"] = runtime
+            pod["spec"]["initContainers"] = [{"name": "elven-instrumentation-init",
+                                              "image": pod["spec"]["containers"][0]["image"]}]
+            pod["spec"]["containers"][0]["env"] = [{"name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "value": current["gateway"]["endpoint"]}]
+            return json.dumps(pod)
+        with mock.patch.object(cli, "kube", side_effect=reply) as kube, contextlib.redirect_stdout(io.StringIO()):
+            cli.verify_admission(args, current)
+        self.assertEqual(kube.call_count, 8)
+        self.assertEqual({json.loads(call.kwargs["data"])["metadata"]["namespace"] for call in kube.call_args_list},
+                         set(current["namespaces"]))
+
+    def test_admission_fail_open_wrong_image_missing_marker_and_provider_errors_fail_closed(self):
+        current = settings()
+        for defect in ("fail-open", "wrong-image", "missing-marker", "wrong-endpoint", "duplicate-init", "invalid-json", "provider"):
+            def reply(_args, *command, data=None):
+                if defect == "provider":
+                    raise cli.Failure(PRIVATE)
+                if defect == "invalid-json":
+                    return PRIVATE
+                pod = json.loads(data)
+                runtime = pod["metadata"]["labels"]["elven.observability/inject"]
+                if defect == "fail-open":
+                    return json.dumps(pod)
+                if defect != "missing-marker":
+                    pod["metadata"]["annotations"]["elven.observability/injected"] = runtime
+                pod["spec"]["initContainers"] = [{"name": "elven-instrumentation-init",
+                    "image": "wrong" if defect == "wrong-image" else pod["spec"]["containers"][0]["image"]}]
+                if defect == "duplicate-init":
+                    pod["spec"]["initContainers"] *= 2
+                pod["spec"]["containers"][0]["env"] = [{"name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                    "value": "https://wrong.invalid" if defect == "wrong-endpoint" else current["gateway"]["endpoint"]}]
+                return json.dumps(pod)
+            with self.subTest(defect=defect), mock.patch.object(cli, "kube", side_effect=reply) as kube, \
+                 mock.patch.object(cli.time, "sleep"), mock.patch.object(cli.time, "monotonic", return_value=0), \
+                 self.assertRaisesRegex(cli.Failure, "real admission verification failed") as error:
+                cli.verify_admission(arguments(), current)
+            self.assertNotIn(PRIVATE, str(error.exception))
+            self.assertEqual(kube.call_count, 12)
+
+    def test_admission_retries_transient_transport_and_old_mutation_but_requires_exact_proof(self):
+        current = settings()
+        attempts = 0
+        def reply(_args, *command, data=None):
+            nonlocal attempts
+            attempts += 1
+            self.assertEqual(command, ("create", "--dry-run=server", "-f", "-", "-o", "json"))
+            if attempts == 1:
+                raise cli.Failure(PRIVATE)
+            pod = json.loads(data)
+            runtime = pod["metadata"]["labels"]["elven.observability/inject"]
+            pod["metadata"]["annotations"]["elven.observability/injected"] = runtime
+            pod["spec"]["initContainers"] = [{"name": "elven-instrumentation-init",
+                "image": "old-sdk" if attempts == 2 else pod["spec"]["containers"][0]["image"]}]
+            pod["spec"]["containers"][0]["env"] = [{"name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                "value": current["gateway"]["endpoint"]}]
+            return json.dumps(pod)
+        with mock.patch.object(cli, "kube", side_effect=reply) as kube, \
+             mock.patch.object(cli.time, "sleep") as sleep, contextlib.redirect_stdout(io.StringIO()):
+            cli.verify_admission(arguments(), current)
+        self.assertEqual(kube.call_count, sum(bool(current["runtimes"].get(r)) for r in ("java", "nodejs", "nodejs20", "python")) + 2)
+        self.assertEqual(sleep.call_args_list, [mock.call(2), mock.call(2)])
+
+    def test_admission_stops_at_shared_deadline_without_persisting_or_ignoring_failure(self):
+        with mock.patch.object(cli, "kube", side_effect=cli.Failure(PRIVATE)) as kube, \
+             mock.patch.object(cli.time, "monotonic", side_effect=[0, 60]), \
+             mock.patch.object(cli.time, "sleep") as sleep, \
+             self.assertRaisesRegex(cli.Failure, "real admission verification failed"):
+            cli.verify_admission(arguments(), settings())
+        self.assertEqual(kube.call_count, 1)
+        sleep.assert_not_called()
 
     def test_process_errors_do_not_echo_private_payload_or_provider_output(self):
         failed = subprocess.CompletedProcess([], 1, PRIVATE, PRIVATE)

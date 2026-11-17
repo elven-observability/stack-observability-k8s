@@ -23,7 +23,7 @@
     "tls": {"$ref": "#/definitions/existingSecret"},
     "endpoints": {
       "type": "object", "additionalProperties": false, "required": ["logs", "metrics", "traces", "profiles"],
-      "properties": {"logs": {"$ref": "#/definitions/httpsEndpoint"}, "metrics": {"$ref": "#/definitions/httpsEndpoint"}, "traces": {"$ref": "#/definitions/httpsEndpoint"}, "profiles": {"$ref": "#/definitions/httpsEndpoint"}}
+      "properties": {"logs": {"$ref": "#/definitions/httpsEndpoint"}, "metrics": {"$ref": "#/definitions/httpsEndpoint"}, "traces": {"$ref": "#/definitions/httpsEndpoint"}, "profiles": {"anyOf": [{"const": ""}, {"$ref": "#/definitions/httpsEndpoint"}]}}
     },
     "exportTLS": {
       "type": "object", "additionalProperties": false, "required": ["existingCASecret"],
@@ -84,9 +84,12 @@
           }
         },
         "ebpf": {
-          "type": "object", "additionalProperties": false, "required": ["enabled", "hostAccessApproved", "additionalCapabilities", "additionalCapabilitiesApproved", "workloads"],
+          "type": "object", "additionalProperties": false, "required": ["enabled", "hostAccessApproved", "excludeSDKInstrumentedServices", "resources", "additionalCapabilities", "additionalCapabilitiesApproved", "workloads"],
           "properties": {
             "enabled": {"type": "boolean"}, "hostAccessApproved": {"type": "boolean"},
+            "resources": {"$ref": "#/definitions/resources"},
+            "excludeSDKInstrumentedServices": {"type": "boolean"},
+            "routePatterns": {"type": "array", "uniqueItems": true, "maxItems": 128, "items": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^/[^?#\\s]*$"}},
             "additionalCapabilities": {"type": "array", "uniqueItems": true, "maxItems": 2, "items": {"type": "string", "enum": ["SYS_ADMIN", "SYS_RESOURCE"]}, "description": "Optional platform-specific escalation after kernel/admission review; no automatic fallback. The distribution supports Linux >=5.11 with BTF."},
             "additionalCapabilitiesApproved": {"type": "boolean", "description": "Explicit approval of any SYS_ADMIN/SYS_RESOURCE addition; privileged mode and NET_ADMIN are never enabled."},
             "workloads": {"type": "array", "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["namespace", "deployment"], "properties": {"namespace": {"$ref": "#/definitions/dnsLabel"}, "deployment": {"$ref": "#/definitions/dnsName"}}}}

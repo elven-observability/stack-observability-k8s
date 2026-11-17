@@ -14,10 +14,12 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlsplit
 
 
@@ -495,6 +497,10 @@ def preflight(args, settings, folder, changing=False):
         can_i(args, verb, "secrets", args.namespace)
     for target in missing_clients:
         can_i(args, "create", "secrets", target)
+    for target in settings["namespaces"]:
+        # Kubernetes authorizes server-side dry-run with the create verb. The
+        # verifier never persists a Pod or needs patch/restart on applications.
+        can_i(args, "create", "pods", target)
     if not namespace:
         can_i(args, "create", "namespaces")
     print(f"Preflight passed for explicit cluster UID {args.cluster_uid}; selected applications were not changed.")
@@ -502,6 +508,63 @@ def preflight(args, settings, folder, changing=False):
         print("Missing owned TLS material will be created only by install; preflight did not generate certificates or write Secrets.")
     return {"namespace_exists": bool(namespace), "client": client, "fingerprint": fingerprint,
             "missing_clients": missing_clients, "serving": serving_values}
+
+
+def verify_admission(args, settings):
+    """Prove the real API server called the webhook, not just Deployment Ready.
+
+    failurePolicy=Ignore protects application availability, so Helm --wait can
+    succeed while transport, TLS, selectors or post-NAT policy silently prevent
+    every injection. A server-side dry-run exercises that actual admission path
+    without scheduling, pulling an image or starting any application container.
+    """
+    # Deployment Ready can precede API-server webhook/EndpointSlice cache
+    # convergence during upgrades. Retry only the non-persisting proof; never
+    # accept Ready, an old SDK mutation, or a permanently ignored webhook.
+    deadline = time.monotonic() + 60
+    for namespace in settings["namespaces"]:
+        for runtime in ("java", "nodejs", "nodejs20", "python"):
+            if not settings["runtimes"].get(runtime):
+                continue
+            image = settings["images"][runtime]
+            reference = f"{image['repository']}:{image['tag']}@{image['digest']}"
+            probe = {"apiVersion": "v1", "kind": "Pod", "metadata": {
+                "name": "elven-admission-" + runtime + "-" + secrets.token_hex(4),
+                "namespace": namespace,
+                "labels": {"elven.observability/inject": runtime,
+                           "app.kubernetes.io/part-of": "elven-admission-verification"},
+                "annotations": {"elven.observability/container-name": "application"}},
+                "spec": {"automountServiceAccountToken": False, "restartPolicy": "Never",
+                    "securityContext": {"runAsNonRoot": True, "runAsUser": 10001, "runAsGroup": 10001,
+                                        "seccompProfile": {"type": "RuntimeDefault"}},
+                    "containers": [{"name": "application", "image": reference,
+                        "command": ["/elven-admission-dry-run-only"],
+                        "securityContext": {"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True,
+                                            "capabilities": {"drop": ["ALL"]}},
+                        "resources": {"requests": {"cpu": "1m", "memory": "16Mi"},
+                                      "limits": {"cpu": "10m", "memory": "32Mi"}}}]}}
+            for attempt in range(12):
+                try:
+                    rendered = json.loads(kube(args, "create", "--dry-run=server", "-f", "-", "-o", "json",
+                                               data=json.dumps(probe)))
+                    sdk = [entry for entry in rendered["spec"].get("initContainers", [])
+                           if entry.get("name") == "elven-instrumentation-init"]
+                    marker = rendered["metadata"].get("annotations", {}).get("elven.observability/injected")
+                    application = next(c for c in rendered["spec"]["containers"] if c["name"] == "application")
+                    endpoint = {e["name"]: e.get("value") for e in application.get("env", [])}.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+                    if (len(sdk) != 1 or sdk[0].get("image") != reference or marker != runtime
+                            or endpoint != settings["gateway"]["endpoint"].rstrip("/")):
+                        raise ValueError("Missing or unexpected SDK mutation")
+                    break
+                except (Failure, ValueError, TypeError, KeyError, AttributeError, StopIteration):
+                    remaining = deadline - time.monotonic()
+                    if attempt == 11 or remaining <= 0:
+                        raise Failure(f"Operator reconciled but real admission verification failed for {namespace}/{runtime}. "
+                                      "No probe Pod was persisted and no application was restarted. Check webhook TLS, selectors, "
+                                      "admission policy and the actual post-NAT control-plane source CIDRs; do not widen the network "
+                                      "or treat Ready as proof of injection. Owned resources and TLS Secrets were retained.") from None
+                    time.sleep(min(2, remaining))
+    print("Actual SDK admission verified for every selected namespace/runtime by server-side dry-run; no probe Pod was persisted.")
 
 
 def install(args, settings, plan, folder, helm_major):
@@ -519,6 +582,7 @@ def install(args, settings, plan, folder, helm_major):
     failure = "--rollback-on-failure" if helm_major == 4 else "--atomic"
     helm(args, "upgrade", "--install", args.release, CHART, *flags, "--wait", "--timeout", args.timeout,
          "--history-max", "10", "--reset-values", failure, online=True)
+    verify_admission(args, settings)
     print("Elven instrumentation reconciled. No application was labelled, annotated or restarted. Opt-in through reviewed GitOps Pod labels; verify actual telemetry before expanding.")
 
 

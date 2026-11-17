@@ -49,7 +49,7 @@ jobs:
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           docker system df
           python3 scripts/images-instrumentation.py check
-          version=1.0.0-dev
+          version=1.0.1-dev
           if [[ "$RELEASE_REF" =~ ^refs/tags/v1\.[0-9]+\.[0-9]+$ ]]; then
             version="${RELEASE_REF#refs/tags/}"
           fi
@@ -125,9 +125,59 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  native-arm:
+    needs: build-and-test
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5 # v5.6.0
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: elven-instrumentation-oci
+          path: artifacts/instrumentation
+      - name: Verify and load the exact scanned SDK archives on native ARM
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, pathlib, subprocess
+          folder = pathlib.Path("artifacts/instrumentation")
+          manifest = json.loads((folder / "instrumentation-release.json").read_text())
+          for image in manifest["images"].values():
+              archive = folder / image["archive"]
+              with archive.open("rb") as stream:
+                  assert hashlib.file_digest(stream, "sha256").hexdigest() == image["archiveSha256"]
+              assert image["scans"]["linux/arm64"]["status"] == "passed"
+              subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+          PY
+          test "$(docker info --format '{{.Architecture}}')" = aarch64
+      - name: Install checksum-pinned native ARM tooling
+        run: |
+          python3 -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - name: Native ARM injection and actual SDK telemetry with the same archives
+        run: python3 scripts/test-instrumentation-kind.py --images-manifest artifacts/instrumentation/instrumentation-release.json --development-images
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: elven-instrumentation-native-arm-evidence
+          include-hidden-files: true
+          path: |
+            .artifacts/instrumentation-kind-*/report.json
+            .artifacts/instrumentation-kind-*/sdk-diagnostics.txt
+          if-no-files-found: warn
+          retention-days: 7
+
   publish:
     if: startsWith(github.ref, 'refs/tags/v1.') && !contains(github.ref, '-')
-    needs: build-and-test
+    needs: [build-and-test, native-arm]
     environment: elven-distribution-release
     runs-on: ubuntu-24.04
     timeout-minutes: 30

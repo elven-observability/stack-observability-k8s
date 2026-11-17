@@ -45,7 +45,7 @@ FORBIDDEN = [
     "123456789", "nested-api-secret", "escaped@example.invalid", "escaped\\u0040example.invalid",
     "json-password-secret", "array-access-secret", "keyuser@example.invalid",
     "json-private-secret", "BYTES_SECRET_SENTINEL", "OVERSIZE_SECRET_SENTINEL",
-    "DEPTH_SECRET_SENTINEL", "COLLECTION_SECRET_SENTINEL", "resource@example.invalid",
+    "DEPTH_SECRET_SENTINEL", "COLLECTION_SECRET_SENTINEL", "RECURSION_LIMIT_SECRET_SENTINEL", "resource@example.invalid",
     "scope@example.invalid", "scope-api-secret", "schema-token-secret",
     "trace@example.invalid", "dbuser@example.invalid", "sql-comment-secret",
     "sql-name-secret",
@@ -289,7 +289,9 @@ def corpus():
               "accessToken": ["array-access-secret", {"password": True}],
               "keyuser@example.invalid": "operational map key value"}
     deep = {"message": "DEPTH_SECRET_SENTINEL"}
-    for _ in range(40):
+    # Above the processor's 24-level budget but within the upstream decoder's
+    # 100-message recursion ceiling (each AnyValue map consumes several levels).
+    for _ in range(28):
         deep = {"nested": deep}
     bodies = {
         "text": 'checkout failed status=502 latency_ms=17 email=alice@example.invalid cpf=123.456.789-09 '
@@ -376,6 +378,19 @@ def outage_payload():
     record.trace_id, record.span_id = TRACE_ID, SPAN_ID
     attributes(record.attributes, {"privacy.test.case": "outage"})
     record.body.string_value = "outage keep operation status=503 email=wal@example.invalid token=wal-token-secret"
+    return payload
+
+
+def recursion_attack_payload():
+    """Rejected by the protected receiver, never mixed with useful records."""
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+    payload = ExportLogsServiceRequest()
+    record = payload.resource_logs.add().scope_logs.add().log_records.add()
+    record.time_unix_nano = time.time_ns()
+    value = {"message": "RECURSION_LIMIT_SECRET_SENTINEL"}
+    for _ in range(40):
+        value = {"nested": value}
+    set_value(record.body, value)
     return payload
 
 
@@ -709,10 +724,10 @@ def smoke(image):
         def state():
             return json.loads(fixture_action({"op": "state"})["payload"])
 
-        def send(signal, payload, **options):
+        def send(signal, payload, expected_status=200, **options):
             response = fixture_action({"op": "send", "signal": signal,
                 "body": base64.b64encode(payload.SerializeToString()).decode(), **options})
-            if options.get("client_certificate", True) and response.get("status") != 200:
+            if options.get("client_certificate", True) and response.get("status") != expected_status:
                 raise AssertionError("OTLP mTLS receiver rejected synthetic " + signal + ": " + str(response))
             return response
 
@@ -786,6 +801,11 @@ def smoke(image):
             if not rejected.get("tls_rejected"):
                 raise AssertionError("Gateway accepted a connection without a client certificate")
             evidence["checks"].append({"name": "verified server TLS and required client certificate", "result": "PASS"})
+            excessive = send("logs", recursion_attack_payload(), expected_status=400)
+            if "recursion depth" not in excessive.get("payload", ""):
+                raise AssertionError("HTTP 400 did not prove the protobuf recursion defense")
+            evidence["checks"].append({"name": "upstream protobuf recursion defense rejects hostile depth without relaxing limits",
+                                       "result": "PASS", "status": 400, "nested_maps": 40})
             for signal, payload in payloads.items():
                 send(signal, payload)
             def all_signals_arrived():

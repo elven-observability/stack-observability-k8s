@@ -106,7 +106,7 @@ data:
         attributes:
           - {key: k8s.cluster.name, value: {{ .Values.cluster.name | quote }}, action: upsert}
           - {key: deployment.environment.name, value: {{ .Values.cluster.environment | quote }}, action: upsert}
-      {{- if .Values.modules.logs.enabled }}
+      {{- if or .Values.modules.logs.enabled .Values.modules.ebpf.enabled }}
       # Apply the same recursive policy at source and again before gateway WAL.
       # Partial regex replacement here could erase a credential's key while
       # leaving an unrecognizable suffix for the downstream sanitizer.
@@ -174,12 +174,17 @@ data:
         {{- if .Values.modules.ebpf.enabled }}
         traces:
           receivers: [otlp/local]
-          processors: [memory_limiter, resource/identity]
+          processors: [memory_limiter, resource/identity, elven_privacy]
+          exporters: [otlp_http/gateway]
+        metrics/ebpf:
+          receivers: [otlp/local]
+          processors: [memory_limiter, resource/identity, elven_privacy]
           exporters: [otlp_http/gateway]
         {{- end }}
   {{- if .Values.modules.ebpf.enabled }}
   beyla.yaml: |
     log_level: WARN
+    enforce_sys_caps: true
     attributes:
       kubernetes:
         enable: true
@@ -193,13 +198,24 @@ data:
       exclude_instrument:
         - k8s_namespace: {{ .Release.Namespace | quote }}
         - k8s_namespace: kube-system
-      exclude_otel_instrumented_services: false
+      exclude_otel_instrumented_services: {{ .Values.modules.ebpf.excludeSDKInstrumentedServices }}
       disabled_route_harvesters: [java, nodejs, go]
     ebpf:
       context_propagation: disabled
+    routes:
+      unmatched: wildcard
+      patterns: {{ .Values.modules.ebpf.routePatterns | toJson }}
     otel_traces_export:
+      endpoint: http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces
       protocol: http/protobuf
       instrumentations: [http, grpc]
+    otel_metrics_export:
+      endpoint: http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/metrics
+      protocol: http/protobuf
+      interval: 15s
+      features: [application]
+      instrumentations: [http, grpc]
+      histogram_aggregation: explicit_bucket_histogram
   {{- end }}
 ---
 apiVersion: apps/v1
@@ -311,7 +327,9 @@ spec:
           env:
             - {name: BEYLA_CONFIG_PATH, value: /etc/elven/config/beyla.yaml}
             - {name: BEYLA_ENFORCE_SYS_CAPS, value: "1"}
+            - {name: OTEL_EBPF_KUBE_CLUSTER_NAME, value: {{ .Values.cluster.name | quote }}}
             - {name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/traces"}
+            - {name: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT, value: "http://127.0.0.1:{{ .Values.ports.localOtlpHttp }}/v1/metrics"}
             - name: K8S_NODE_NAME
               valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
           securityContext:
@@ -328,7 +346,7 @@ spec:
             seccompProfile: {type: Unconfined}
             appArmorProfile: {type: Unconfined}
           resources:
-            {{- toYaml .Values.nodeAgent.resources | nindent 12 }}
+            {{- toYaml .Values.modules.ebpf.resources | nindent 12 }}
           volumeMounts:
             - {name: config, mountPath: /etc/elven/config, readOnly: true}
             - {name: beyla-run, mountPath: /var/run/beyla}

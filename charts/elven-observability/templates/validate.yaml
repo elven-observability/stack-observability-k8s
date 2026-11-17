@@ -29,6 +29,8 @@
 {{- $_ := set $ports $id $key -}}
 {{- end -}}
 {{- range $signal, $endpoint := .Values.endpoints -}}
+{{- if not (and (eq $signal "profiles") (empty $endpoint) (not $.Values.modules.profiles.enabled)) -}}
+{{- if empty $endpoint -}}{{ fail (printf "endpoints.%s requires an explicitly qualified HTTPS backend before enabling the module" $signal) }}{{- end -}}
 {{- $url := urlParse $endpoint -}}
 {{- $authority := get $url "host" | default "" -}}
 {{- if or (eq $authority "localhost") (hasPrefix "localhost:" $authority) (hasPrefix "127." $authority) (hasPrefix "0.0.0.0" $authority) (contains ".." $authority) -}}
@@ -41,6 +43,7 @@
 {{- $allowedPort := false -}}
 {{- range $.Values.networkPolicy.exportPorts -}}{{- if eq (printf "%v" .) (printf "%v" $endpointPort) -}}{{- $allowedPort = true -}}{{- end -}}{{- end -}}
 {{- if not $allowedPort -}}{{ fail (printf "endpoints.%s port %v is absent from networkPolicy.exportPorts" $signal $endpointPort) }}{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- $nodeCollection := or .Values.modules.logs.enabled .Values.modules.kubeletMetrics.enabled .Values.modules.ebpf.enabled -}}

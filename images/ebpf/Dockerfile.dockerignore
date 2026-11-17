@@ -7,3 +7,7 @@
 !images/ebpf/NOTICE
 !images/ebpf/UPSTREAM-NOTICE
 !images/ebpf/third_party_licenses.csv
+!images/ebpf/build-source.sh
+!images/ebpf/elven-config-validation.patch
+!images/ebpf/license-bundle.go
+!images/ebpf/license-bundle_test.go

@@ -8,7 +8,7 @@
     "publicationStatus": "verified",
     "registry": "docker.io/elvenobservability",
     "repository": "https://github.com/elven-observability/stack-observability-k8s",
-    "version": "1.0.0"
+    "version": "1.0.1"
   },
   "images": {
     "java": {
@@ -17,22 +17,22 @@
         "attestations": {
           "build": {
             "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
-            "sha256": "sha256:f3c797085c80c5cc34d94b91278ef49d7ccda5d482f227f1dd848b265421061c"
+            "sha256": "sha256:3298402025810b1071792dc09fb030b919970759acb1714113a47c530376b46c"
           },
           "canonicalization": "elven-json-v1",
           "schemaVersion": 1,
           "spdx": {
-            "linux/amd64": "sha256:2d085e5240c082d3245211aafdca19400f9c819f4e49e06801c129f84855695e",
-            "linux/arm64": "sha256:bcbc419ae7264a0731fba091660b1d27503d338cc4e3eedd5464b3db2e60b2d0"
+            "linux/amd64": "sha256:e0bd970be6a522888e6c42c11f4c383c1ac2ddbddf14b6e110cf778774a2d0bb",
+            "linux/arm64": "sha256:16781a1e03d4327d218c88190e2528d86ee73ed6a2ed52e9a93d256428507108"
           },
-          "subjectDigest": "sha256:ec2574d99213343efe19ab486673590a0f9af7be0a466fee1cd49a28c962066f"
+          "subjectDigest": "sha256:d12eb4f89103253645a387728a882a6834b5a7f2016bd3809ab4987cff2be87d"
         },
-        "digest": "sha256:ec2574d99213343efe19ab486673590a0f9af7be0a466fee1cd49a28c962066f",
+        "digest": "sha256:d12eb4f89103253645a387728a882a6834b5a7f2016bd3809ab4987cff2be87d",
         "repository": "docker.io/elvenobservability/elven-auto-java",
-        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
         "status": "verified",
-        "tag": "v1.0.0",
-        "verifiedAt": "2026-11-03T20:46:18.218267+00:00"
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:44.933865+00:00"
       },
       "dockerfile": "images/autoinstrumentation/java/Dockerfile",
       "payloadPaths": [
@@ -55,22 +55,22 @@
         "attestations": {
           "build": {
             "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
-            "sha256": "sha256:c42eaf26f537835a83b3a9eec04f72ce2340aef1454aaef80f1aa1b067b64ff9"
+            "sha256": "sha256:b56bdf8e0506ba87f582fc7ccbd585e7a4e23a4a2883d70e7c87434378e5753e"
           },
           "canonicalization": "elven-json-v1",
           "schemaVersion": 1,
           "spdx": {
-            "linux/amd64": "sha256:eca73017d75024d5f9695a30ccae1bbdaf80faec367d3e0407b81b46d1844466",
-            "linux/arm64": "sha256:64cf7b8071a86f2f21558586c4acf7cd60ec2f3d6c2fd3490e3964e867cf3867"
+            "linux/amd64": "sha256:49bbc1a901eef2ee83f4b05e979a2b9020bf997ba918a9bab704f71792be1ad5",
+            "linux/arm64": "sha256:b0dc0bc325f9c86a2bcfec16d2085542a8642a0e4ca52cef2c070879dfc09952"
           },
-          "subjectDigest": "sha256:932c4acfec934a8fc0048d4b92b1f8ba880c444612ad2f10462aac7d310aa45d"
+          "subjectDigest": "sha256:8b0d5f780b98346a4d2cfe3ae7f91fa40acb631465fcd0f855075c27b29a09c0"
         },
-        "digest": "sha256:932c4acfec934a8fc0048d4b92b1f8ba880c444612ad2f10462aac7d310aa45d",
+        "digest": "sha256:8b0d5f780b98346a4d2cfe3ae7f91fa40acb631465fcd0f855075c27b29a09c0",
         "repository": "docker.io/elvenobservability/elven-auto-nodejs",
-        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
         "status": "verified",
-        "tag": "v1.0.0",
-        "verifiedAt": "2026-11-03T20:46:44.432516+00:00"
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T14:59:51.932915+00:00"
       },
       "dockerfile": "images/autoinstrumentation/nodejs/Dockerfile",
       "payloadPaths": [
@@ -78,13 +78,13 @@
       ],
       "stability": "stable-release-not-all-integrations-GA",
       "upstream": {
-        "digest": "sha256:609216a9e468279bd41b56829c1fd5e73cb29b5b1002ed95921bf59da854e09a",
+        "digest": "sha256:9b53ce65c9c43ec5d5d3fdade6e6918d3c8231f97dfa4145d4aad36dbbdb6b48",
         "license": "Apache-2.0",
-        "release": "https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.82.0",
+        "release": "https://github.com/open-telemetry/opentelemetry-js-contrib/releases/tag/auto-instrumentations-node-v0.83.0",
         "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-nodejs",
         "sdkVersion": "3.x",
-        "sourceVersion": "0.82.0",
-        "tag": "0.82.0-3"
+        "sourceVersion": "0.83.0",
+        "tag": "0.83.0-3"
       }
     },
     "nodejs20": {
@@ -93,22 +93,22 @@
         "attestations": {
           "build": {
             "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
-            "sha256": "sha256:bacb784ff89f8bd5d01e62966297530b2f115d8b0db35416b742ac7474e42e1e"
+            "sha256": "sha256:0a213efe01e99a75508af90a70904ab14ca12a4ab7e37fd9e686f795f1c34b0d"
           },
           "canonicalization": "elven-json-v1",
           "schemaVersion": 1,
           "spdx": {
-            "linux/amd64": "sha256:7a1bddba59c94e856122a2753a577219f78d4decb6352cd612e543643560ea4c",
-            "linux/arm64": "sha256:3808af9955fe5e9e4fe7ad4d6c7379d70c910eccaa6a0163d78d99006bcdf71b"
+            "linux/amd64": "sha256:f5ffaf6bbe2be2cc4deade519df62e9943bfa682ad8277fc693b00ee6ca4f75f",
+            "linux/arm64": "sha256:b72136ae0b4fe9e9e8ee6df5e6ceb2c397a7e08e1d483948879f6f4e274331c6"
           },
-          "subjectDigest": "sha256:992cd9dff8972a5da40de66996e3dac2b1229918162d7cc6b1ba018e1c8bef04"
+          "subjectDigest": "sha256:4181555e365edab084427d771025648ed58ba18744c6cb7c70b0dac6ca102aab"
         },
-        "digest": "sha256:992cd9dff8972a5da40de66996e3dac2b1229918162d7cc6b1ba018e1c8bef04",
+        "digest": "sha256:4181555e365edab084427d771025648ed58ba18744c6cb7c70b0dac6ca102aab",
         "repository": "docker.io/elvenobservability/elven-auto-nodejs20",
-        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
         "status": "verified",
-        "tag": "v1.0.0",
-        "verifiedAt": "2026-11-03T20:47:07.177343+00:00"
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:15.017776+00:00"
       },
       "dockerfile": "images/autoinstrumentation/nodejs20/Dockerfile",
       "payloadPaths": [
@@ -130,22 +130,22 @@
         "attestations": {
           "build": {
             "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
-            "sha256": "sha256:85f4a9c6e205fb371458c51beb3155f2251e274272189d9d70cacce51fd54998"
+            "sha256": "sha256:366543685ecec6baeccd00c15d3186afceb0384a218f6eb240e177291df677fa"
           },
           "canonicalization": "elven-json-v1",
           "schemaVersion": 1,
           "spdx": {
-            "linux/amd64": "sha256:19ecc1af6ad862dca4fb0c37b42359697146a7e2ed6c4a795b12b8a791b57bd2",
-            "linux/arm64": "sha256:c9a0691afcd5ae1481045f99a792f33896314e96956370e42e87aea48708b413"
+            "linux/amd64": "sha256:e2bba7f66219bec10e0500d315a45d9e38b9315b3483e501885431d08a361fec",
+            "linux/arm64": "sha256:d5cfe2ebf8ef9b34e110fd3f1a0767ef738a7f0bccd90f7a3451596d87549942"
           },
-          "subjectDigest": "sha256:3ec69a046b372dcdba63b84ebc83af42ea231f3f3695eeb6239eb64806ba555a"
+          "subjectDigest": "sha256:02bbd134aeb266b847acdcbce101b87f939d1dcfc0504644e658ad7ec169d9fb"
         },
-        "digest": "sha256:3ec69a046b372dcdba63b84ebc83af42ea231f3f3695eeb6239eb64806ba555a",
+        "digest": "sha256:02bbd134aeb266b847acdcbce101b87f939d1dcfc0504644e658ad7ec169d9fb",
         "repository": "docker.io/elvenobservability/elven-instrumentation-operator",
-        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
         "status": "verified",
-        "tag": "v1.0.0",
-        "verifiedAt": "2026-11-03T20:47:31.495972+00:00"
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:27.685566+00:00"
       },
       "dockerfile": "images/operator/Dockerfile",
       "license": "Apache-2.0",
@@ -161,22 +161,22 @@
         "attestations": {
           "build": {
             "predicateType": "https://elvenobservability.com/attestations/instrumentation-build/v1",
-            "sha256": "sha256:108b4b4fc37ff1d64d1447fe7c09153f252e965c9b11ab193eed7c7ddab111a0"
+            "sha256": "sha256:18d20aab37bb55213ba17cd8758599edfe620f4d203926d0d000d41169250381"
           },
           "canonicalization": "elven-json-v1",
           "schemaVersion": 1,
           "spdx": {
-            "linux/amd64": "sha256:6857d7e4cca9561579cfaa93b62e75dfeda773b0ef0356f91aa0a36298fb78ad",
-            "linux/arm64": "sha256:472ec4aeecbebe1ff7406f5f00a72d4a376ab88232e6cd47190322ffd5518a52"
+            "linux/amd64": "sha256:df6dbabcb0dae64e3498d87c0309fd3742afdf5fdea710517fb7e34c5739b181",
+            "linux/arm64": "sha256:99494a78a41eaea78f1019a0bfd4da54e46e6c774bc7927d3b2450465354aa27"
           },
-          "subjectDigest": "sha256:9faaadb399238567cea1a941e6d9b2dbb0aaf70a55a9e718c7e6bf641aed6055"
+          "subjectDigest": "sha256:877ef1d6825eabe4911377a2103ede2024add278df504554de8789afeabf220b"
         },
-        "digest": "sha256:9faaadb399238567cea1a941e6d9b2dbb0aaf70a55a9e718c7e6bf641aed6055",
+        "digest": "sha256:877ef1d6825eabe4911377a2103ede2024add278df504554de8789afeabf220b",
         "repository": "docker.io/elvenobservability/elven-auto-python",
-        "sourceRevision": "0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3",
+        "sourceRevision": "7dea21b4391f5d0107bec8c280518fe097f9c494",
         "status": "verified",
-        "tag": "v1.0.0",
-        "verifiedAt": "2026-11-03T20:47:58.650531+00:00"
+        "tag": "v1.0.1",
+        "verifiedAt": "2026-11-17T15:00:39.223093+00:00"
       },
       "dockerfile": "images/autoinstrumentation/python/Dockerfile",
       "payloadPaths": [
@@ -220,10 +220,10 @@
     },
     "goImage": "docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9",
     "sbomScanner": "docker.io/docker/buildkit-syft-scanner@sha256:873a7458c3c8ac8e32c7b796c10e1600b07b963d2aa000a72a2d97aaaa2d6315",
-    "trivy": "0.76.1",
+    "trivy": "0.76.2",
     "trivyLinuxAmd64": {
-      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz",
-      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+      "sha256": "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf",
+      "url": "https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz"
     }
   },
   "verifiedOn": "2026-11-03"

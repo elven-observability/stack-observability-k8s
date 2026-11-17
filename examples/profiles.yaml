@@ -1,5 +1,7 @@
 # REVIEW TEMPLATE: pprof endpoints must already exist and be authorized.
 # This module does not install profiling packages or change applications.
+# Also set endpoints.profiles to an explicitly provisioned, TLS-verified Elven
+# backend before enabling this module. No unprovisioned public hostname is assumed.
 modules:
   profiles:
     enabled: false

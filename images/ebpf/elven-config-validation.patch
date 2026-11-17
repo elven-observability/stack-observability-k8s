@@ -1,0 +1,32 @@
+diff --git a/cmd/beyla/main.go b/cmd/beyla/main.go
+--- a/cmd/beyla/main.go
++++ b/cmd/beyla/main.go
+@@ -47,5 +47,28 @@
+ // nolint:cyclop
+ func main() {
++	// Elven's read-only validator deliberately uses the same loader and Validate
++	// method as normal startup, including supported v1 and environment overlays.
++	// Do not start discovery, listeners, probes or modify host/kernel state here.
++	if len(os.Args) > 1 && os.Args[1] == "elven-validate-config" {
++		if len(os.Args) != 3 || os.Args[2] == "" {
++			fmt.Fprintln(os.Stderr, "usage: beyla elven-validate-config <path>")
++			os.Exit(2)
++		}
++		path := os.Args[2]
++		cfg, version, _ := loadConfig(&path)
++		if err := cfg.Validate(); err != nil {
++			fmt.Fprintln(os.Stderr, "Elven eBPF configuration validation failed:", err)
++			os.Exit(1)
++		}
++		var level slog.Level
++		if err := level.UnmarshalText([]byte(cfg.LogLevel)); err != nil {
++			fmt.Fprintln(os.Stderr, "Elven eBPF invalid log level:", err)
++			os.Exit(1)
++		}
++		fmt.Fprintln(os.Stdout, "Elven eBPF configuration validation passed:", version)
++		return
++	}
++
+ 	// `beyla config validate|migrate` is OBI's config command group. It reads OBI v1 files, so
+ 	// it needs the same BEYLA_* to OTEL_EBPF_* environment mirroring as the regular config loader.
+ 	if len(os.Args) > 1 && os.Args[1] == "config" {

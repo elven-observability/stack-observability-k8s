@@ -9,18 +9,18 @@ images:
     # Public signed Elven release; exact source, digests and predicates are locked.
     # Never substitute upstream or unverified development images.
     repository: "docker.io/elvenobservability/elven-collector"
-    tag: "v1.0.0"
-    digest: "sha256:87f81a2b66be0d0b50ab8c1604843f2cc701d8c74b8c43d2d5d6ca425fe2125e"
+    tag: "v1.0.1"
+    digest: "sha256:d6cb61db477227ed6b6bb673a43ba87dd2c893a61c6eb3febfeda3476ae398e4"
     pullPolicy: IfNotPresent
   beyla:
     repository: "docker.io/elvenobservability/elven-ebpf"
-    tag: "v1.0.0"
-    digest: "sha256:be51d39658483814b3739f35a9ef876fc39a7f72892d7cc36daf496dfc77ab7f"
+    tag: "v1.0.1"
+    digest: "sha256:68cd44f1aeafce7305a555e124f9687b1760db62bf7ea3e81e7d67af4f538f62"
     pullPolicy: IfNotPresent
   alloy:
     repository: "docker.io/elvenobservability/elven-profiler"
-    tag: "v1.0.0"
-    digest: "sha256:6cd5a07c5523dc42bc1abdf5d1de1f35a3f2800fcaee34023bad547cd80bf57d"
+    tag: "v1.0.1"
+    digest: "sha256:f22e2e8099706ea1cec50d0fced8a7747598fe24956752df200dd5bff2eb3c1d"
     pullPolicy: IfNotPresent
 imagePullSecrets: []
 credentials:
@@ -31,7 +31,9 @@ endpoints:
   logs: https://loki.elvenobservability.com/otlp/v1/logs
   metrics: https://mimir.elvenobservability.com/otlp/v1/metrics
   traces: https://tempo.elvenobservability.com/http/v1/traces
-  profiles: https://pyroscope.elvenobservability.com
+  # Optional backend: require a real, independently qualified HTTPS endpoint.
+  # No guessed public hostname is shipped for a service that is not provisioned.
+  profiles: ""
 exportTLS:
   # Optional private export CA supplied as a separate Secret, key ca.crt.
   existingCASecret: ""
@@ -93,6 +95,16 @@ modules:
   ebpf:
     enabled: false
     hostAccessApproved: false
+    # Prefer the SDK for an already instrumented process. Disable only for an
+    # explicit overlap experiment; dual HTTP spans are not extra coverage.
+    excludeSDKInstrumentedServices: true
+    # Approved normalized templates; unmatched paths collapse to a wildcard.
+    routePatterns: []
+    # Separate from the Collector: kernel/program startup can peak well above
+    # steady RSS. Measure one worker before scaling; this is not a sizing SLA.
+    resources:
+      requests: {cpu: 100m, memory: 256Mi}
+      limits: {cpu: "1", memory: 1Gi}
     # Distribution floor: Linux >=5.11 with BTF. No automatic SYS_ADMIN fallback.
     additionalCapabilities: []
     additionalCapabilitiesApproved: false

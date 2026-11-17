@@ -40,6 +40,7 @@ def all_modules():
     return {
         "cluster": {"name": "synthetic-cluster"},
         "collection": {"namespaces": ["synthetic-app"]},
+        "endpoints": {"profiles": "https://profiles.example.invalid"},
         "networkPolicy": {"exportCIDRs": ["192.0.2.10/32"], "apiServerCIDRs": ["192.0.2.11/32"],
                           "kubeletCIDRs": ["192.0.2.12/32"], "profileCIDRs": ["192.0.2.13/32"],
                           "profilePorts": [443, 8443]},
@@ -57,6 +58,59 @@ def all_modules():
 
 
 class ChartTests(unittest.TestCase):
+    def test_profiles_never_uses_an_unprovisioned_guessed_backend(self):
+        self.assertEqual(DEFAULTS["endpoints"]["profiles"], "")
+        values = all_modules()
+        values["endpoints"]["profiles"] = ""
+        result = render(values, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("explicitly qualified HTTPS backend", result.stderr)
+
+    def test_ebpf_red_metrics_and_traces_use_source_privacy_and_the_gateway(self):
+        values = all_modules()
+        values["modules"]["logs"]["enabled"] = False
+        values["modules"]["ebpf"]["routePatterns"] = ["/orders/{id}"]
+        rendered = objects(values)
+        cm = next(obj for obj in rendered if obj["kind"] == "ConfigMap" and obj["metadata"]["name"].endswith("-node"))
+        collector, beyla = (yaml.safe_load(cm["data"][key]) for key in ("collector.yaml", "beyla.yaml"))
+        for signal in ("traces", "metrics/ebpf"):
+            pipeline = collector["service"]["pipelines"][signal]
+            self.assertEqual(pipeline["receivers"], ["otlp/local"])
+            self.assertEqual(pipeline["processors"][-1], "elven_privacy")
+            self.assertEqual(pipeline["exporters"], ["otlp_http/gateway"])
+        self.assertIn("elven_privacy", collector["processors"])
+        self.assertEqual(beyla["otel_metrics_export"]["features"], ["application"])
+        self.assertEqual(beyla["otel_metrics_export"]["instrumentations"], ["http", "grpc"])
+        self.assertEqual(beyla["otel_metrics_export"]["histogram_aggregation"], "explicit_bucket_histogram")
+        self.assertEqual(beyla["routes"], {"unmatched": "wildcard", "patterns": ["/orders/{id}"]})
+        ds = next(obj for obj in rendered if obj["kind"] == "DaemonSet")
+        container = next(obj for obj in podspec(ds)["containers"] if obj["name"] == "beyla")
+        environment = {value["name"]: value.get("value") for value in container["env"]}
+        self.assertEqual(environment["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"], "http://127.0.0.1:14318/v1/metrics")
+
+    def test_ebpf_budget_is_independent_of_the_node_collector_budget(self):
+        values = all_modules()
+        values["nodeAgent"] = {"resources": {"requests": {"cpu": "75m", "memory": "96Mi"},
+                                             "limits": {"cpu": "250m", "memory": "192Mi"}}}
+        values["modules"]["ebpf"]["resources"] = {"requests": {"cpu": "150m", "memory": "256Mi"},
+                                                   "limits": {"cpu": "1", "memory": "1Gi"}}
+        daemon = next(obj for obj in objects(values) if obj["kind"] == "DaemonSet")
+        containers = {c["name"]: c for c in podspec(daemon)["containers"]}
+        self.assertEqual(containers["collector"]["resources"], values["nodeAgent"]["resources"])
+        self.assertEqual(containers["beyla"]["resources"], values["modules"]["ebpf"]["resources"])
+        self.assertFalse(containers["beyla"]["securityContext"]["privileged"])
+        self.assertNotIn("SYS_ADMIN", containers["beyla"]["securityContext"]["capabilities"]["add"])
+
+    def test_ebpf_prefers_existing_sdk_unless_overlap_is_explicit(self):
+        for exclude in (True, False):
+            values = all_modules()
+            values["modules"]["ebpf"]["excludeSDKInstrumentedServices"] = exclude
+            rendered = objects(values)
+            configmap = next(obj for obj in rendered if obj["kind"] == "ConfigMap" and obj["metadata"]["name"].endswith("-node"))
+            config = yaml.safe_load(configmap["data"]["beyla.yaml"])
+            self.assertIs(config["discovery"]["exclude_otel_instrumented_services"], exclude)
+        self.assertTrue(DEFAULTS["modules"]["ebpf"]["excludeSDKInstrumentedServices"])
+
     def test_lint(self):
         result = subprocess.run(["helm", "lint", str(CHART), "--strict", "--kube-version", "1.37.0"],
                                 text=True, capture_output=True)

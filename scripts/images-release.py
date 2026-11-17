@@ -114,6 +114,12 @@ def lock_data():
                 raise ValueError(f"{name}: Go toolchain pin differs between Dockerfile and lock")
             if not (ROOT / recipe["manifest"]).is_file():
                 raise ValueError(f"{name}: missing minimal component build manifest")
+            for patch in recipe.get("patches", []):
+                path = ROOT / patch["path"]
+                if (not path.resolve().is_relative_to((ROOT / image["dockerfile"]).parent.resolve())
+                        or path.is_symlink() or not path.is_file()
+                        or sha256(path) != patch.get("sha256")):
+                    raise ValueError(f"{name}: source patch differs from the approved immutable build input")
         digest = image["distribution"].get("digest")
         if digest is not None and not DIGEST.fullmatch(digest):
             raise ValueError(f"{name}: invalid distribution digest")
@@ -608,7 +614,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["check", "build", "scan", "govulncheck", "publish", "verify", "promote"])
     parser.add_argument("--component", choices=["all", "collector", "beyla", "alloy"], default="all")
-    parser.add_argument("--version", default="1.0.0-dev")
+    parser.add_argument("--version", default="1.0.1-dev")
     parser.add_argument("--platform", default="linux/arm64", help="Explicit local architecture; release requires both linux/amd64,linux/arm64")
     parser.add_argument("--evidence-dir", type=Path, default=ROOT / "artifacts/images")
     args = parser.parse_args()

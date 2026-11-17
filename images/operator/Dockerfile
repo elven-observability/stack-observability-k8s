@@ -9,7 +9,7 @@ WORKDIR /src
 COPY operator/ /src/
 RUN go test ./... && GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o /out/elven-operator .
 FROM scratch
-ARG VERSION=1.0.0-dev
+ARG VERSION=1.0.1-dev
 ARG REVISION=unreleased
 ARG CREATED
 LABEL org.opencontainers.image.title="Elven Instrumentation Operator" \

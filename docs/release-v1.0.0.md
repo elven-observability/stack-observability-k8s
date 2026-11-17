@@ -1,5 +1,7 @@
 # Elven Observability 1.0.0
 
+**Atualização de segurança — 16/11/2026:** não habilitar os módulos opcionais eBPF/profiles desta release. O scan atualizado bloqueou suas bases upstream; o piloto SaaS retirou o eBPF e mantém SDKs/coleta pelo Collector. O kit padrão já deixa ambos desligados, mas o ZIP publicado não contém o novo bloqueio automático da candidata. Imagens, assinaturas e assets históricos não foram sobrescritos. Ver [advisories, contagens e contenção](versions.md#gate-atual-e-contenção).
+
 As oito imagens foram publicadas no namespace público `docker.io/elvenobservability`, assinadas por GitHub OIDC e promovidas nos dois locks e defaults dos charts. A tag de build `v1.0.0` permanece no source `0c41057c3cfae6d3e0887b5c4eecd44cdb9031f3`; a revisão de configuração instalável é posterior e consta no manifest do pacote. Não mover a tag nem usar seu arquivo automático Source code como se contivesse os locks promovidos.
 
 ## Referências imutáveis

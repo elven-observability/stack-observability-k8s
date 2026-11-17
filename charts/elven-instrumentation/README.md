@@ -38,6 +38,8 @@ Release/namespace padrão: `elven-operator` / `elven-observability`. Se alterar,
 
 O preflight é somente leitura: confere versão/UID/contexto, ownership, imagens, namespaces, permissões, fonte do gateway e material TLS existente. Se o material próprio ainda não existir, informa a criação planejada, sem gerar certificados. O install gera/verifica localmente a PKI antes da primeira escrita e usa `create`, nunca overwrite/adoption, para os Secrets. Erros de provider não reproduzem conteúdo de Secrets no terminal.
 
+Depois do Helm, o install exige uma injeção real via `--dry-run=server` para cada namespace/runtime habilitado. Nenhum Pod de teste é persistido, nenhuma imagem é baixada e nenhuma aplicação é reiniciada. A identidade do instalador precisa de `create pods` nesses namespaces porque o Kubernetes autoriza dry-run com o mesmo verbo; isso não dá permissão ao Operator. Falha de rede/TLS/selector não termina mais como instalação aprovada só porque o Operator está Ready. O teste ainda não comprova execução do SDK ou chegada no backend.
+
 ## Opt-in explícito, sem restart automático
 
 Depois da instalação e do canary aprovado, selecione o runtime no **Pod template** de um workload gerenciado por GitOps:
@@ -73,6 +75,8 @@ O preflight recusa namespaces compartilhados com outro webhook Elven de injeçã
 
 Traces, métricas e logs seguem o suporte real do SDK/biblioteca. Logging manual, providers de logs, dados de negócio e integrações específicas podem exigir SDK/API na aplicação. Não contar `Pod Ready`, init container concluído ou um span genérico como cobertura completa.
 
+A candidata pós-piloto usa os detectores Node `env,serviceinstance`, sem sondar cloud/host/argumentos do processo. Isso separa as métricas de réplicas por `service.instance.id`. O Operator assinado da v1.0.0 ainda usa somente `env`: a correção exige nova imagem promovida e rollout aprovado, e não deve ser anunciada como já presente no kit antigo.
+
 ## PII, SQL e segredos
 
 Os SDKs exportam por **HTTPS/mTLS** somente ao gateway Elven. Aplicações recebem um Secret local ao namespace com `ca.crt`, `client.crt` e `client.key` PKCS#8; não recebem tenant, token de backend, chave de servidor ou chave de assinatura da CA. O Operator não monta sequer o certificado privado de cliente. Secrets externos/conflitantes não são adotados.
@@ -85,7 +89,7 @@ Os logs originais da aplicação não são reescritos. A transformação atua so
 
 - Serviço: HTTPS `webhook.servicePort` (padrão 443) → `webhook.port` (9443, não privilegiada), `/mutate` e `/healthz`.
 - Operator: UID/GID 10001, rootfs read-only, cap-drop ALL, RuntimeDefault, sem host access/API token. Sem Roles/ClusterRoles de execução e sem egress de rede.
-- Installer: leitura do gateway/TLS/namespaces e CRUD do release metadata Helm; create de Secrets próprios nos namespaces aprovados; create/patch do webhook global com nome hash namespace/release. Não precisa patch/restart de aplicações.
+- Installer: leitura do gateway/TLS/namespaces e CRUD do release metadata Helm; create de Secrets próprios e autorização `create pods` para os probes exclusivamente dry-run nos namespaces aprovados; create/patch do webhook global com nome hash namespace/release. Não precisa patch/restart de aplicações.
 - NetworkPolicy: ingress apenas dos CIDRs revisados do apiserver; egress vazio. O CNI deve efetivamente aplicar a policy; render/schema/Kind padrão não comprovam enforcement.
 - `failurePolicy: Ignore`: indisponibilidade/timeout de transporte do webhook não bloqueia a disponibilidade da aplicação. Pode haver Pod **não instrumentado**; isso é falta de cobertura, não sucesso de coleta. Rejeições explícitas de conflito/configuração em um Pod selecionado são falhas de admission intencionais.
 - Sem CA/cert-manager do cliente. PKI temporária é descartada após provisionamento; certificados exigem renovação/rotação revisada antes de expirar, não renovação automática implícita.

@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.1 — 17/11/2026
+
+- Rebuild mínimo Collector 0.165.0; Beyla 3.42.0 compilado de fonte imutável com x/net 0.62.0 e Java/JNI completos; profiler Alloy 1.22.0; Node atual 0.83.0-3. Novos scans e promoção obrigatórios, sem reutilizar recibos da v1.0.0.
+- Gates nativos amd64/arm64 sobre os mesmos archives escaneados. SPDX, proveniência, assinaturas e proteção de publicação continuam obrigatórios.
+- Kit com eBPF opt-in, deployments e nodes explícitos, HTTP/gRPC RED e rotas aprovadas; exclui SDKs por padrão. Sanitização na origem e gateway preserva texto útil e estrutura SQL sem exportar os literais sensíveis suportados.
+- Packaging fechado da distribuição promovida e do kit público com manifest/checksum, sem secrets, kubeconfig, legado ou dependência da máquina de desenvolvimento.
+- Profiles não usa mais um hostname presumido: backend HTTPS qualificado é obrigatório para habilitar o módulo opcional. O kit padrão mantém profiles desligado.
+- Validação eBPF pelo mesmo loader do runtime, sem iniciar captura. Recursão protobuf hostil é recusada sem relaxar a defesa do Collector; sanitização acima do budget é testada separadamente.
+- Fonte de build não pode instalar silenciosamente um kit antigo. Reaplicação do kit público exige preservar identidades de storage/Secrets; o instalador não reinicia aplicações.
+- Piloto real do kit público: `./instalar` sem desenvolvimento retorna zero e preserva Pods, Secret e PVC. 110/110 requests em 11 aplicações, três sinais no tenant próprio, SQL H2/SQLite sanitizado e captura eBPF nos quatro alvos; recibos em `docs/evidence/2026-11-17/`.
+- Checagem real de admission aguarda convergência do webhook com prazo/tentativas limitados, sem aceitar SDK antigo, fail-open ou falha persistente. 396 testes e schemas da faixa declarada aprovados.
+
+## Histórico pré-1.0.1 — qualificação SaaS de 16/11/2026
+
+Registro da candidata antes do rebuild e da promoção acima; não descreve o estado atual da v1.0.1 publicada.
+
+- Novo scan bloqueou Beyla/Alloy pinados: x/net CVE-2026-78661 e APT CVE-2026-109518, sem waiver. O piloto retirou eBPF, mantém SDKs e nunca habilitou profiling. A candidata da CLI recusa esses digests opcionais via política separada de sua promoção histórica; não altera retroativamente os ZIPs publicados.
+- Installer verifica a injeção real de cada namespace/runtime por admission dry-run após Helm; timeout/fail-open não é mais confundido com SDK instalado. Nenhum Pod de probe é persistido e aplicações não recebem restart automático.
+- Métricas preservam dimensões operacionais antigas/novas e pools, heap, GC e estados de runtime, após sanitização. Labels de payload/SQL/usuário não são liberadas como dimensões arbitrárias.
+- Identidades Kubernetes sanitizadas são promovidas explicitamente a dimensões OTLP, sem depender de configuração específica do backend. A candidata do Operator usa `env,serviceinstance` em Node para evitar alias de métricas entre processos; requer nova imagem assinada/promovida antes de chegar à instalação publicada.
+- eBPF tem orçamento independente do Collector e exclui SDKs detectados por padrão. Seletores disjuntos evitam a duplicação/correlação incompleta observada no ensaio; privilégios adicionais continuam desabilitados.
+- Novos fixtures de laboratório Go, .NET 10 e PHP 8.5 por digest, sem SDK embutido. O piloto comprovou HTTP por eBPF nessas aplicações, não instrumentação interna universal ou novos módulos de injeção.
+- Pesquisa upstream atualizada em `docs/versions.md`; não move tags, troca imagens/locks ou regrava os kits imutáveis da v1.0.0.
+
 ## Kit público v1.0.0 — 16/11/2026
 
 - Kit completo para download no GitHub: `./instalar`, bootstrap, modelo TOML e pacote original da stack, sem credenciais ou configurações de clientes.
