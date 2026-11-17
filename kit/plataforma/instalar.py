@@ -28,7 +28,7 @@ import tomllib
 
 VERSION = "1.0.1"
 ARCHIVE_NAME = f"elven-observability-v{VERSION}.tar.gz"
-ARCHIVE_SHA = "69c61f3bff569591ad7c1deb51d71b5a6c53f18b5d58cd270752572ebac76b95"
+ARCHIVE_SHA = "fdd3dfb6fe621a5c69b6f8a79dc6f4601c6e764b524b66c00681deb56da352db"
 ARCHIVE_ROOT = f"elven-observability-v{VERSION}"
 ARCHIVE_URL = ("https://github.com/elven-observability/stack-observability-k8s/"
                f"releases/download/v{VERSION}/" + ARCHIVE_NAME)
