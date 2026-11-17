@@ -66,6 +66,9 @@ class EbpfSourceBuildTests(unittest.TestCase):
         self.assertIn('["elven-validate-config", f"/config/{key}"]', validator)
         self.assertNotIn('"--allow-partial"', validator)
         self.assertIn('"--cap-drop", "ALL"', validator)
+        self.assertIn('Elven eBPF configuration validation passed: v1', validator)
+        self.assertIn('rejected.returncode not in (1, 255)', validator)
+        self.assertIn('marker not in rejected.stdout + rejected.stderr', validator)
 
     def test_config_validator_patch_is_pinned_and_reuses_the_runtime_without_starting_it(self):
         build = json.loads((ROOT / "versions.lock.json").read_text())["images"]["beyla"]["sourceBuild"]

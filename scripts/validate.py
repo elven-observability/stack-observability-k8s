@@ -111,10 +111,12 @@ def runtime_checks(directory):
                 # patch calls the actual unchanged runtime loader/Validate and
                 # returns before discovery, listeners or kernel work.
                 args[-2:] = ["elven-validate-config", f"/config/{key}"]
-            command(args)
+            validation_output = command(args)
             result = {"config": obj["metadata"]["name"], "config_sha256": hashlib.sha256(contents.encode()).hexdigest(),
                       "image": ref, "result": "passed"}
             if image_name == "beyla":
+                if not validation_output.strip().endswith("Elven eBPF configuration validation passed: v1"):
+                    raise RuntimeError("Elven eBPF did not confirm the supported v1 runtime validation path")
                 result["validation_mode"] = "same runtime loader and Validate; no startup"
                 invalid = directory / "invalid-beyla.yaml"
                 invalid.write_text("discovery: [\n")
@@ -125,10 +127,10 @@ def runtime_checks(directory):
                 bad_environment = list(args)
                 image_index = bad_environment.index(ref)
                 bad_environment[image_index:image_index] = ["-e", "BEYLA_LOG_LEVEL=elven-invalid-log-level"]
-                for negative in (bad_yaml, bad_environment):
+                for negative, marker in ((bad_yaml, "wrong configuration"), (bad_environment, "Elven eBPF invalid log level:")):
                     rejected = subprocess.run(negative, text=True, capture_output=True, timeout=30)
-                    if rejected.returncode == 0:
-                        raise RuntimeError("Elven eBPF validator incorrectly accepted invalid configuration")
+                    if rejected.returncode not in (1, 255) or marker not in rejected.stdout + rejected.stderr:
+                        raise RuntimeError("Elven eBPF did not prove rejection of invalid configuration; a Docker/runtime failure is not rejection proof")
                 result["negative_config_checks_passed"] = 2
             results.append(result)
     if not any("gateway" in result["config"] for result in results):
