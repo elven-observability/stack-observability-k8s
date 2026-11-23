@@ -3,9 +3,11 @@ import copy
 from datetime import datetime, timedelta, timezone
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 from uuid import UUID
@@ -88,6 +90,25 @@ class TemplateContract(unittest.TestCase):
 
     def test_rendered_public_values_satisfy_actual_core_and_operator_charts(self):
         material = C.materialize(C.plan(self.request, self.catalog, now=NOW), self.catalog, now=NOW)
+        self.assertNotIn("approvedNodes", json.dumps(material))
+        archive = os.environ.get("ELVEN_TEST_ARCHIVE")
+        if archive:
+            # Bind compatibility to the exact immutable payload, not new charts.
+            import hashlib
+            self.assertEqual(hashlib.sha256(Path(archive).read_bytes()).hexdigest(), C.ARTIFACT["sha256"])
+            with tarfile.open(archive) as payload:
+                for chart, field in (("elven-observability", "coreValues"), ("elven-instrumentation", "operatorValues")):
+                    prefix = "elven-observability-v1.0.1/charts/" + chart + "/"
+                    defaults = yaml.safe_load(payload.extractfile(prefix + "values.yaml"))
+                    schema = json.load(payload.extractfile(prefix + "values.schema.json"))
+                    def merge(base, desired):
+                        for key, value in desired.items():
+                            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                                merge(base[key], value)
+                            else:
+                                base[key] = copy.deepcopy(value)
+                        return base
+                    jsonschema.Draft202012Validator(schema).validate(merge(defaults, material[field]))
         for name, field in (("elven-observability", "coreValues"), ("elven-instrumentation", "operatorValues")):
             with self.subTest(chart=name), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "values.json"
@@ -141,6 +162,12 @@ class TemplateContract(unittest.TestCase):
         with self.assertRaisesRegex(C.ContractError, "BINDING"):
             C.diff(old, C.plan(changed, self.catalog, now=NOW), self.catalog, now=NOW)
 
+    def test_diff_includes_operator_when_effective_runtime_changes(self):
+        old = C.plan(self.request, self.catalog, now=NOW)
+        changed = copy.deepcopy(self.request); changed["apps"][0]["runtime"] = "nodejs"
+        result = C.diff(old, C.plan(changed, self.catalog, now=NOW), self.catalog, now=NOW)
+        self.assertIn("operator", result["changed"])
+
     def test_hybrid_binds_evidence_exact_scope_and_refuses_unknown_loader(self):
         selected = copy.deepcopy(self.request)
         evidence = json.loads((ROOT / "contracts/fixtures/ebpf-hybrid-v1.json").read_text())
@@ -153,9 +180,12 @@ class TemplateContract(unittest.TestCase):
         plan = C.plan(selected, self.catalog, now=NOW)
         self.assertEqual(plan["ebpfDecision"]["mode"], "hybrid")
         jsonschema.Draft202012Validator(C.plan_schema(), format_checker=jsonschema.FormatChecker()).validate(plan)
-        material = C.materialize(plan, self.catalog, now=NOW)
-        self.assertEqual(material["coreValues"]["modules"]["ebpf"]["enabled"], True)
-        self.assertEqual(material["coreValues"]["nodeAgent"]["approvedNodes"], [n["name"] for n in evidence["approvedNodes"]])
+        with self.assertRaisesRegex(C.ContractError, "TEMPLATE_REPACKAGE_REQUIRED"):
+            C.materialize(plan, self.catalog, now=NOW)
+        overlap = copy.deepcopy(selected)
+        overlap["apps"][0].update(namespaceUid=workload["namespaceUid"], name=workload["deployment"], uid=uid(999))
+        with self.assertRaisesRegex(C.ContractError, "SCOPE_CHANGED"):
+            C.plan(overlap, self.catalog, now=NOW)
         selected["ebpf"]["nodeEvidence"][0]["bpfLoad"] = "unknown"
         unsupported = C.plan(selected, self.catalog, now=NOW)
         self.assertEqual(unsupported["ebpfDecision"]["mode"], "unsupported")

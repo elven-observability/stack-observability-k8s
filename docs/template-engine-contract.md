@@ -83,11 +83,20 @@ Para stdout, precisa de consentimento de host e nodes exatos. O chart usa
 `nodeAgent.approvedNodes`; nomes são confirmados pela engine por UID antes
 do despacho. Métricas cluster-wide também pedem consentimento explícito.
 
+O bundle imutável v1.0.1 anunciado não contém esse campo novo de nodes.
+Por isso a materialização SDK-only **omite** `nodeAgent.approvedNodes` e
+é validada contra o schema do próprio bundle. Qualquer seleção de nodes
+ou modo híbrido é recusada com `TEMPLATE_REPACKAGE_REQUIRED`, até existir
+um pacote novo admitido que contenha o chart atualizado. Elegibilidade eBPF
+no plano não elimina esse gate de compatibilidade. Não remover a seleção
+de nodes para contornar a recusa ou ampliar a coleta.
+
 `ebpf=null` resulta em `sdk-only`. Um recorte híbrido inclui no plano
 a evidência minimizada do leitor autorizado conforme
 [contrato eBPF](ebpf-eligibility-contract.md). São verificados cluster,
 namespace/app/node UID, kernel, BTF, admissão, carregamento BPF e capacidade.
-Os alvos SDK/eBPF são disjuntos e a exclusão de SDK permanece ativa.
+Os alvos SDK/eBPF são disjuntos por UID **e** namespace/nome; identidades
+contraditórias são recusadas. A exclusão de SDK permanece ativa.
 `unsupported` mantém os motivos, mas recusa materializar captura no host.
 O leitor e as evidências devem ser confiáveis: nunca aceitar os fatos do host
 MCP como prova de kernel/capacidade/permissão.

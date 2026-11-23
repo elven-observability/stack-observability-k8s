@@ -16,6 +16,9 @@ entrada extra/segredos/comandos recusados, consentimento de host, UID/escopo,
 instrumentação duplicada, tempo, adulteração de ações/gates com novo hash,
 diff e remoção de app, troca de cluster/tenant, eBPF com loader desconhecido,
 rollback com baseline recente e parsing hostil/oversized.
+Inclui diff efetivo do Operator, UIDs contraditórios no mesmo nome de app
+e compatibilidade de values com o bundle público pinado. Captura em nodes
+exatos pelo adaptador exige um bundle novo, não somente o chart da fonte.
 
 O adaptador não executa Kubernetes. O teste de contrato não comprova OAuth,
 aprovação, admission, coleta SDK, filas, tenant ou rollback real da engine.

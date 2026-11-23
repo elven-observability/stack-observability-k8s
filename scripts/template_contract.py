@@ -22,7 +22,7 @@ REASONS = ("INVALID_DOCUMENT", "CATALOG_CHANGED", "BINDING_CHANGED", "STALE_OBSE
            "SIGNATURE_VERIFICATION_REQUIRED", "PREFLIGHT_REQUIRED", "CAPACITY_UNPROVEN",
            "INDEPENDENT_DELIVERY_REQUIRED", "EXACT_BASELINE_REQUIRED",
            "FRESH_APPROVAL_REQUIRED", "ROLLBACK_BASELINE_REQUIRED", "RUNTIME_UNSUPPORTED",
-           "COLLECTOR_REPROMOTION_REQUIRED")
+           "COLLECTOR_REPROMOTION_REQUIRED", "TEMPLATE_REPACKAGE_REQUIRED")
 NAME = {"type": "string", "pattern": r"^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$", "minLength": 1, "maxLength": 63}
 UID = {"type": "string", "format": "uuid", "maxLength": 36}
 HASH = {"type": "string", "pattern": "^[0-9a-f]{64}$", "not": {"const": "0"*64}}
@@ -228,7 +228,8 @@ def catalog(root=ROOT):
               "reasonCodes": list(REASONS), "engineOwns": ["authorization", "state", "discovery", "dispatch", "verification"],
               "executionAdapter": "MATERIALIZATION_ONLY",
               "dataCapabilities": {"http": "method.route.status", "exceptions": "selective.known-patterns",
-                                   "sql": "sanitized.structure", "redis": "REQUIRES_NEW_PROMOTED_COLLECTOR"}}
+                                   "sql": "sanitized.structure", "redis": "REQUIRES_NEW_PROMOTED_COLLECTOR",
+                                   "exactNodeHostCollection": "REQUIRES_REPACKAGED_TEMPLATE"}}
     return {**result, "catalogSha256": sha(result)}
 
 
@@ -298,10 +299,12 @@ def assess_ebpf(selection, now):
     except (module.ContractError, KeyError, ValueError, TypeError):
         raise ContractError("INVALID_DOCUMENT") from None
     known_namespaces = {item["uid"]: item["name"] for item in selection["namespaces"]}
+    sdk_names = {(known_namespaces[app["namespaceUid"]], app["name"]) for app in selection["apps"]}
     if (evidence["clusterUid"] != selection["cluster"]["uid"]
             or sorted(evidence["approvedNodes"], key=lambda n: n["uid"]) != selection["nodes"]
             or any(known_namespaces.get(item["namespaceUid"]) != item["namespace"] for item in evidence["workloads"])
-            or {a["uid"] for a in selection["apps"]}.intersection(item["uid"] for item in evidence["workloads"])):
+            or {a["uid"] for a in selection["apps"]}.intersection(item["uid"] for item in evidence["workloads"])
+            or sdk_names.intersection((item["namespace"], item["deployment"]) for item in evidence["workloads"])):
         raise ContractError("SCOPE_CHANGED")
     # Preserve unsupported with fixed reasons so hosts can explain the blocked
     # proposal. Materialization below refuses to emit host capture values.
@@ -321,6 +324,15 @@ def materialize(value, selected_catalog=None, *, now=None):
     value = validate_plan(value, selected_catalog, now=now)
     if value["ebpfDecision"]["mode"] == "unsupported":
         raise ContractError("RUNTIME_UNSUPPORTED")
+    # The immutable advertised v1.0.1 bundle predates approvedNodes. Never
+    # silently drop exact host scope or emit values its closed schema rejects.
+    if value["selection"]["nodes"] or value["ebpfDecision"]["mode"] == "hybrid":
+        raise ContractError("TEMPLATE_REPACKAGE_REQUIRED")
+    return _public_values(value)
+
+
+def _public_values(value):
+    """Pure values for diffing; not an execution/compatibility admission port."""
     selection = value["selection"]
     collection, network = selection["collection"], selection["network"]
     namespaces = [item["name"] for item in selection["namespaces"]]
@@ -331,7 +343,6 @@ def materialize(value, selected_catalog=None, *, now=None):
             "modules": {"logs": {"enabled": collection["stdout"], "hostAccessApproved": collection["stdout"]},
                         "clusterMetrics": {"enabled": collection["clusterMetrics"], "clusterWideApproved": collection["clusterMetrics"]},
                         "ebpf": {"enabled": False}, "profiles": {"enabled": False}},
-            "nodeAgent": {"approvedNodes": [item["name"] for item in selection["nodes"]]},
             "networkPolicy": {"enabled": True, "exportCIDRs": network["exports"], "apiServerCIDRs": network["api"],
                               "dnsNamespace": network["dnsNamespace"], "dnsCIDRs": network["dns"]}}
     operator = {"enabled": bool(selection["apps"]), "namespaces": namespaces,
@@ -339,6 +350,8 @@ def materialize(value, selected_catalog=None, *, now=None):
                             "endpoint": f"https://{selection['release']}-gateway.{selection['namespace']}.svc.cluster.local:4318"},
                 "runtimes": {**{runtime: runtime in runtimes for runtime in ("java", "nodejs", "python")}, "nodejs20": False, "legacyNode20Approved": False},
                 "samplingRatio": selection["traceSampling"], "networkPolicy": {"enabled": True, "apiServerCIDRs": network["api"]}}
+    if selection["nodes"]:
+        core["nodeAgent"] = {"approvedNodes": [item["name"] for item in selection["nodes"]]}
     if value["ebpfDecision"]["mode"] == "hybrid":
         core["modules"]["ebpf"] = {
             "enabled": True, "hostAccessApproved": True, "excludeSDKInstrumentedServices": True,
@@ -362,6 +375,10 @@ def diff(previous, desired, selected_catalog=None, *, now=None):
     changed = sorted(key for key in before.keys() & after.keys() if before[key] != after[key])
     if old["requestSha256"] != new["requestSha256"] and "core" not in changed:
         changed.append("core")
+    if ("operator" in before.keys() & after.keys()
+            and _public_values(old)["operatorValues"] != _public_values(new)["operatorValues"]
+            and "operator" not in changed):
+        changed.append("operator")
     result = {"contractVersion": VERSION, "beforePlanSha256": old["planSha256"], "afterPlanSha256": new["planSha256"],
               "added": sorted(after.keys() - before.keys()), "removed": sorted(before.keys() - after.keys()), "changed": sorted(changed),
               "destructiveChangesRequireNewApproval": bool(before.keys() - after.keys()), "execution": "NONE"}
