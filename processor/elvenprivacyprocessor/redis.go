@@ -68,9 +68,14 @@ func sanitizeRedisException(input pcommon.Map) {
 	// Redis errors can echo an unlabelled arbitrary key/script. Preserve the
 	// exception type, event identity and correlation, not the echoed operands.
 	input.Range(func(key string, value pcommon.Value) bool {
-		if k := normalizedKey(key); k == "exceptionmessage" || k == "exceptionstacktrace" {
+		if redisDiagnostic(key) {
 			value.SetStr(mask)
 		}
 		return true
 	})
+}
+
+func redisDiagnostic(key string) bool {
+	k := normalizedKey(key)
+	return k == "exceptionmessage" || k == "exceptionstacktrace" || k == "statusdescription"
 }

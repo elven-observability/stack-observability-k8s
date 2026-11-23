@@ -59,6 +59,18 @@ built and promoted Collector; already-published v1.0.1 images do not acquire
 the change by updating chart values. It is not a guarantee about unlabelled
 operands in arbitrary log text or fields unknown to this policy.
 
+Selective non-Redis exception handling keeps operational messages and useful
+Java/Node/Python stack frames while masking recognized sensitive substrings in
+`exception.message`, `exception.stacktrace`, both the span status message and
+`status.description` attributes, and correlated error logs. The Go suite tests
+actual pdata handlers followed by OTLP protobuf serialization and decoding.
+These tests are evidence for the processor's data boundary, not proof that a
+particular SDK exports the fields or that a compiled Collector/queue/backend
+has executed this source. In explicitly identified Redis contexts, exception
+messages, stack traces and status descriptions remain fully masked intentionally
+(including structured log maps): arbitrary Redis keys/scripts can resemble paths
+or frame names, so a frame-pattern allowlist cannot prove those values safe.
+
 This is **not universal PII detection or anonymization**. Free-form personal names,
 novel field names, secrets without recognizable syntax, application-specific
 payloads, compressed/encrypted objects and numeric metric values cannot be

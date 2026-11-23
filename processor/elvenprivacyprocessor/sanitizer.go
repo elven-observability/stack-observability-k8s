@@ -200,6 +200,8 @@ func (s *sanitizer) mapInto(input, output pcommon.Map, depth int) {
 			// A field keyed by an email, token or opaque encoded identity is
 			// itself a sensitive section, including its associated value.
 			output.PutStr(cleanKey, mask)
+		} else if redis && redisDiagnostic(key) {
+			output.PutStr(cleanKey, mask)
 		} else if redis && redisField(key) && !isSensitiveKey(key) {
 			if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
 				output.PutStr(cleanKey, "[REDACTED:limit]")
@@ -347,6 +349,8 @@ func (s *sanitizer) native(input any, depth int, key string) any {
 				i++
 			}
 			if redactedKey {
+				out[cleanKey] = mask
+			} else if redis && redisDiagnostic(k) {
 				out[cleanKey] = mask
 			} else if redis && redisField(k) && !isSensitiveKey(k) {
 				if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
