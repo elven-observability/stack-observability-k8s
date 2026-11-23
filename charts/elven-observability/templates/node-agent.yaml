@@ -262,6 +262,18 @@ spec:
         {{- with omit .Values.nodeAgent.nodeSelector "kubernetes.io/os" }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      {{- with .Values.nodeAgent.approvedNodes }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              {{- range sortAlpha . }}
+              - matchFields:
+                  - key: metadata.name
+                    operator: In
+                    values: [{{ . | quote }}]
+              {{- end }}
+      {{- end }}
       {{- with .Values.nodeAgent.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

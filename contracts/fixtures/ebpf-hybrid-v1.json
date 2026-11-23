@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "clusterUid": "00000000-0000-4000-8000-000000000001",
+  "optIn": true,
+  "hostAccessApproved": true,
+  "excludeSDKInstrumentedServices": true,
+  "imageDigest": "sha256:68cd44f1aeafce7305a555e124f9687b1760db62bf7ea3e81e7d67af4f538f62",
+  "observedAt": 1795435200,
+  "approvedNodes": [{"name": "synthetic-worker", "uid": "00000000-0000-4000-8000-000000000002"}],
+  "workloads": [{
+    "namespace": "synthetic-app", "namespaceUid": "00000000-0000-4000-8000-000000000003",
+    "deployment": "synthetic-http", "uid": "00000000-0000-4000-8000-000000000004",
+    "nodeUids": ["00000000-0000-4000-8000-000000000002"], "sdkInstrumented": false
+  }],
+  "nodeEvidence": [{
+    "name": "synthetic-worker", "uid": "00000000-0000-4000-8000-000000000002",
+    "os": "linux", "architecture": "amd64", "kernel": "6.8.0-synthetic", "btf": "present", "ready": true,
+    "freePodSlots": 10, "freeCpuMilli": 1000, "freeMemoryMiB": 2048,
+    "admission": "pass", "capabilities": "pass", "bpfLoad": "pass",
+    "evidenceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }]
+}

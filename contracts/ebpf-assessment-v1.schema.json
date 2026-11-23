@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://elvenobservability.com/contracts/ebpf-assessment/v1",
+  "title": "Elven eBPF eligibility decision, never runtime acceptance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "mode", "reasons", "inputSha256", "lockSha256", "imageDigest", "runtimeAcceptance", "requirements", "approvedNodes", "targets"],
+  "properties": {
+    "schemaVersion": {"type": "integer", "const": 1},
+    "mode": {"enum": ["sdk-only", "hybrid", "unsupported"]},
+    "reasons": {
+      "type": "array", "maxItems": 32, "uniqueItems": true,
+      "items": {"enum": ["ebpf_image_not_promoted_or_blocked", "ebpf_host_access_not_approved", "ebpf_sdk_exclusion_required", "ebpf_observation_expired", "ebpf_exact_scope_required", "ebpf_node_identity_changed", "ebpf_protected_namespace", "ebpf_sdk_target_overlap", "ebpf_workload_outside_approved_nodes", "ebpf_platform_unsupported", "ebpf_kernel_unsupported", "ebpf_btf_not_verified", "ebpf_node_not_ready", "ebpf_capacity_unconfirmed", "ebpf_admission_unconfirmed", "ebpf_capabilities_unconfirmed", "ebpf_loader_unconfirmed"]}
+    },
+    "inputSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "lockSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "imageDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "runtimeAcceptance": {"const": "NOT_PROVEN"},
+    "requirements": {"const": {
+      "minimumKernel": "5.11", "btf": true, "hostPID": true,
+      "capabilities": ["BPF", "PERFMON", "SYS_PTRACE", "DAC_READ_SEARCH", "CHECKPOINT_RESTORE", "NET_RAW"],
+      "nodeAgentRequests": {"cpuMilli": 200, "memoryMiB": 384}, "startupMemoryMiB": 1280
+    }},
+    "approvedNodes": {"type": "array", "maxItems": 100, "uniqueItems": true,
+      "items": {"type": "object", "additionalProperties": false, "required": ["name", "uid"],
+        "properties": {"name": {"type": "string", "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"},
+          "uid": {"$ref": "#/$defs/uid"}}}},
+    "targets": {"type": "array", "maxItems": 100, "uniqueItems": true,
+      "items": {"type": "object", "additionalProperties": false, "required": ["namespace", "namespaceUid", "deployment", "uid", "nodeUids"],
+        "properties": {
+          "namespace": {"type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"},
+          "namespaceUid": {"$ref": "#/$defs/uid"},
+          "deployment": {"type": "string", "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$"},
+          "uid": {"$ref": "#/$defs/uid"},
+          "nodeUids": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/uid"}}
+        }}}
+  },
+  "$defs": {"uid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "not": {"const": "00000000-0000-0000-0000-000000000000"}}}
+}

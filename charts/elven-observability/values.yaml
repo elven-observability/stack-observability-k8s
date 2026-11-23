@@ -63,6 +63,9 @@ nodeAgent:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: 500m, memory: 256Mi}
   nodeSelector: {}
+  # Optional legacy-compatible exact scope. The MCP contract requires names
+  # bound to observed node UIDs; a label selector is not a node identity.
+  approvedNodes: []
   tolerations: []
   # Only reviewed, static node DNS mappings; prefer real platform DNS.
   hostAliases: []
