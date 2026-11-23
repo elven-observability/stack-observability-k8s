@@ -61,6 +61,11 @@ func isSensitiveKey(key string) bool {
 		return true // An opaque/invalid encoded key must not hide a secret value.
 	}
 	k := normalizedKey(key)
+	for _, prefix := range []string{"rediskey", "dbrediskey", "redisargument", "dbredisargument", "redisargs", "dbredisargs", "rediscommandargs", "dbrediscommandargs", "redisraw", "dbredisraw", "redisvalue", "dbredisvalue"} {
+		if strings.HasPrefix(k, prefix) {
+			return true
+		}
+	}
 	if strings.Contains(k, "password") || strings.Contains(k, "passwd") || strings.Contains(k, "passphrase") || strings.Contains(k, "secret") || strings.Contains(k, "token") || strings.Contains(k, "apikey") || strings.Contains(k, "privatekey") || strings.Contains(k, "authorization") || strings.Contains(k, "cookie") || strings.Contains(k, "senha") || strings.Contains(k, "segredo") || strings.Contains(k, "chaveapi") || strings.Contains(k, "chaveprivada") {
 		return true
 	}

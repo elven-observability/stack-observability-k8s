@@ -46,6 +46,19 @@ Unsupported/malformed lexical forms are masked as a whole. Dialects and unquoted
 identifiers still require review; do not use the output as executable SQL or
 promise capture of every statement.
 
+Redis spans that identify `db.system` or `db.system.name` as `redis` use a
+different path: keep only an allowlisted command name, never SQL-parse Redis
+operands. Span names and statement/operation/summary attributes lose keys,
+values, Lua scripts and subcommand arguments. Known Redis key/argument/value
+attributes are masked even without that context. In a known Redis span,
+status text and exception message/stacktrace may echo arbitrary operands and
+are masked; exception type, ERROR status, trace/span IDs and database index
+remain useful. Nested structured Redis log fields follow the same rule.
+Unknown command forms/RESP become `[REDACTED:redis]`. This requires a newly
+built and promoted Collector; already-published v1.0.1 images do not acquire
+the change by updating chart values. It is not a guarantee about unlabelled
+operands in arbitrary log text or fields unknown to this policy.
+
 This is **not universal PII detection or anonymization**. Free-form personal names,
 novel field names, secrets without recognizable syntax, application-specific
 payloads, compressed/encrypted objects and numeric metric values cannot be
