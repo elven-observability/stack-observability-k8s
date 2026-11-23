@@ -61,7 +61,7 @@ func isSensitiveKey(key string) bool {
 		return true // An opaque/invalid encoded key must not hide a secret value.
 	}
 	k := normalizedKey(key)
-	for _, prefix := range []string{"rediskey", "dbrediskey", "redisargument", "dbredisargument", "redisargs", "dbredisargs", "rediscommandargs", "dbrediscommandargs", "redisraw", "dbredisraw", "redisvalue", "dbredisvalue"} {
+	for _, prefix := range []string{"rediskey", "dbrediskey", "redisargument", "dbredisargument", "redisargs", "dbredisargs", "rediscommandargs", "dbrediscommandargs", "redisraw", "dbredisraw", "redisvalue", "dbredisvalue", "redisscript", "dbredisscript"} {
 		if strings.HasPrefix(k, prefix) {
 			return true
 		}

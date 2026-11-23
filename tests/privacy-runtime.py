@@ -38,7 +38,16 @@ SPAN_ID = bytes.fromhex("0123456789abcdef")
 PARENT_ID = bytes.fromhex("deadbeef12345678")
 LINK_TRACE_ID = bytes.fromhex("ffeeddccbbaa99887766554433221100")
 LINK_SPAN_ID = bytes.fromhex("fedcba9876543210")
+REDIS_PRIVATE = {
+    "key": "account:at/client.go:42:ELVEN_REDIS_KEY_PRIVATE",
+    "value": "ELVEN_REDIS_VALUE_PRIVATE",
+    "script": "return redis.call('GET', KEYS[1]) -- ELVEN_REDIS_SCRIPT_PRIVATE",
+    "user": "ELVEN_REDIS_USER_PRIVATE",
+    "password": "ELVEN_REDIS_PASSWORD_PRIVATE",
+    "field": "ELVEN_REDIS_FIELD_PRIVATE",
+}
 FORBIDDEN = [
+    *REDIS_PRIVATE.values(), "ELVEN_REDIS_SCRIPT_PRIVATE",
     TOKEN,
     "alice@example.invalid", "123.456.789-09", "529.982.247-25", "4111 1111 1111 1111", "5555 5555 5555 4444",
     "synthetic-log-token", "quoted synthetic password", "nested@example.invalid",
@@ -184,16 +193,21 @@ def action(request):
     if operation == "wal":
         forbidden = [value.encode() for value in request["forbidden"]]
         matches, files, redacted, useful = [], [], 0, 0
-        for path in sorted(Path("/wal/selective").rglob("*")):
+        required = {marker: 0 for marker in request.get("required_markers", [])}
+        wal_root = Path("/wal/selective")
+        for path in sorted(wal_root.rglob("*")):
             if not path.is_file() or path.is_symlink():
                 continue
             contents = path.read_bytes()
-            files.append({"name": str(path.relative_to("/wal/selective")), "bytes": len(contents)})
+            files.append({"name": str(path.relative_to(wal_root)), "bytes": len(contents)})
             matches.extend(value.decode() for value in forbidden if value in contents)
             redacted += contents.count(b"[REDACTED")
             useful += contents.count(b"outage keep operation status=503")
+            for marker in required:
+                required[marker] += contents.count(marker.encode())
         return {"files": files, "forbidden_matches": sorted(set(matches)),
-                "redaction_markers": redacted, "useful_message_occurrences": useful}
+                "redaction_markers": redacted, "useful_message_occurrences": useful,
+                "required_markers": required}
     if operation == "cleanup":
         # Only these exact disposable fixture mounts may be cleared. They are
         # writable solely in a one-shot cleanup container, never the sink.
@@ -379,6 +393,223 @@ def outage_payload():
     attributes(record.attributes, {"privacy.test.case": "outage"})
     record.body.string_value = "outage keep operation status=503 email=wal@example.invalid token=wal-token-secret"
     return payload
+
+
+def redis_cases():
+    """Finite synthetic formats, including explicit Redis context without db.system."""
+    private = REDIS_PRIVATE
+    return {
+        "get": ("GET " + private["key"], "GET"),
+        "set": ("SET " + private["key"] + " " + private["value"] + " EX 42", "SET"),
+        "eval": ("EVAL " + private["script"] + " 1 " + private["key"], "EVAL"),
+        "auth": ("AUTH " + private["user"] + " " + private["password"], "AUTH"),
+        "explicit": ("HGET " + private["key"] + " " + private["field"], "HGET"),
+        "resp": ("*2\r\n$3\r\nGET\r\n$64\r\n" + private["key"], "[REDACTED:redis]"),
+    }
+
+
+def redis_identity(phase, case="parent"):
+    return hashlib.sha256(("elven-redis-" + phase).encode()).digest()[:16], \
+        hashlib.sha256(("elven-redis-" + phase + "-" + case).encode()).digest()[:8]
+
+
+def redis_corpus(phase):
+    """OTLP fixture, NOT a Redis server/SDK capture or a sanitizer oracle."""
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+    if phase not in ("export", "wal"):
+        raise ValueError("Unknown synthetic Redis phase")
+    logs, traces, metrics = ExportLogsServiceRequest(), ExportTraceServiceRequest(), ExportMetricsServiceRequest()
+    lr, tr, mr = logs.resource_logs.add(), traces.resource_spans.add(), metrics.resource_metrics.add()
+    for resource in (lr.resource, tr.resource, mr.resource):
+        attributes(resource.attributes, {"service.name": "elven-synthetic-redis", "k8s.namespace.name": "synthetic-app"})
+    ls, ts, ms = lr.scope_logs.add(), tr.scope_spans.add(), mr.scope_metrics.add()
+    for scope in (ls.scope, ts.scope, ms.scope):
+        scope.name = "elven.synthetic.redis"
+    now = time.time_ns()
+    for index, (case, (command, _)) in enumerate(redis_cases().items()):
+        trace_id, span_id = redis_identity(phase, case)
+        tag = "redis-" + phase + "-" + case
+        context = {"redis.command": command} if case == "explicit" else {"db.system.name": "redis"}
+        diagnostic = {
+            "exception.type": "RedisError", "exception.message": "missing " + REDIS_PRIVATE["key"],
+            "exception.stacktrace": "RedisError: " + REDIS_PRIVATE["key"] + "\n at client.go:42",
+            "status.description": "missing " + REDIS_PRIVATE["key"],
+        }
+        values = {**context, **diagnostic, "privacy.test.case": tag, "db.query.text": command,
+                  "db.operation.name": command, "db.redis.key": REDIS_PRIVATE["key"],
+                  "redis.values": [REDIS_PRIVATE["value"]], "redis.script": REDIS_PRIVATE["script"],
+                  "db.redis.command.args": [REDIS_PRIVATE["key"], REDIS_PRIVATE["value"]],
+                  "db.redis.database_index": 1}
+        span = ts.spans.add()
+        span.trace_id, span.span_id = trace_id, span_id
+        span.parent_span_id = redis_identity(phase)[1]
+        span.name, span.kind = command, 3
+        span.start_time_unix_nano, span.end_time_unix_nano = now, now + 1_000_000
+        span.status.code, span.status.message = 2, "missing " + REDIS_PRIVATE["key"]
+        attributes(span.attributes, {**values, "elven.redis.trace.marker": "elven redis trace " + phase})
+        event = span.events.add()
+        event.name, event.time_unix_nano = "exception", now
+        attributes(event.attributes, diagnostic)
+        log = ls.log_records.add()
+        log.trace_id, log.span_id = trace_id, span_id
+        log.time_unix_nano, log.observed_time_unix_nano = now, now
+        log.severity_number, log.severity_text = 17, "ERROR"
+        attributes(log.attributes, values)
+        body = {**values, "message": "elven redis log " + phase + " cache operation failed status=503"}
+        # Both native OTLP maps and JSON-string log bodies pass the real processor.
+        set_value(log.body, json.dumps(body) if index % 2 else body)
+    metric = ms.metrics.add()
+    metric.name, metric.unit = "elven.redis.synthetic." + phase + ".duration", "ms"
+    point = metric.gauge.data_points.add()
+    point.time_unix_nano, point.as_double = now, 42
+    attributes(point.attributes, {"db.system.name": "redis", "redis.key": REDIS_PRIVATE["key"],
+                                  "redis.script": REDIS_PRIVATE["script"]})
+    exemplar = point.exemplars.add()
+    exemplar.time_unix_nano, exemplar.as_double = now, 42
+    exemplar.trace_id, exemplar.span_id = redis_identity(phase, "get")
+    attributes(exemplar.filtered_attributes, {"redis.key": REDIS_PRIVATE["key"]})
+    return {"logs": logs, "traces": traces, "metrics": metrics}
+
+
+def assert_redis_corpus(decoded, phase):
+    """Reject leaks, dropped cases, lossy blanket masking and lost correlation."""
+    text = serialized(decoded)
+    if any(value in text for value in FORBIDDEN):
+        raise AssertionError("Synthetic Redis sentinel crossed the privacy boundary")
+    all_logs = records(decoded)
+    all_spans = [span for message in decoded["traces"] for resource in message.resource_spans
+                 for scope in resource.scope_spans for span in scope.spans]
+    def attr(items, name):
+        return next((item.value for item in items if item.key == name), None)
+    def required_attr(items, name):
+        value = attr(items, name)
+        if value is None:
+            raise AssertionError("Redis required attribute lost: " + name)
+        return value
+    for case, (_, operation) in redis_cases().items():
+        tag = "redis-" + phase + "-" + case
+        logs = [record for record in all_logs if case_of(record) == tag]
+        spans = [span for span in all_spans if attr(span.attributes, "privacy.test.case") is not None
+                 and attr(span.attributes, "privacy.test.case").string_value == tag]
+        if not logs or not spans:
+            raise AssertionError("Missing synthetic Redis log/span case: " + tag)
+        trace_id, span_id = redis_identity(phase, case)
+        for span in spans:
+            if (span.trace_id != trace_id or span.span_id != span_id or span.parent_span_id != redis_identity(phase)[1]
+                    or span.name != operation or span.kind != 3 or span.status.code != 2
+                    or span.status.message != "[REDACTED]"):
+                raise AssertionError("Redis operation/error/correlation changed: " + tag)
+            if not span.events or span.events[0].name != "exception":
+                raise AssertionError("Redis exception event lost: " + tag)
+            for name in ("exception.message", "exception.stacktrace", "status.description"):
+                value = attr(span.events[0].attributes, name)
+                if value is None or value.string_value != "[REDACTED]":
+                    raise AssertionError("Redis event diagnostic not conservatively masked: " + tag)
+            if required_attr(span.events[0].attributes, "exception.type").string_value != "RedisError":
+                raise AssertionError("Redis exception type lost: " + tag)
+        for record in [*logs, *spans]:
+            attrs = record.attributes
+            if (record.trace_id != trace_id or record.span_id != span_id
+                    or attr(attrs, "db.query.text") is None or attr(attrs, "db.query.text").string_value != operation
+                    or required_attr(attrs, "db.operation.name").string_value != operation
+                    or required_attr(attrs, "exception.type").string_value != "RedisError"
+                    or required_attr(attrs, "db.redis.database_index").int_value != 1):
+                raise AssertionError("Redis useful metadata/correlation lost: " + tag)
+            for name in ("db.redis.key", "redis.values", "redis.script", "db.redis.command.args",
+                         "exception.message", "exception.stacktrace", "status.description"):
+                value = attr(attrs, name)
+                if value is None or value.string_value != "[REDACTED]":
+                    raise AssertionError("Redis sensitive field not masked: " + tag + "/" + name)
+        for record in logs:
+            if (record.severity_number != 17 or record.severity_text != "ERROR"
+                    or "elven redis log " + phase + " cache operation failed status=503" not in str(record.body)):
+                raise AssertionError("Redis useful log body or severity lost: " + tag)
+    points = [point for message in decoded["metrics"] for resource in message.resource_metrics
+              for scope in resource.scope_metrics for metric in scope.metrics
+              if metric.name == "elven.redis.synthetic." + phase + ".duration" for point in metric.gauge.data_points]
+    if not points or any(point.as_double != 42 or len(point.exemplars) != 1
+                         or point.exemplars[0].as_double != 42
+                         or point.exemplars[0].trace_id != redis_identity(phase, "get")[0]
+                         or point.exemplars[0].span_id != redis_identity(phase, "get")[1] for point in points):
+        raise AssertionError("Redis metric value/exemplar correlation lost")
+    return {"cases": sorted(redis_cases()), "logs": len(all_logs), "spans": len(all_spans),
+            "metric_points": len(points), "known_sensitive_values_absent": True,
+            "correlation_preserved": True, "useful_operation_error_and_log_preserved": True}
+
+
+def assert_redis_wal(wal):
+    required = ("elven redis log wal cache operation failed status=503", "elven redis trace wal",
+                "elven.redis.synthetic.wal.duration")
+    if (not wal["files"] or wal["forbidden_matches"] or wal["redaction_markers"] < 1
+            or any(wal.get("required_markers", {}).get(marker, 0) < 1 for marker in required)):
+        raise AssertionError("Redis WAL lacks sanitized three-signal markers or contains a private sentinel")
+
+
+def redis_complete(decoded, phase):
+    expected = {"redis-" + phase + "-" + case for case in redis_cases()}
+    logs = {case_of(record) for record in records(decoded)}
+    spans = {item.value.string_value for message in decoded["traces"] for resource in message.resource_spans
+             for scope in resource.scope_spans for span in scope.spans for item in span.attributes
+             if item.key == "privacy.test.case"}
+    metrics = {metric.name for message in decoded["metrics"] for resource in message.resource_metrics
+               for scope in resource.scope_metrics for metric in scope.metrics if metric.gauge.data_points}
+    return expected <= logs and expected <= spans and "elven.redis.synthetic." + phase + ".duration" in metrics
+
+
+def redis_runtime_checks(send, state, fixture_action, wait_for, selective):
+    """Require real wire delivery, sanitized disk bytes and restart replay."""
+    checks = []
+    baseline = len(state()["accepted"])
+    for signal, payload in redis_corpus("export").items():
+        send(signal, payload)
+    wait_for(lambda: redis_complete(decode(state()["accepted"][baseline:]), "export"),
+             "all Redis cases and three signals exported")
+    first = decode(state()["accepted"][baseline:])
+    checks.append({"name": "Redis operations, errors and correlation through real Collector export",
+                   "result": "PASS", **assert_redis_corpus(first, "export")})
+    # Delivery is at-least-once. Compare complete semantic sets, never count a
+    # retry as a new case or claim exactly-once from this finite experiment.
+    def content(decoded):
+        return {signal: sorted(set(items)) for signal, items in semantic_items(decoded).items()}
+    baseline = len(state()["accepted"])
+    for signal, messages in first.items():
+        for message in messages:
+            send(signal, message)
+    wait_for(lambda: redis_complete(decode(state()["accepted"][baseline:]), "export"),
+             "Redis second privacy boundary")
+    second = decode(state()["accepted"][baseline:])
+    assert_redis_corpus(second, "export")
+    if content(first) != content(second):
+        raise AssertionError("Second Redis privacy boundary changed sanitized semantic content")
+    checks.append({"name": "Redis idempotent second privacy boundary", "result": "PASS"})
+
+    fixture_action({"op": "control", "status": 503})
+    baseline = len(state()["attempted"])
+    for signal, payload in redis_corpus("wal").items():
+        send(signal, payload)
+    wait_for(lambda: redis_complete(decode(state()["attempted"][baseline:]), "wal"),
+             "all three sanitized Redis signals attempted during outage")
+    attempted = decode(state()["attempted"][baseline:])
+    assert_redis_corpus(attempted, "wal")
+    run("docker", "stop", "--time", "5", selective, timeout=20)
+    markers = ["elven redis log wal cache operation failed status=503", "elven redis trace wal",
+               "elven.redis.synthetic.wal.duration"]
+    wal = fixture_action({"op": "wal", "forbidden": FORBIDDEN, "required_markers": markers})
+    assert_redis_wal(wal)
+    baseline = len(state()["accepted"])
+    fixture_action({"op": "control", "status": 200})
+    run("docker", "start", selective)
+    wait_for(lambda: redis_complete(decode(state()["accepted"][baseline:]), "wal"),
+             "Redis sanitized WAL replay for all three signals", timeout=90)
+    recovered = decode(state()["accepted"][baseline:])
+    result = assert_redis_corpus(recovered, "wal")
+    if content(attempted) != content(recovered):
+        raise AssertionError("Redis WAL replay changed sanitized operations, data or correlation")
+    checks.append({"name": "Redis privacy before actual three-signal WAL and restart replay",
+                   "result": "PASS", **result, "wal": wal, "delivery_semantics": "at-least-once"})
+    return checks
 
 
 def recursion_attack_payload():
@@ -859,6 +1090,8 @@ def smoke(image):
             if any(value in final_text for value in FORBIDDEN):
                 raise AssertionError("Sensitive value appeared after persistent-queue recovery")
             evidence["checks"].append({"name": "privacy before persistent WAL and restart recovery", "result": "PASS", **wal})
+
+            evidence["checks"].extend(redis_runtime_checks(send, state, fixture_action, wait_for, selective))
 
             gateway("strict")
             baseline = len(state()["accepted"])
