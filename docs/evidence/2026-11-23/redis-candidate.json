@@ -1,0 +1,435 @@
+{
+  "schemaVersion": 1,
+  "qualification": "CANDIDATE_RUNTIME_ONLY_NOT_A_SIGNED_RELEASE",
+  "result": "PASS",
+  "testSourceRevision": "2a3e05625b94d2ebacd0e9601bf647a1d82d64e3",
+  "sourcePullRequest": "https://github.com/elven-observability/stack-observability-k8s/pull/7",
+  "sourceQualification": {
+    "local": {
+      "tests": 425,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "schemas": [
+        "1.35.0",
+        "1.36.0",
+        "1.37.0"
+      ]
+    },
+    "ci": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45248911761",
+    "goRace": "PASS_ON_PINNED_HOSTED_TOOLCHAIN",
+    "independentReview": "completed; exemplar mutation and phase-specific WAL marker improvements included"
+  },
+  "imageBuild": {
+    "revision": "6dabc30ca6b6ef09488ef85f7c5feba825ec771e",
+    "dirtySource": false,
+    "version": "1.0.1-dev",
+    "publicationStatus": "not-published",
+    "builtAt": "2026-11-23T19:20:22.236976+00:00",
+    "headRevision": "3b24b5710b1256886d224db3aa333d2027558931",
+    "checkoutKind": "GitHub synthetic PR merge",
+    "mergeParents": [
+      "c133ee88f9236b3d88f2ba266054cb94ef1c1bf7",
+      "3b24b5710b1256886d224db3aa333d2027558931"
+    ],
+    "run": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45247759739",
+    "runConclusion": "failure after successful scans and privacy runtime: owned Buildx container prevented Kind idle preflight; not used as overall acceptance"
+  },
+  "qualificationRun": {
+    "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45252898001",
+    "conclusion": "success",
+    "candidateRun": 45247759739,
+    "unchangedInputsArchivesReportsAndSBOMs": "verified before loading; scans within 24h and DB within 48h; no rebuild",
+    "publishJob": "skipped"
+  },
+  "collector": {
+    "digest": "sha256:ea85a0024f7c7572bf2e80d004fb92bbcaded88bb44c8af4c3af3fc0683f40c4",
+    "archiveSha256": "ff4c2d176864f3e3d7e40495f4c940549feef9fc4b35e448da6dfe6d04e8216e",
+    "inputsSha256": {
+      "images/collector/Dockerfile": "90b7e78048d211f6542b66f3ae611d32e327cff3420a8f9407caf93fcf9a4e6d",
+      "images/collector/Dockerfile.dockerignore": "2d0550e68366e18b226462ece350c167654d7162a385b516771281b01105c419",
+      "images/collector/NOTICE": "96d7cb1aeed1636ffe7112de5929ed2799ea9a96fcd19c873be6b8bf52bd93fe",
+      "images/collector/builder-config.yaml": "884b233bcf93bebeff2210ba5d645dcb3386a1922460c940708dcafdb3ac3ff1",
+      "images/collector/license-bundle.go": "aa5f8ebe741d820b091032aeda01fac9d7903a5e559824f3e9c50563ade43016",
+      "images/collector/license-bundle_test.go": "f975825184026b21c32176fbe084eca03c1a51fd286bb8838e5f7b2d0f3243dc",
+      "images/licenses/APACHE-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "processor/elvenprivacyprocessor/LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "processor/elvenprivacyprocessor/NOTICE": "6b4a1de1fbf4adb9afda65be2d6598331e0c211c8dcdc920ae156478cd001585",
+      "processor/elvenprivacyprocessor/README.md": "e5dd9c1ddd282aa57e877d6f78878e792ccd406deacaac8441640164bd0087c9",
+      "processor/elvenprivacyprocessor/config.go": "e99d2bae6babbf20f5c6767c8b8e5dd3e820ed97d25975f649ce251a73bcad3f",
+      "processor/elvenprivacyprocessor/error_otlp_test.go": "ee44bdb6228f4ccc20c91882976b33c898e822eead9e9b1fd41662a3c7b59df6",
+      "processor/elvenprivacyprocessor/factory.go": "d8c4ee613ecd09289028c2ad8f2526d7921553330a9e5d7ec52cd5936a7aed7a",
+      "processor/elvenprivacyprocessor/go.mod": "37e4cf60486628b79c7cfbab61556ff1b6f1b67df836915be2d740f5bf290018",
+      "processor/elvenprivacyprocessor/go.sum": "d9fc74a895e45bfe7b2ad4db430e0fd80d7c22f10c235e14861020c022e40f04",
+      "processor/elvenprivacyprocessor/processor.go": "535c8e6b0680a9bcfb2621abd98fd616e1ce5d7a671560e41292ecdb5e767e05",
+      "processor/elvenprivacyprocessor/processor_test.go": "344de45413c15f1ec066862a78539faac154b6cff2c66f1078caa9a7193ce9ee",
+      "processor/elvenprivacyprocessor/redis.go": "f09041defddb9322c226b1ce449ceef3cbdb00bd9a569df160f1f4dd8f5d9d66",
+      "processor/elvenprivacyprocessor/redis_test.go": "8dc54fdae1c09b4f976f450b931755488dec793e9772e5a80b11fca78ac9b79b",
+      "processor/elvenprivacyprocessor/sanitizer.go": "06bd10f197de2bdbc72aa6895f8e77a731846a0a823239d666b79672613f4296",
+      "processor/elvenprivacyprocessor/sanitizer_fuzz_test.go": "0386b7d77b559bf76e32bc166fff2fcb75984af4d99c926d8afdee151e0d2844",
+      "processor/elvenprivacyprocessor/sql.go": "331f3701a90217027a489590faedf274dc9834ca514b7f144d153856e6bfd10e",
+      "processor/elvenprivacyprocessor/sql_test.go": "7afe81da114980c12fa2f46f46df378069c5d318f4fa83d3522e93ce04a63908",
+      "processor/elvenprivacyprocessor/text.go": "8e5887164bda9280a212f28a6bc863d6a8401f10536d31de192b36a0973aa3f3",
+      "processor/elvenprivacyprocessor/text_boundary_test.go": "9a66441958132b319a28a57f0641439a7d76954d0fcfbf579639bb3814937634",
+      "processor/elvenprivacyprocessor/text_test.go": "e7ad35af16a2b4de7318083f999867791840eea3094199e0cb65955f6925862b",
+      "versions.lock.json": "a51f46feee1194d3938188ac6f26563491a86eae427306cc139e075d70c0c3c2"
+    },
+    "scans": {
+      "linux/amd64": {
+        "database": {
+          "DownloadedAt": "2026-11-23T19:40:36.522676522Z",
+          "NextUpdate": "2026-11-24T19:02:50.412494606Z",
+          "UpdatedAt": "2026-11-23T19:02:50.412495Z",
+          "Version": 2
+        },
+        "highCriticalCount": 0,
+        "report": "collector.linux-amd64.vulnerabilities.json",
+        "reportSha256": "dcc25b11fbd271df1c1b9c549baaa1c2fa8b1caafd0cd811ed021c5398761b10",
+        "sbom": "collector.linux-amd64.spdx.json",
+        "sbomSha256": "7846b82ad1954e0161853ea855c8c2c9ef82bcef867af378e206cad71d25d506",
+        "scannedAt": "2026-11-23T19:40:56.050930+00:00",
+        "scanner": "trivy/0.76.2",
+        "status": "passed"
+      },
+      "linux/arm64": {
+        "database": {
+          "DownloadedAt": "2026-11-23T19:40:36.522676522Z",
+          "NextUpdate": "2026-11-24T19:02:50.412494606Z",
+          "UpdatedAt": "2026-11-23T19:02:50.412495Z",
+          "Version": 2
+        },
+        "highCriticalCount": 0,
+        "report": "collector.linux-arm64.vulnerabilities.json",
+        "reportSha256": "0473aea85dfa58b535972c28b93f9af0a532ce6d760b1921e1f64b6e36e2fe52",
+        "sbom": "collector.linux-arm64.spdx.json",
+        "sbomSha256": "9acea61c7ef98e9be1023925ae6f3e94f57ef1432ae52f3f3f7c1de0bd76393b",
+        "scannedAt": "2026-11-23T19:40:56.303840+00:00",
+        "scanner": "trivy/0.76.2",
+        "status": "passed"
+      }
+    },
+    "govulncheck": {
+      "linux/amd64": {
+        "binarySha256": "4399caf4c06d7a87705451d72afaedd2cf2f08afa7355533b1e8400b32ef9d17",
+        "exitCode": 0,
+        "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:ea85a0024f7c7572bf2e80d004fb92bbcaded88bb44c8af4c3af3fc0683f40c4",
+        "mode": "binary-symbol-analysis-not-native-execution",
+        "report": "collector.linux-amd64.govulncheck.json",
+        "reportSha256": "7b2cc14cb164f1969a28f31217ced78eba9c0cc34af353371505c202e866374a",
+        "scannedAt": "2026-11-23T19:41:37.985509+00:00",
+        "status": "passed",
+        "tool": "govulncheck/1.9.0"
+      },
+      "linux/arm64": {
+        "binarySha256": "fb80b6c1845589beef6fd0d5a2bd00825f51dbd3e6d0b3d5b1a10ec99ac4e14a",
+        "exitCode": 0,
+        "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:ea85a0024f7c7572bf2e80d004fb92bbcaded88bb44c8af4c3af3fc0683f40c4",
+        "mode": "binary-symbol-analysis-not-native-execution",
+        "report": "collector.linux-arm64.govulncheck.json",
+        "reportSha256": "568fef8e0565a0d32a4141073d9e1e932265e506b242a0f46adf2cf1b2a17ab5",
+        "scannedAt": "2026-11-23T19:41:37.987242+00:00",
+        "status": "passed",
+        "tool": "govulncheck/1.9.0"
+      }
+    },
+    "registryPublication": "NOT_PUBLISHED",
+    "signature": "NOT_SIGNED",
+    "promotion": "NOT_PROMOTED",
+    "customerInstallationAllowed": false
+  },
+  "platforms": [
+    {
+      "platform": "linux/amd64",
+      "artifact": {
+        "id": 14857840240,
+        "name": "elven-candidate-runtime-evidence-amd64",
+        "digest": "sha256:d9e7ed996dfd82959d97dd9985ec6b4f786b39e54870754637251c2c549202fb"
+      },
+      "privacyReport": {
+        "path": "privacy-60ba2970a69f/report.json",
+        "sha256": "d389966e5c1d03083e283c42b32a0faf31f4bbcf46ee13a2653da1170fbf5b5e",
+        "result": "PASS",
+        "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:ea85a0024f7c7572bf2e80d004fb92bbcaded88bb44c8af4c3af3fc0683f40c4",
+        "runtime_platform": "linux/amd64",
+        "cleanup": {
+          "completed": true
+        },
+        "config_sha256": {
+          "selective": "9f3ecda8654420cbe80a717add29913caa4709e8b75c947da40bc6aa7315a3f0",
+          "strict": "f785006a7daa54f1d93dfc9efba9d929ba1ad6306d61af67236c2dc4e726165a"
+        },
+        "privacy": {
+          "log_body_mode": "selective",
+          "max_collection_items": 4096,
+          "max_depth": 24,
+          "max_string_bytes": 262144,
+          "preserve_span_links": true
+        },
+        "not_proven": [
+          "universal PII detection",
+          "client data/tenant ingestion",
+          "NetworkPolicy enforcement",
+          "production disk capacity/scale",
+          "all SQL dialects"
+        ],
+        "redis": [
+          {
+            "cases": [
+              "auth",
+              "eval",
+              "explicit",
+              "get",
+              "resp",
+              "set"
+            ],
+            "correlation_preserved": true,
+            "known_sensitive_values_absent": true,
+            "logs": 6,
+            "metric_points": 1,
+            "name": "Redis operations, errors and correlation through real Collector export",
+            "result": "PASS",
+            "spans": 6,
+            "useful_operation_error_and_log_preserved": true
+          },
+          {
+            "name": "Redis idempotent second privacy boundary",
+            "result": "PASS"
+          },
+          {
+            "cases": [
+              "auth",
+              "eval",
+              "explicit",
+              "get",
+              "resp",
+              "set"
+            ],
+            "correlation_preserved": true,
+            "delivery_semantics": "at-least-once",
+            "known_sensitive_values_absent": true,
+            "logs": 6,
+            "metric_points": 1,
+            "name": "Redis privacy before actual three-signal WAL and restart replay",
+            "result": "PASS",
+            "spans": 6,
+            "useful_operation_error_and_log_preserved": true,
+            "wal": {
+              "files": [
+                {
+                  "bytes": 65536,
+                  "name": "exports/exporter_otlp_http_logs_logs"
+                },
+                {
+                  "bytes": 32768,
+                  "name": "exports/exporter_otlp_http_metrics_metrics"
+                },
+                {
+                  "bytes": 65536,
+                  "name": "exports/exporter_otlp_http_traces_traces"
+                }
+              ],
+              "forbidden_matches": [],
+              "redaction_markers": 317,
+              "required_markers": {
+                "elven redis log wal cache operation failed status=503": 12,
+                "elven redis trace wal": 12,
+                "elven.redis.synthetic.wal.duration": 2
+              },
+              "useful_message_occurrences": 0
+            }
+          }
+        ]
+      },
+      "kindReport": {
+        "path": "kind-843120fb58/report.json",
+        "sha256": "aaba263f61af65cf6fe25d76edf0129e3cb4c811fb54357eb884cc220546c7fb",
+        "completed": true,
+        "clusterRetained": false,
+        "customerClusterAccess": false,
+        "checksPassed": 25,
+        "resourcePreflight": {
+          "host_free_bytes": 88101892096,
+          "required_free_bytes": 8589934592,
+          "vm_capacity": "NOT_PROVEN",
+          "docker_engine_idle": true
+        },
+        "notProven": [
+          "NetworkPolicy enforcement (Kind default CNI)",
+          "customer network/tenant ingestion",
+          "eBPF/kernel compatibility",
+          "production scale/HA",
+          "all supported Kubernetes versions live",
+          "native arm64 runtime"
+        ]
+      },
+      "validationReport": {
+        "path": "validation-20261123T195002/report.json",
+        "sha256": "055cef67015197f7146679ea51afc83a6784a88cdf169780092de904ace0ada5",
+        "completed": true,
+        "runtime_requested": true,
+        "schema_requested": true,
+        "tests": {
+          "run": 425,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 2
+        },
+        "skippedScope": "Two pinned install-kit archive tests; no Redis runtime check skipped. These two tests passed in the 425-test local source run with the verified public bundle."
+      }
+    },
+    {
+      "platform": "linux/arm64",
+      "artifact": {
+        "id": 14856864075,
+        "name": "elven-candidate-runtime-evidence-arm64",
+        "digest": "sha256:66ee0693b8003d923a448d55cf27c59b873c0004a1c18fcb36b88abde3aad8f1"
+      },
+      "privacyReport": {
+        "path": "privacy-e810ab39aa8d/report.json",
+        "sha256": "4dff6c4634da88510aaaffd3d6fbf0a7044587bde480520ee3b1bf76a9c0360c",
+        "result": "PASS",
+        "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:ea85a0024f7c7572bf2e80d004fb92bbcaded88bb44c8af4c3af3fc0683f40c4",
+        "runtime_platform": "linux/arm64",
+        "cleanup": {
+          "completed": true
+        },
+        "config_sha256": {
+          "selective": "9f3ecda8654420cbe80a717add29913caa4709e8b75c947da40bc6aa7315a3f0",
+          "strict": "f785006a7daa54f1d93dfc9efba9d929ba1ad6306d61af67236c2dc4e726165a"
+        },
+        "privacy": {
+          "log_body_mode": "selective",
+          "max_collection_items": 4096,
+          "max_depth": 24,
+          "max_string_bytes": 262144,
+          "preserve_span_links": true
+        },
+        "not_proven": [
+          "universal PII detection",
+          "client data/tenant ingestion",
+          "NetworkPolicy enforcement",
+          "production disk capacity/scale",
+          "all SQL dialects"
+        ],
+        "redis": [
+          {
+            "cases": [
+              "auth",
+              "eval",
+              "explicit",
+              "get",
+              "resp",
+              "set"
+            ],
+            "correlation_preserved": true,
+            "known_sensitive_values_absent": true,
+            "logs": 6,
+            "metric_points": 1,
+            "name": "Redis operations, errors and correlation through real Collector export",
+            "result": "PASS",
+            "spans": 6,
+            "useful_operation_error_and_log_preserved": true
+          },
+          {
+            "name": "Redis idempotent second privacy boundary",
+            "result": "PASS"
+          },
+          {
+            "cases": [
+              "auth",
+              "eval",
+              "explicit",
+              "get",
+              "resp",
+              "set"
+            ],
+            "correlation_preserved": true,
+            "delivery_semantics": "at-least-once",
+            "known_sensitive_values_absent": true,
+            "logs": 6,
+            "metric_points": 1,
+            "name": "Redis privacy before actual three-signal WAL and restart replay",
+            "result": "PASS",
+            "spans": 6,
+            "useful_operation_error_and_log_preserved": true,
+            "wal": {
+              "files": [
+                {
+                  "bytes": 65536,
+                  "name": "exports/exporter_otlp_http_logs_logs"
+                },
+                {
+                  "bytes": 32768,
+                  "name": "exports/exporter_otlp_http_metrics_metrics"
+                },
+                {
+                  "bytes": 65536,
+                  "name": "exports/exporter_otlp_http_traces_traces"
+                }
+              ],
+              "forbidden_matches": [],
+              "redaction_markers": 316,
+              "required_markers": {
+                "elven redis log wal cache operation failed status=503": 12,
+                "elven redis trace wal": 12,
+                "elven.redis.synthetic.wal.duration": 2
+              },
+              "useful_message_occurrences": 0
+            }
+          }
+        ]
+      },
+      "kindReport": {
+        "path": "kind-97f37be957/report.json",
+        "sha256": "cf7c2d227dee1b810b85443924071fbb4406a8a23a5e2aff2e761ba544114d2e",
+        "completed": true,
+        "clusterRetained": false,
+        "customerClusterAccess": false,
+        "checksPassed": 25,
+        "resourcePreflight": {
+          "host_free_bytes": 110551945216,
+          "required_free_bytes": 8589934592,
+          "vm_capacity": "NOT_PROVEN",
+          "docker_engine_idle": true
+        },
+        "notProven": [
+          "NetworkPolicy enforcement (Kind default CNI)",
+          "customer network/tenant ingestion",
+          "eBPF/kernel compatibility",
+          "production scale/HA",
+          "all supported Kubernetes versions live",
+          "native amd64 runtime"
+        ]
+      },
+      "validationReport": {
+        "path": "validation-20261123T195005/report.json",
+        "sha256": "055cef67015197f7146679ea51afc83a6784a88cdf169780092de904ace0ada5",
+        "completed": true,
+        "runtime_requested": true,
+        "schema_requested": true,
+        "tests": {
+          "run": 425,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 2
+        },
+        "skippedScope": "Two pinned install-kit archive tests; no Redis runtime check skipped. These two tests passed in the 425-test local source run with the verified public bundle."
+      }
+    }
+  ],
+  "notProven": [
+    "Real Redis server or SDK auto-instrumentation; this is an OTLP corpus through the compiled Collector",
+    "Customer tenant/backend/Grafana delivery",
+    "Universal PII detection or all Redis/SQL/client-library formats",
+    "eBPF capture/kernel compatibility; host/template gates remain unchanged",
+    "Production CNI/CSI, scale, HA or approved production rollout"
+  ],
+  "nextGate": "Separately approved stable release build, fresh security/runtime gates, protected-environment publication/signing, verified promotion and updated immutable installation package. Never replace an old asset or use this dev candidate in a customer install.",
+  "localSafety": {
+    "heavyBuilds": false,
+    "ociDownloads": false,
+    "dockerOrVirtualMachineChanges": false,
+    "customerClusterMutations": false,
+    "mcpAuthPublicOrThirdPartyGitOpsChanges": false
+  }
+}
