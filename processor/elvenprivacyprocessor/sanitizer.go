@@ -23,7 +23,7 @@ type sanitizer struct {
 
 func isMarker(v string) bool {
 	switch v {
-	case mask, "[REDACTED:limit]", "[REDACTED:json]", "[REDACTED:sql]", "[REDACTED:bytes]", "[REDACTED:encoding]":
+	case mask, "[REDACTED:limit]", "[REDACTED:json]", "[REDACTED:sql]", "[REDACTED:bytes]", "[REDACTED:encoding]", "[REDACTED:redis]":
 		return true
 	default:
 		return false
@@ -178,6 +178,7 @@ func (s *sanitizer) attributes(input pcommon.Map) {
 }
 
 func (s *sanitizer) mapInto(input, output pcommon.Map, depth int) {
+	redis := redisAttributes(input)
 	index := 0
 	input.Range(func(key string, value pcommon.Value) bool {
 		cleanKey := s.key(key, index)
@@ -199,6 +200,17 @@ func (s *sanitizer) mapInto(input, output pcommon.Map, depth int) {
 			// A field keyed by an email, token or opaque encoded identity is
 			// itself a sensitive section, including its associated value.
 			output.PutStr(cleanKey, mask)
+		} else if redis && redisDiagnostic(key) {
+			output.PutStr(cleanKey, mask)
+		} else if redis && redisField(key) && !isSensitiveKey(key) {
+			if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
+				output.PutStr(cleanKey, "[REDACTED:limit]")
+			} else if value.Type() == pcommon.ValueTypeStr && len(value.Str()) <= s.config.MaxStringBytes {
+				s.remaining--
+				output.PutStr(cleanKey, redisOperation(value.Str()))
+			} else {
+				output.PutStr(cleanKey, "[REDACTED:redis]")
+			}
 		} else {
 			s.value(value, output.PutEmpty(cleanKey), depth+1, key)
 		}
@@ -310,6 +322,19 @@ func (s *sanitizer) native(input any, depth int, key string) any {
 		if len(value) > s.config.MaxCollectionItems || len(value) > s.remaining {
 			return "[REDACTED:limit]"
 		}
+		redis := false
+		for k, v := range value {
+			nk := normalizedKey(k)
+			if nk == "rediscommand" || nk == "dbrediscommand" {
+				redis = true
+			}
+			if nk == "dbsystem" || nk == "dbsystemname" {
+				if raw, ok := v.(string); ok {
+					decoded, valid := decodeTextLayers(raw)
+					redis = redis || valid && strings.EqualFold(strings.TrimSpace(decoded), "redis")
+				}
+			}
+		}
 		out := make(map[string]any, len(value))
 		i := 0
 		for k, v := range value {
@@ -325,6 +350,17 @@ func (s *sanitizer) native(input any, depth int, key string) any {
 			}
 			if redactedKey {
 				out[cleanKey] = mask
+			} else if redis && redisDiagnostic(k) {
+				out[cleanKey] = mask
+			} else if redis && redisField(k) && !isSensitiveKey(k) {
+				if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
+					out[cleanKey] = "[REDACTED:limit]"
+				} else if raw, ok := v.(string); ok && len(raw) <= s.config.MaxStringBytes {
+					s.remaining--
+					out[cleanKey] = redisOperation(raw)
+				} else {
+					out[cleanKey] = "[REDACTED:redis]"
+				}
 			} else {
 				out[cleanKey] = s.native(v, depth+1, k)
 			}

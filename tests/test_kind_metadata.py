@@ -68,6 +68,8 @@ class KindMetadataTests(unittest.TestCase):
             def fake_execute(args, **kwargs):
                 if args[:3] == ["docker", "context", "inspect"]:
                     return SimpleNamespace(stdout="unix:///synthetic-only/docker.sock\n")
+                if args == ["docker", "ps", "--quiet"]:
+                    return SimpleNamespace(stdout="")
                 self.assertEqual(args[:3], ["kind", "create", "cluster"])
                 lab.kubeconfig.write_text("synthetic isolated kubeconfig\n")
                 return SimpleNamespace(stdout="")
@@ -76,6 +78,7 @@ class KindMetadataTests(unittest.TestCase):
             lab.apply = mock.Mock()
             lab.check = mock.Mock()
             with mock.patch.dict(os.environ, {"DOCKER_HOST": ""}), \
+                 mock.patch.object(LAB_MODULE.shutil, "disk_usage", return_value=SimpleNamespace(free=16 * 1024**3)), \
                  mock.patch.object(LAB_MODULE, "execute", side_effect=fake_execute):
                 lab.boot()
         self.assertEqual(lab.report["versions"], version)

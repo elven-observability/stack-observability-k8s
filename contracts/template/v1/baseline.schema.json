@@ -1,0 +1,121 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "apps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "currentResourceVersion": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+            "type": "string"
+          },
+          "currentTemplateSha256": {
+            "not": {
+              "const": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "snapshotSha256": {
+            "not": {
+              "const": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "uid": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "snapshotSha256",
+          "currentResourceVersion",
+          "currentTemplateSha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "clusterUid": {
+      "format": "uuid",
+      "maxLength": 36,
+      "type": "string"
+    },
+    "coreReleaseUid": {
+      "format": "uuid",
+      "maxLength": 36,
+      "type": "string"
+    },
+    "coreRevision": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "currentCoreRevision": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "currentOperatorRevision": {
+      "maximum": 1000000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "observedAt": {
+      "format": "date-time",
+      "maxLength": 40,
+      "type": "string"
+    },
+    "operatorReleaseUid": {
+      "oneOf": [
+        {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "operatorRevision": {
+      "maximum": 1000000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "planSha256": {
+      "not": {
+        "const": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "snapshotSha256": {
+      "not": {
+        "const": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "planSha256",
+    "clusterUid",
+    "snapshotSha256",
+    "observedAt",
+    "coreReleaseUid",
+    "operatorReleaseUid",
+    "coreRevision",
+    "operatorRevision",
+    "currentCoreRevision",
+    "currentOperatorRevision",
+    "apps"
+  ],
+  "type": "object"
+}

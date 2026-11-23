@@ -31,3 +31,6 @@ Comece por um serviço piloto e confirme com a Elven que os sinais chegaram ao t
 O [guia técnico](docs/installation.md) cobre configuração e instalação pela CLI. Não use `helmfile apply` para esta versão.
 
 [Operação](docs/operations.md) · [Segurança](docs/security.md) · [Migração do legado](docs/migration.md)
+
+Para uma POC limitada a um serviço sintético: [receita de uma aplicação](docs/poc-one-app.md).
+Integração MCP/engine: [contrato determinístico e limites de execução](docs/template-engine-contract.md).

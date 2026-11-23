@@ -1,0 +1,94 @@
+{
+  "applicationActions": [
+    {
+      "id": "app-00000000-0000-0000-0000-000000000003",
+      "kind": "APP_OPT_IN",
+      "target": {
+        "container": "app",
+        "name": "elven-pilot",
+        "namespace": "elven-pilot-app",
+        "namespaceUid": "00000000-0000-0000-0000-000000000002",
+        "resourceVersion": "11",
+        "runtime": "java",
+        "templateSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "uid": "00000000-0000-0000-0000-000000000003"
+      }
+    }
+  ],
+  "contractVersion": "elven.template/v1",
+  "coreValues": {
+    "cluster": {
+      "name": "elven-lab"
+    },
+    "collection": {
+      "namespaces": [
+        "elven-pilot-app"
+      ]
+    },
+    "gateway": {
+      "persistence": {
+        "enabled": true,
+        "size": "2Gi",
+        "storageClass": "elven-lab-storage"
+      }
+    },
+    "modules": {
+      "clusterMetrics": {
+        "clusterWideApproved": false,
+        "enabled": false
+      },
+      "ebpf": {
+        "enabled": false
+      },
+      "logs": {
+        "enabled": false,
+        "hostAccessApproved": false
+      },
+      "profiles": {
+        "enabled": false
+      }
+    },
+    "networkPolicy": {
+      "apiServerCIDRs": [
+        "192.0.2.2/32"
+      ],
+      "dnsCIDRs": [],
+      "dnsNamespace": "kube-system",
+      "enabled": true,
+      "exportCIDRs": [
+        "192.0.2.1/32"
+      ]
+    },
+    "privacy": {
+      "logBodyMode": "selective"
+    }
+  },
+  "execution": "ENGINE_PHASE_PORT",
+  "operatorValues": {
+    "enabled": true,
+    "gateway": {
+      "endpoint": "https://elven-gateway.elven-system-pilot.svc.cluster.local:4318",
+      "sourceNamespace": "elven-system-pilot",
+      "sourceRelease": "elven"
+    },
+    "namespaces": [
+      "elven-pilot-app"
+    ],
+    "networkPolicy": {
+      "apiServerCIDRs": [
+        "192.0.2.2/32"
+      ],
+      "enabled": true
+    },
+    "runtimes": {
+      "java": true,
+      "legacyNode20Approved": false,
+      "nodejs": false,
+      "nodejs20": false,
+      "python": false
+    },
+    "samplingRatio": "1"
+  },
+  "planSha256": "b95a8ddea7003f76f1ccd21d50697632be83a44e1896d4c53d7194793bddb49b",
+  "tenantSource": "ENGINE_SECRET_BINDING"
+}

@@ -46,6 +46,31 @@ Unsupported/malformed lexical forms are masked as a whole. Dialects and unquoted
 identifiers still require review; do not use the output as executable SQL or
 promise capture of every statement.
 
+Redis spans that identify `db.system` or `db.system.name` as `redis` use a
+different path: keep only an allowlisted command name, never SQL-parse Redis
+operands. Span names and statement/operation/summary attributes lose keys,
+values, Lua scripts and subcommand arguments. Known Redis key/argument/value
+attributes are masked even without that context. In a known Redis span,
+status text and exception message/stacktrace may echo arbitrary operands and
+are masked; exception type, ERROR status, trace/span IDs and database index
+remain useful. Nested structured Redis log fields follow the same rule.
+Unknown command forms/RESP become `[REDACTED:redis]`. This requires a newly
+built and promoted Collector; already-published v1.0.1 images do not acquire
+the change by updating chart values. It is not a guarantee about unlabelled
+operands in arbitrary log text or fields unknown to this policy.
+
+Selective non-Redis exception handling keeps operational messages and useful
+Java/Node/Python stack frames while masking recognized sensitive substrings in
+`exception.message`, `exception.stacktrace`, both the span status message and
+`status.description` attributes, and correlated error logs. The Go suite tests
+actual pdata handlers followed by OTLP protobuf serialization and decoding.
+These tests are evidence for the processor's data boundary, not proof that a
+particular SDK exports the fields or that a compiled Collector/queue/backend
+has executed this source. In explicitly identified Redis contexts, exception
+messages, stack traces and status descriptions remain fully masked intentionally
+(including structured log maps): arbitrary Redis keys/scripts can resemble paths
+or frame names, so a frame-pattern allowlist cannot prove those values safe.
+
 This is **not universal PII detection or anonymization**. Free-form personal names,
 novel field names, secrets without recognizable syntax, application-specific
 payloads, compressed/encrypted objects and numeric metric values cannot be

@@ -1,0 +1,57 @@
+{
+  "apps": [
+    {
+      "container": "app",
+      "existingInstrumentation": "none",
+      "name": "elven-pilot",
+      "namespaceUid": "00000000-0000-0000-0000-000000000002",
+      "resourceVersion": "11",
+      "runtime": "java",
+      "templateSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "uid": "00000000-0000-0000-0000-000000000003"
+    }
+  ],
+  "catalogSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "cluster": {
+    "caSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "name": "elven-lab",
+    "serverSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "uid": "00000000-0000-0000-0000-000000000001"
+  },
+  "collection": {
+    "clusterMetrics": false,
+    "clusterWideMetricsApproved": false,
+    "hostAccessApproved": false,
+    "privacy": "selective",
+    "stdout": false
+  },
+  "contractVersion": "elven.template/v1",
+  "ebpf": null,
+  "namespace": "elven-system-pilot",
+  "namespaces": [
+    {
+      "name": "elven-pilot-app",
+      "uid": "00000000-0000-0000-0000-000000000002"
+    }
+  ],
+  "network": {
+    "api": [
+      "192.0.2.2/32"
+    ],
+    "dns": [],
+    "dnsNamespace": "kube-system",
+    "exports": [
+      "192.0.2.1/32"
+    ]
+  },
+  "nodes": [],
+  "observedAt": "2026-11-23T12:00:00+00:00",
+  "operatorRelease": "elven-operator",
+  "release": "elven",
+  "storage": {
+    "class": "elven-lab-storage",
+    "sizeGiB": 2
+  },
+  "tenantId": "elven-synthetic",
+  "traceSampling": "1"
+}

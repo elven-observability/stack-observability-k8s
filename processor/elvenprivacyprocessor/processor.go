@@ -65,15 +65,32 @@ func (p *privacyProcessor) processTraces(_ context.Context, data ptrace.Traces) 
 			s.SetSchemaUrl(p.cleanText(s.SchemaUrl()))
 			for k := 0; k < s.Spans().Len(); k++ {
 				span := s.Spans().At(k)
-				span.SetName(p.cleanText(span.Name()))
-				span.Status().SetMessage(p.cleanText(span.Status().Message()))
+				redis := redisAttributes(span.Attributes())
+				if redis {
+					span.SetName(redisOperation(span.Name()))
+					if span.Status().Message() != "" {
+						span.Status().SetMessage(mask)
+					}
+				} else {
+					span.SetName(p.cleanText(span.Name()))
+					span.Status().SetMessage(p.cleanText(span.Status().Message()))
+				}
 				p.cleanMap(span.Attributes())
 				// Opaque vendor tracestate is not needed for trace/span correlation.
 				// Drop it rather than exporting unknown embedded credentials.
 				span.TraceState().FromRaw("")
 				for n := 0; n < span.Events().Len(); n++ {
 					e := span.Events().At(n)
-					e.SetName(p.cleanText(e.Name()))
+					if redis {
+						// Standard event names carry no database operands. Vendor
+						// event names are not a safe command/error data channel.
+						if e.Name() != "exception" {
+							e.SetName("redis.event")
+						}
+						sanitizeRedisException(e.Attributes())
+					} else {
+						e.SetName(p.cleanText(e.Name()))
+					}
 					p.cleanMap(e.Attributes())
 				}
 				if !p.config.PreserveSpanLinks {

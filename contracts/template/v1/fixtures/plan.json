@@ -1,0 +1,117 @@
+{
+  "actions": [
+    {
+      "id": "core",
+      "kind": "CORE_APPLY",
+      "target": {
+        "namespace": "elven-system-pilot",
+        "release": "elven"
+      }
+    },
+    {
+      "id": "operator",
+      "kind": "OPERATOR_APPLY",
+      "target": {
+        "namespace": "elven-system-pilot",
+        "release": "elven-operator"
+      }
+    },
+    {
+      "id": "app-00000000-0000-0000-0000-000000000003",
+      "kind": "APP_OPT_IN",
+      "target": {
+        "container": "app",
+        "name": "elven-pilot",
+        "namespace": "elven-pilot-app",
+        "namespaceUid": "00000000-0000-0000-0000-000000000002",
+        "resourceVersion": "11",
+        "runtime": "java",
+        "templateSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "uid": "00000000-0000-0000-0000-000000000003"
+      }
+    }
+  ],
+  "artifact": {
+    "sha256": "fdd3dfb6fe621a5c69b6f8a79dc6f4601c6e764b524b66c00681deb56da352db",
+    "url": "https://github.com/elven-observability/stack-observability-k8s/releases/download/v1.0.1/elven-observability-v1.0.1.tar.gz",
+    "version": "1.0.1"
+  },
+  "catalogSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "contractVersion": "elven.template/v1",
+  "ebpfDecision": {
+    "mode": "sdk-only",
+    "reasons": [],
+    "runtimeAcceptance": "NOT_PROVEN"
+  },
+  "gates": {
+    "CAPACITY_UNPROVEN": "UNKNOWN",
+    "COLLECTOR_REPROMOTION_REQUIRED": "UNKNOWN",
+    "EXACT_BASELINE_REQUIRED": "UNKNOWN",
+    "FRESH_APPROVAL_REQUIRED": "UNKNOWN",
+    "INDEPENDENT_DELIVERY_REQUIRED": "UNKNOWN",
+    "PREFLIGHT_REQUIRED": "UNKNOWN",
+    "SIGNATURE_VERIFICATION_REQUIRED": "UNKNOWN"
+  },
+  "planSha256": "b95a8ddea7003f76f1ccd21d50697632be83a44e1896d4c53d7194793bddb49b",
+  "requestSha256": "23f00c68b056370a4d6c254f77331ae0acf831a879663f0dc7421824cccc1a06",
+  "rollbackPolicy": "EXACT_BASELINE_RETAIN_SECRETS_AND_PVCS",
+  "selection": {
+    "apps": [
+      {
+        "container": "app",
+        "existingInstrumentation": "none",
+        "name": "elven-pilot",
+        "namespaceUid": "00000000-0000-0000-0000-000000000002",
+        "resourceVersion": "11",
+        "runtime": "java",
+        "templateSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+        "uid": "00000000-0000-0000-0000-000000000003"
+      }
+    ],
+    "catalogSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "cluster": {
+      "caSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "name": "elven-lab",
+      "serverSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "uid": "00000000-0000-0000-0000-000000000001"
+    },
+    "collection": {
+      "clusterMetrics": false,
+      "clusterWideMetricsApproved": false,
+      "hostAccessApproved": false,
+      "privacy": "selective",
+      "stdout": false
+    },
+    "contractVersion": "elven.template/v1",
+    "ebpf": null,
+    "namespace": "elven-system-pilot",
+    "namespaces": [
+      {
+        "name": "elven-pilot-app",
+        "uid": "00000000-0000-0000-0000-000000000002"
+      }
+    ],
+    "network": {
+      "api": [
+        "192.0.2.2/32"
+      ],
+      "dns": [],
+      "dnsNamespace": "kube-system",
+      "exports": [
+        "192.0.2.1/32"
+      ]
+    },
+    "nodes": [],
+    "observedAt": "2026-11-23T12:00:00+00:00",
+    "operatorRelease": "elven-operator",
+    "release": "elven",
+    "storage": {
+      "class": "elven-lab-storage",
+      "sizeGiB": 2
+    },
+    "tenantId": "elven-synthetic",
+    "traceSampling": "1"
+  },
+  "state": "REQUIRES_ENGINE_APPROVAL",
+  "validUntil": "2026-11-23T12:10:00+00:00"
+}

@@ -1,0 +1,20 @@
+{
+  "apps": [
+    {
+      "currentResourceVersion": "12",
+      "currentTemplateSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "snapshotSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "uid": "00000000-0000-0000-0000-000000000003"
+    }
+  ],
+  "clusterUid": "00000000-0000-0000-0000-000000000001",
+  "coreReleaseUid": "00000000-0000-0000-0000-000000000004",
+  "coreRevision": 1,
+  "currentCoreRevision": 2,
+  "currentOperatorRevision": 2,
+  "observedAt": "2026-11-23T12:00:00+00:00",
+  "operatorReleaseUid": "00000000-0000-0000-0000-000000000005",
+  "operatorRevision": 1,
+  "planSha256": "b95a8ddea7003f76f1ccd21d50697632be83a44e1896d4c53d7194793bddb49b",
+  "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}

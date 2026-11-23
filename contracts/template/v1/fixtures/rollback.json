@@ -1,0 +1,36 @@
+{
+  "actions": [
+    {
+      "expectedResourceVersion": "12",
+      "expectedTemplateSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "kind": "APP_RESTORE",
+      "snapshotSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "uid": "00000000-0000-0000-0000-000000000003"
+    },
+    {
+      "expectedCurrentRevision": 2,
+      "expectedReleaseUid": "00000000-0000-0000-0000-000000000005",
+      "kind": "OPERATOR_ROLLBACK",
+      "namespace": "elven-system-pilot",
+      "release": "elven-operator",
+      "revision": 1
+    },
+    {
+      "expectedCurrentRevision": 2,
+      "expectedReleaseUid": "00000000-0000-0000-0000-000000000004",
+      "kind": "CORE_ROLLBACK",
+      "namespace": "elven-system-pilot",
+      "release": "elven",
+      "revision": 1
+    }
+  ],
+  "baselineSha256": "f189776b923301dd76d92b96ee109113706e37063b5feabedf64c0f9458e8486",
+  "contractVersion": "elven.template/v1",
+  "deletePVCs": false,
+  "deleteSecrets": false,
+  "planSha256": "b95a8ddea7003f76f1ccd21d50697632be83a44e1896d4c53d7194793bddb49b",
+  "rollbackSha256": "0a4c8146f5c953e523b5fc90632806c840d8013d9ee62cc5a8541ecad5f9cfdb",
+  "snapshotSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "state": "REQUIRES_FRESH_ENGINE_APPROVAL",
+  "unknownOutcome": "HOLD_WITHOUT_REPLAY"
+}
