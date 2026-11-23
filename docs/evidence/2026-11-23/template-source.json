@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "qualification": "SOURCE_ONLY_NOT_RUNTIME_ACCEPTANCE",
+  "testedSourceRevision": "14a6a82b3ce00d274163b4cb55980bddb4704a2d",
+  "python": {
+    "version": "3.14",
+    "tests": 417,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "entrypoint": "scripts/validate.py",
+    "report": "validation-20261123T154339/report.json",
+    "environment": {
+      "KUBECONFIG": "/dev/null",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "ELVEN_TEST_ARCHIVE": "verified public v1.0.1 bundle",
+      "ELVEN_HELM_BINARY": "explicit trusted Helm v4.3.1 path",
+      "PATH": "trusted Helm v4.3.1 directory first, including sanitized kit subprocesses"
+    }
+  },
+  "kubernetesSchemas": {
+    "1.35.0": {"valid": 23, "invalid": 0, "errors": 0, "skipped": 0},
+    "1.36.0": {"valid": 23, "invalid": 0, "errors": 0, "skipped": 0},
+    "1.37.0": {"valid": 23, "invalid": 0, "errors": 0, "skipped": 0}
+  },
+  "processor": {
+    "command": "GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go test -race -count=1 ./...",
+    "result": "PASS",
+    "scope": "pdata processing and OTLP serialization/decode; cached pinned dependencies; no Collector build"
+  },
+  "catalogSha256": "c0b5e50b74d5cf5eec56561f16a8a62cd3330ad2456c4f29f9427345a5f6eae9",
+  "adapterContentSha256": "aa3c0387df7f596251ed2c5577ef0f56ecf098722d5ea6d632352dd9f9fdf21b",
+  "bundleSha256": "fdd3dfb6fe621a5c69b6f8a79dc6f4601c6e764b524b66c00681deb56da352db",
+  "notProven": [
+    "MCP OAuth, authorization, executor and customer-cloud state",
+    "New Collector build, scan, signing, promotion and WAL privacy",
+    "Real admission, SDK execution and backend tenant delivery",
+    "eBPF capture, customer CNI/CSI or production capacity",
+    "Runtime install, update and rollback through this adapter"
+  ],
+  "mutations": {"cluster": false, "docker": false, "virtualMachines": false, "releaseAssets": false}
+}
