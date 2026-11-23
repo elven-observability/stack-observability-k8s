@@ -461,7 +461,7 @@ def redis_corpus(phase):
         # Both native OTLP maps and JSON-string log bodies pass the real processor.
         set_value(log.body, json.dumps(body) if index % 2 else body)
     metric = ms.metrics.add()
-    metric.name, metric.unit = "elven.redis.synthetic.duration", "ms"
+    metric.name, metric.unit = "elven.redis.synthetic." + phase + ".duration", "ms"
     point = metric.gauge.data_points.add()
     point.time_unix_nano, point.as_double = now, 42
     attributes(point.attributes, {"db.system.name": "redis", "redis.key": REDIS_PRIVATE["key"],
@@ -483,6 +483,11 @@ def assert_redis_corpus(decoded, phase):
                  for scope in resource.scope_spans for span in scope.spans]
     def attr(items, name):
         return next((item.value for item in items if item.key == name), None)
+    def required_attr(items, name):
+        value = attr(items, name)
+        if value is None:
+            raise AssertionError("Redis required attribute lost: " + name)
+        return value
     for case, (_, operation) in redis_cases().items():
         tag = "redis-" + phase + "-" + case
         logs = [record for record in all_logs if case_of(record) == tag]
@@ -502,15 +507,15 @@ def assert_redis_corpus(decoded, phase):
                 value = attr(span.events[0].attributes, name)
                 if value is None or value.string_value != "[REDACTED]":
                     raise AssertionError("Redis event diagnostic not conservatively masked: " + tag)
-            if attr(span.events[0].attributes, "exception.type").string_value != "RedisError":
+            if required_attr(span.events[0].attributes, "exception.type").string_value != "RedisError":
                 raise AssertionError("Redis exception type lost: " + tag)
         for record in [*logs, *spans]:
             attrs = record.attributes
             if (record.trace_id != trace_id or record.span_id != span_id
                     or attr(attrs, "db.query.text") is None or attr(attrs, "db.query.text").string_value != operation
-                    or attr(attrs, "db.operation.name").string_value != operation
-                    or attr(attrs, "exception.type").string_value != "RedisError"
-                    or attr(attrs, "db.redis.database_index").int_value != 1):
+                    or required_attr(attrs, "db.operation.name").string_value != operation
+                    or required_attr(attrs, "exception.type").string_value != "RedisError"
+                    or required_attr(attrs, "db.redis.database_index").int_value != 1):
                 raise AssertionError("Redis useful metadata/correlation lost: " + tag)
             for name in ("db.redis.key", "redis.values", "redis.script", "db.redis.command.args",
                          "exception.message", "exception.stacktrace", "status.description"):
@@ -523,8 +528,9 @@ def assert_redis_corpus(decoded, phase):
                 raise AssertionError("Redis useful log body or severity lost: " + tag)
     points = [point for message in decoded["metrics"] for resource in message.resource_metrics
               for scope in resource.scope_metrics for metric in scope.metrics
-              if metric.name == "elven.redis.synthetic.duration" for point in metric.gauge.data_points]
+              if metric.name == "elven.redis.synthetic." + phase + ".duration" for point in metric.gauge.data_points]
     if not points or any(point.as_double != 42 or len(point.exemplars) != 1
+                         or point.exemplars[0].as_double != 42
                          or point.exemplars[0].trace_id != redis_identity(phase, "get")[0]
                          or point.exemplars[0].span_id != redis_identity(phase, "get")[1] for point in points):
         raise AssertionError("Redis metric value/exemplar correlation lost")
@@ -535,7 +541,7 @@ def assert_redis_corpus(decoded, phase):
 
 def assert_redis_wal(wal):
     required = ("elven redis log wal cache operation failed status=503", "elven redis trace wal",
-                "elven.redis.synthetic.duration")
+                "elven.redis.synthetic.wal.duration")
     if (not wal["files"] or wal["forbidden_matches"] or wal["redaction_markers"] < 1
             or any(wal.get("required_markers", {}).get(marker, 0) < 1 for marker in required)):
         raise AssertionError("Redis WAL lacks sanitized three-signal markers or contains a private sentinel")
@@ -549,7 +555,7 @@ def redis_complete(decoded, phase):
              if item.key == "privacy.test.case"}
     metrics = {metric.name for message in decoded["metrics"] for resource in message.resource_metrics
                for scope in resource.scope_metrics for metric in scope.metrics if metric.gauge.data_points}
-    return expected <= logs and expected <= spans and "elven.redis.synthetic.duration" in metrics
+    return expected <= logs and expected <= spans and "elven.redis.synthetic." + phase + ".duration" in metrics
 
 
 def redis_runtime_checks(send, state, fixture_action, wait_for, selective):
@@ -589,7 +595,7 @@ def redis_runtime_checks(send, state, fixture_action, wait_for, selective):
     assert_redis_corpus(attempted, "wal")
     run("docker", "stop", "--time", "5", selective, timeout=20)
     markers = ["elven redis log wal cache operation failed status=503", "elven redis trace wal",
-               "elven.redis.synthetic.duration"]
+               "elven.redis.synthetic.wal.duration"]
     wal = fixture_action({"op": "wal", "forbidden": FORBIDDEN, "required_markers": markers})
     assert_redis_wal(wal)
     baseline = len(state()["accepted"])

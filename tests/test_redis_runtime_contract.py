@@ -66,6 +66,10 @@ def log(decoded):
     return P.records(decoded)[0]
 
 
+def point(decoded):
+    return decoded["metrics"][0].resource_metrics[0].scope_metrics[0].metrics[0].gauge.data_points[0]
+
+
 class RedisRuntimeContract(unittest.TestCase):
     def test_raw_inputs_really_contain_private_data_and_never_pass_assertions(self):
         for phase in ("export", "wal"):
@@ -99,6 +103,10 @@ class RedisRuntimeContract(unittest.TestCase):
             lambda d: setattr(log(d).body, "string_value", "[REDACTED]"),
             lambda d: setattr(log(d), "severity_number", 9),
             lambda d: span(d).ClearField("events"),
+            lambda d: setattr(point(d).exemplars[0], "as_double", 999),
+            lambda d: setattr(point(d).exemplars[0], "span_id", b"BADID123"),
+            lambda d: span(d).attributes.__delitem__(next(i for i, a in enumerate(span(d).attributes)
+                                                        if a.key == "db.operation.name")),
             lambda d: d.update(traces=[]),
             lambda d: d.update(metrics=[]),
             lambda d: d.update(logs=[]),
@@ -116,7 +124,7 @@ class RedisRuntimeContract(unittest.TestCase):
 
     def test_raw_wal_scan_requires_all_signal_markers_and_absence_of_secrets(self):
         markers = ["elven redis log wal cache operation failed status=503", "elven redis trace wal",
-                   "elven.redis.synthetic.duration"]
+                   "elven.redis.synthetic.wal.duration"]
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             queue = root / "synthetic-queue.bin"

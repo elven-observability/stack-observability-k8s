@@ -40,6 +40,12 @@ o archive OCI exato, e novamente na qualificação nativa arm64. A construção
 também executa os testes Go do processor. PRs/dispatch de branch não publicam;
 não criar tag nem aprovar o environment de release como parte desse gate.
 
+Antes dos testes, o job para somente o builder Buildx criado por ele, depois
+de verificar os archives exportados. O guard Kind de engine ocioso continua
+intacto: qualquer outro container ativo permanece bloqueante. Isso corrige a
+falha de preflight observada no run `45241576253`, não libera Docker/VM local
+e não permite encerrar workloads de terceiros.
+
 Depois de um build/scan candidato completo, é possível repetir a qualificação
 com os mesmos archives nos runners amd64/arm64:
 

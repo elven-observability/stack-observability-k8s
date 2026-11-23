@@ -89,6 +89,9 @@ jobs:
               assert digest == image["archiveSha256"], f"{name}: OCI archive changed during cache cleanup"
           print("All three exported OCI archives preserved with unchanged SHA-256")
           PY
+          # Only the builder created by this job. Kind must still reject any
+          # other running workload; never bypass its dedicated-engine guard.
+          docker buildx stop "$ELVEN_CI_BUILDER"
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           docker system df
       - name: Gate every runtime/architecture on HIGH and CRITICAL vulnerabilities
