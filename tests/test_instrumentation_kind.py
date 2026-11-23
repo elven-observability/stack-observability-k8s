@@ -378,6 +378,17 @@ class LaboratoryMetadataTests(ManifestFixture):
         self.assertFalse(lab.report["customer_cluster_access"])
         self.assertEqual(lab.report["checks"], [])
 
+    def test_all_runtime_cells_begin_unqualified_even_for_promoted_metadata(self):
+        lab = self.make_lab()
+        self.assertEqual(set(lab.report["runtime_coverage"]), {"java17", "java21", "node22", "node20", "python"})
+        for checks in lab.report["runtime_coverage"].values():
+            self.assertEqual(set(checks), {"http_server_client", "sql_query_shape", "exceptions",
+                "redis_command_privacy", "application_logs", "application_metrics", "rollback"})
+            self.assertEqual(set(checks.values()), {"NOT_TESTED"})
+        lab.report["completed"] = True
+        self.assertFalse(lab.report["customer_acceptance"])
+        self.assertEqual(lab.min_free_bytes, 12 * 1024**3)
+
     def test_operator_values_include_the_complete_serving_pki_contract(self):
         lab = self.make_lab()
         lab.kube = mock.Mock(return_value=SimpleNamespace(stdout=json.dumps({"items": [{"status": {

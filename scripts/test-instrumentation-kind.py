@@ -155,6 +155,10 @@ class InstrumentationLab(CORE.Lab):
         self.foreign_namespace = "synthetic-foreign"
         self.combined = bool(args.collector_image)
         self.fixture_images = {}
+        # Four application builds plus the complete SDK/core archive set need
+        # more temporary room than the core-only lab. This is a conservative
+        # admission floor, not a production capacity estimate.
+        self.min_free_bytes = 12 * 1024**3
         self.report.update({"test": "actual Elven admission and auto-instrumentation SDKs",
             "mode": "gateway-and-installers" if self.combined else "standalone-sdk-mtls-sink",
             "test_environment": "disposable synthetic Kind; never a customer/production cluster",
@@ -164,6 +168,15 @@ class InstrumentationLab(CORE.Lab):
             "not_proven": ["NetworkPolicy enforcement (Kind default CNI)", "customer infrastructure/tenant acceptance",
                 "all supported Kubernetes versions live", "production scale/HA", "Python SDK application compatibility",
                 "independent registry/signature verification by this runtime harness", *CORE.RUNTIME_LIMITS.values()]})
+        self.report["runtime_coverage"] = {
+            case: {check: "NOT_TESTED" for check in (
+                "http_server_client", "sql_query_shape", "exceptions", "redis_command_privacy",
+                "application_logs", "application_metrics", "rollback")}
+            for case in ("java17", "java21", "node22", "node20", "python")
+        }
+        # completed means this suite's defined checks ran. It must not become
+        # an assertion that every signal/runtime or customer gate was accepted.
+        self.report["customer_acceptance"] = False
         if not self.combined:
             self.report["not_proven"] += ["gateway privacy/durable queues in this standalone SDK run",
                 "gateway/instrumentation installer ownership bootstrap in this standalone SDK run"]
@@ -462,11 +475,13 @@ class InstrumentationLab(CORE.Lab):
             actual = spans[case]
             assert any(span.get("kind") in ("SPAN_KIND_SERVER", 2) for _, span in actual), (case, "no real HTTP server span")
             assert any(span.get("kind") in ("SPAN_KIND_CLIENT", 3) for _, span in actual), (case, "no real HTTP client span")
+            self.report["runtime_coverage"][case]["http_server_client"] = "PASS"
             if case.startswith("java"):
                 statements = [attribute["value"].get("string_value", "") for scope, span in actual
                     for attribute in span.get("attributes", []) if attribute["key"] in ("db.statement", "db.query.text")]
                 assert statements and any("SELECT" in value.upper() for value in statements), (case, "no actual JDBC statement span")
                 assert all("4111111111111111" not in value and "synthetic-customer@example.invalid" not in value for value in statements)
+                self.report["runtime_coverage"][case]["sql_query_shape"] = "PASS"
             self.check("real auto-instrumented HTTP server client" + (" and JDBC SQL" if case.startswith("java") else "") + " spans " + case,
                        span_count=len(actual), scopes=sorted({scope for scope, _ in actual}))
         accepted = self.state()["accepted"]

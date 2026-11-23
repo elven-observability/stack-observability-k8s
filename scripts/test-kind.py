@@ -39,6 +39,7 @@ SENTINEL = "SYNTHETIC_PRIVATE_DO_NOT_EXPORT"
 PRIVATE_EMAIL = "synthetic@example.invalid"
 PRIVATE_PAN = "4111111111111111"
 RUNTIME_LIMITS = {"linux/amd64": "native amd64 runtime", "linux/arm64": "native arm64 runtime"}
+MIN_LAB_FREE_BYTES = 8 * 1024**3
 
 
 def execute(args, data=None, check=True, timeout=300):
@@ -114,6 +115,17 @@ class Lab:
         endpoint = execute(["docker", "context", "inspect", "--format", "{{.Endpoints.docker.Host}}"]).stdout.strip()
         if (configured_host and not configured_host.startswith("unix://")) or not endpoint.startswith("unix://"):
             raise ValueError("The disposable laboratory requires a local Unix Docker socket, never an SSH/TCP customer engine")
+        free = shutil.disk_usage(self.directory).free
+        minimum = getattr(self, "min_free_bytes", MIN_LAB_FREE_BYTES)
+        self.report["resource_preflight"] = {"host_free_bytes": free, "required_free_bytes": minimum,
+                                              "vm_capacity": "NOT_PROVEN"}
+        if free < minimum:
+            raise ValueError("Laboratory resource gate: insufficient host disk for Kind and its pinned images; no cluster was created or image pulled. Use a dedicated engine with adequate capacity.")
+        # A new Kind namespace does not isolate CPU/memory/disk pressure from
+        # other Docker workloads. Never commandeer a running application engine.
+        if execute(["docker", "ps", "--quiet"], timeout=30).stdout.strip():
+            raise ValueError("Laboratory resource gate: Docker engine has running workloads; use a dedicated idle context. Existing containers were not modified.")
+        self.report["resource_preflight"]["docker_engine_idle"] = True
         self.created = True  # Cleanup also covers partial Kind creation failures.
         execute(["kind", "create", "cluster", "--name", self.name, "--image", self.node_image,
                  "--kubeconfig", self.kubeconfig, "--wait", "180s"], timeout=420)
