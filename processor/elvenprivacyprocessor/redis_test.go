@@ -119,7 +119,7 @@ func TestRedisLogAndMetricAttributesRedactKeysAndStructuredCommands(t *testing.T
 }
 
 func TestRedisSensitiveFieldsDoNotRequireDatabaseContext(t *testing.T) {
-	for _, key := range []string{"redis.key", "db.redis.key", "redis.keys", "redis.args", "db.redis.command.args", "redis.raw_command", "%72edis.key", "redis.arguments", "redis.values"} {
+	for _, key := range []string{"redis.key", "db.redis.key", "redis.keys", "redis.args", "db.redis.command.args", "redis.raw_command", "%72edis.key", "redis.arguments", "redis.values", "redis.script", "db.redis.script", "%72edis.script", "redis.script.sha"} {
 		t.Run(key, func(t *testing.T) {
 			attrs := pcommon.NewMap()
 			attrs.PutStr(key, "ARBITRARY_PRIVATE_OPERAND")
@@ -146,9 +146,9 @@ func TestExplicitRedisCommandIsContextWithoutDatabaseSystem(t *testing.T) {
 	if value.Str() != "HGET" {
 		t.Fatal("Redis operands leaked without db.system")
 	}
-	input := `{"db.redis.command":"SET KEY_PRIVATE VALUE_PRIVATE","message":"cache update completed"}`
+	input := `{"db.redis.command":"SET KEY_PRIVATE VALUE_PRIVATE","redis.script":"return SCRIPT_PRIVATE","message":"cache update completed"}`
 	output := testProcessor().cleanText(input)
-	noPrivate(t, output, "KEY_PRIVATE", "VALUE_PRIVATE")
+	noPrivate(t, output, "KEY_PRIVATE", "VALUE_PRIVATE", "SCRIPT_PRIVATE")
 	if !strings.Contains(output, "cache update completed") {
 		t.Fatal("useful log message lost")
 	}
