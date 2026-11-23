@@ -39,6 +39,8 @@ O workflow `images.yaml` já executa o teste após construir, escanear e carrega
 o archive OCI exato, e novamente na qualificação nativa arm64. A construção
 também executa os testes Go do processor. PRs/dispatch de branch não publicam;
 não criar tag nem aprovar o environment de release como parte desse gate.
+O workflow de fonte também tem um job rápido Go/race, com a mesma imagem
+Go pinada do build, módulos verificados e sem credenciais de publicação.
 
 Antes dos testes, o job para somente o builder Buildx criado por ele, depois
 de verificar os archives exportados. O guard Kind de engine ocioso continua

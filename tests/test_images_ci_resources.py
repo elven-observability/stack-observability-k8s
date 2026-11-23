@@ -79,6 +79,21 @@ class ImageCIResourcesTests(unittest.TestCase):
         self.assertIn('["docker", "ps", "--quiet"]', source)
         self.assertIn('Docker engine has running workloads', source)
 
+    def test_fast_privacy_source_gate_uses_the_same_pinned_go_toolchain(self):
+        workflow = yaml.safe_load((ROOT / ".github/workflows/validate.yaml").read_text())
+        job = workflow["jobs"]["processor-contracts"]
+        lock = json.loads((ROOT / "versions.lock.json").read_text())
+        self.assertEqual(job["container"]["image"], lock["images"]["collector"]["sourceBuild"]["goImage"])
+        self.assertEqual(job["permissions"], {"contents": "read"})
+        self.assertEqual(job["env"]["GOTOOLCHAIN"], "local")
+        self.assertEqual(job["env"]["GOSUMDB"], "sum.golang.org")
+        self.assertEqual(job["timeout-minutes"], 10)
+        check = job["steps"][-1]
+        self.assertEqual(check["working-directory"], "processor/elvenprivacyprocessor")
+        self.assertIn("go mod verify", check["run"])
+        self.assertIn("go test -race -count=1 ./...", check["run"])
+        self.assertNotIn("continue-on-error", check)
+
     def test_storage_is_measured_before_build_and_after_cleanup(self):
         build_index = next(i for i, step in enumerate(self.steps) if "images-release.py build" in step.get("run", ""))
         before = self.steps[build_index - 1]["run"]

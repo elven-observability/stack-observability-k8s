@@ -20,6 +20,31 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
+  processor-contracts:
+    name: Privacy processor / Go race
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    container:
+      image: docker.io/library/golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9
+    env:
+      GOTOOLCHAIN: local
+      GOPROXY: https://proxy.golang.org
+      GOSUMDB: sum.golang.org
+      GOTELEMETRY: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify pinned modules and race-test the actual privacy processor
+        working-directory: processor/elvenprivacyprocessor
+        run: |
+          go mod download
+          go mod verify
+          go test -race -count=1 ./...
+
   contracts-and-schemas:
     name: Contracts and schemas / Python ${{ matrix.python-version }}
     runs-on: ubuntu-24.04
