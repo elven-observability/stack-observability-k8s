@@ -73,3 +73,25 @@ asserções com um oracle manual, incluindo negativos. **Verde nele não comprov
 sanitização, WAL ou execução do Collector.** O novo campo `redis.script` também
 recebe guard de redação na fonte; exige Collector reconstruído, testado,
 escaneado, assinado e promovido antes de qualquer alegação sobre a release.
+
+## Resultado em 23/11/2026
+
+O [run de requalificação](https://github.com/elven-observability/stack-observability-k8s/actions/runs/45252898001)
+passou nativamente em amd64 e arm64, usando a fonte `2a3e056` e os mesmos
+archives recém-escaneados. Os três checks Redis e os 25 checks de ciclo de vida
+Kind passaram em cada arquitetura; filas/replay/correlação e limpeza foram
+conferidos nos reports, com SHA-256 dos ZIPs validado contra a API GitHub.
+Os scans High/Critical e Govulncheck do Collector passaram nas duas arquiteturas.
+
+O [recibo permanente](evidence/2026-11-23/redis-candidate.json) distingue revisão
+real de build (merge sintético da PR), revisão de teste, digest OCI, hashes dos
+reports, fontes e limites. O build inicial teve falha posterior no preflight
+Kind por causa do próprio builder e **não** é anunciado como aceite global;
+a requalificação atualizada é o gate completo aprovado. Os artifacts originais
+do CI têm retenção de sete dias; depois, é necessário gerar e qualificar outro
+candidato, sem assumir que um scan antigo continua válido.
+
+O resultado qualifica **somente o candidato de laboratório**. Ele permanece
+`1.0.1-dev`, não publicado, não assinado e não promovido. Não alterar os locks
+ou o kit v1.0.1 para consumir esse digest. Release estável, assinatura/promoção,
+kit atualizado e rollout de cliente continuam gates posteriores separados.
