@@ -131,6 +131,29 @@ func TestRedisSensitiveFieldsDoNotRequireDatabaseContext(t *testing.T) {
 	}
 }
 
+func TestExplicitRedisCommandIsContextWithoutDatabaseSystem(t *testing.T) {
+	data := ptrace.NewTraces()
+	span := data.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("HGET ACCOUNT_PRIVATE FIELD_PRIVATE")
+	span.Attributes().PutStr("redis.command", "HGET ACCOUNT_PRIVATE FIELD_PRIVATE")
+	testProcessor().processTraces(context.Background(), data)
+	raw, _ := (&ptrace.JSONMarshaler{}).MarshalTraces(data)
+	noPrivate(t, string(raw), "ACCOUNT_PRIVATE", "FIELD_PRIVATE")
+	if span.Name() != "HGET" {
+		t.Fatal("explicit Redis command lost")
+	}
+	value, _ := span.Attributes().Get("redis.command")
+	if value.Str() != "HGET" {
+		t.Fatal("Redis operands leaked without db.system")
+	}
+	input := `{"db.redis.command":"SET KEY_PRIVATE VALUE_PRIVATE","message":"cache update completed"}`
+	output := testProcessor().cleanText(input)
+	noPrivate(t, output, "KEY_PRIVATE", "VALUE_PRIVATE")
+	if !strings.Contains(output, "cache update completed") {
+		t.Fatal("useful log message lost")
+	}
+}
+
 func TestRedisFieldsHonorSizeDepthAndItemBounds(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutStr("db.system", "redis")

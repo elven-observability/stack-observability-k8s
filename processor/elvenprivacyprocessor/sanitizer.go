@@ -322,7 +322,11 @@ func (s *sanitizer) native(input any, depth int, key string) any {
 		}
 		redis := false
 		for k, v := range value {
-			if nk := normalizedKey(k); nk == "dbsystem" || nk == "dbsystemname" {
+			nk := normalizedKey(k)
+			if nk == "rediscommand" || nk == "dbrediscommand" {
+				redis = true
+			}
+			if nk == "dbsystem" || nk == "dbsystemname" {
 				if raw, ok := v.(string); ok {
 					decoded, valid := decodeTextLayers(raw)
 					redis = redis || valid && strings.EqualFold(strings.TrimSpace(decoded), "redis")

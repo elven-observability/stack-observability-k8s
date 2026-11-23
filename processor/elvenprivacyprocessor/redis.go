@@ -47,6 +47,9 @@ func redisAttributes(input pcommon.Map) bool {
 	redis := false
 	input.Range(func(key string, value pcommon.Value) bool {
 		k := normalizedKey(key)
+		if k == "rediscommand" || k == "dbrediscommand" {
+			redis = true // Explicit Redis command attribute is sufficient context.
+		}
 		if (k == "dbsystem" || k == "dbsystemname") && value.Type() == pcommon.ValueTypeStr {
 			decoded, ok := decodeTextLayers(value.Str())
 			redis = redis || ok && strings.EqualFold(strings.TrimSpace(decoded), "redis")
