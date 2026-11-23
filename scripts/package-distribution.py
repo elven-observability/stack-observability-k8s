@@ -16,7 +16,7 @@ import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = (".gitattributes", ".github", ".gitignore", "CHANGELOG.md", "Makefile", "README.md",
-         "charts", "docs", "elven", "examples", "images", "instrumentation.lock.json",
+         "charts", "contracts", "docs", "elven", "examples", "images", "instrumentation.lock.json",
          "operator", "processor", "requirements-test.txt", "scripts", "tests", "versions.lock.json")
 
 

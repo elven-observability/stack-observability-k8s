@@ -1,0 +1,584 @@
+{
+  "$id": "https://elvenobservability.com/contracts/template/v1/request",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "apps": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "container": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+            "type": "string"
+          },
+          "existingInstrumentation": {
+            "enum": [
+              "none",
+              "sdk",
+              "unknown"
+            ]
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+            "type": "string"
+          },
+          "namespaceUid": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "resourceVersion": {
+            "pattern": "^[A-Za-z0-9_.:-]{1,128}$",
+            "type": "string"
+          },
+          "runtime": {
+            "enum": [
+              "java",
+              "nodejs",
+              "python"
+            ]
+          },
+          "templateSha256": {
+            "not": {
+              "const": "0000000000000000000000000000000000000000000000000000000000000000"
+            },
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "uid": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "namespaceUid",
+          "name",
+          "uid",
+          "resourceVersion",
+          "templateSha256",
+          "container",
+          "runtime",
+          "existingInstrumentation"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "catalogSha256": {
+      "not": {
+        "const": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "cluster": {
+      "additionalProperties": false,
+      "properties": {
+        "caSha256": {
+          "not": {
+            "const": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$",
+          "type": "string"
+        },
+        "serverSha256": {
+          "not": {
+            "const": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "uid": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
+      "required": [
+        "uid",
+        "serverSha256",
+        "caSha256",
+        "name"
+      ],
+      "type": "object"
+    },
+    "collection": {
+      "additionalProperties": false,
+      "properties": {
+        "clusterMetrics": {
+          "type": "boolean"
+        },
+        "clusterWideMetricsApproved": {
+          "type": "boolean"
+        },
+        "hostAccessApproved": {
+          "type": "boolean"
+        },
+        "privacy": {
+          "enum": [
+            "strict",
+            "selective"
+          ]
+        },
+        "stdout": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "stdout",
+        "hostAccessApproved",
+        "clusterMetrics",
+        "clusterWideMetricsApproved",
+        "privacy"
+      ],
+      "type": "object"
+    },
+    "contractVersion": {
+      "const": "elven.template/v1"
+    },
+    "ebpf": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$defs": {
+            "name": {
+              "maxLength": 253,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$",
+              "type": "string"
+            },
+            "namespace": {
+              "maxLength": 63,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+              "type": "string"
+            },
+            "nodeEvidence": {
+              "additionalProperties": false,
+              "properties": {
+                "admission": {
+                  "$ref": "#/$defs/observation"
+                },
+                "architecture": {
+                  "enum": [
+                    "amd64",
+                    "arm64",
+                    "unknown"
+                  ]
+                },
+                "bpfLoad": {
+                  "$ref": "#/$defs/observation"
+                },
+                "btf": {
+                  "enum": [
+                    "present",
+                    "absent",
+                    "unknown"
+                  ]
+                },
+                "capabilities": {
+                  "$ref": "#/$defs/observation"
+                },
+                "evidenceSha256": {
+                  "not": {
+                    "const": "0000000000000000000000000000000000000000000000000000000000000000"
+                  },
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "freeCpuMilli": {
+                  "maximum": 100000000,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "freeMemoryMiB": {
+                  "maximum": 100000000,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "freePodSlots": {
+                  "maximum": 100000,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "kernel": {
+                  "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}(\\.[A-Za-z0-9.+_-]{1,96})?$",
+                  "type": "string"
+                },
+                "name": {
+                  "$ref": "#/$defs/name"
+                },
+                "os": {
+                  "enum": [
+                    "linux",
+                    "windows",
+                    "unknown"
+                  ]
+                },
+                "ready": {
+                  "type": "boolean"
+                },
+                "uid": {
+                  "$ref": "#/$defs/uid"
+                }
+              },
+              "required": [
+                "name",
+                "uid",
+                "os",
+                "architecture",
+                "kernel",
+                "btf",
+                "ready",
+                "freePodSlots",
+                "freeCpuMilli",
+                "freeMemoryMiB",
+                "admission",
+                "capabilities",
+                "bpfLoad",
+                "evidenceSha256"
+              ],
+              "type": "object"
+            },
+            "nodeIdentity": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "$ref": "#/$defs/name"
+                },
+                "uid": {
+                  "$ref": "#/$defs/uid"
+                }
+              },
+              "required": [
+                "name",
+                "uid"
+              ],
+              "type": "object"
+            },
+            "observation": {
+              "enum": [
+                "pass",
+                "fail",
+                "unknown"
+              ]
+            },
+            "uid": {
+              "not": {
+                "const": "00000000-0000-0000-0000-000000000000"
+              },
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            },
+            "workload": {
+              "additionalProperties": false,
+              "properties": {
+                "deployment": {
+                  "$ref": "#/$defs/name"
+                },
+                "namespace": {
+                  "$ref": "#/$defs/namespace"
+                },
+                "namespaceUid": {
+                  "$ref": "#/$defs/uid"
+                },
+                "nodeUids": {
+                  "items": {
+                    "$ref": "#/$defs/uid"
+                  },
+                  "maxItems": 100,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "sdkInstrumented": {
+                  "type": "boolean"
+                },
+                "uid": {
+                  "$ref": "#/$defs/uid"
+                }
+              },
+              "required": [
+                "namespace",
+                "namespaceUid",
+                "deployment",
+                "uid",
+                "nodeUids",
+                "sdkInstrumented"
+              ],
+              "type": "object"
+            }
+          },
+          "$id": "https://elvenobservability.com/contracts/ebpf-eligibility/v1",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false,
+          "properties": {
+            "approvedNodes": {
+              "items": {
+                "$ref": "#/$defs/nodeIdentity"
+              },
+              "maxItems": 100,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "clusterUid": {
+              "$ref": "#/$defs/uid"
+            },
+            "excludeSDKInstrumentedServices": {
+              "type": "boolean"
+            },
+            "hostAccessApproved": {
+              "type": "boolean"
+            },
+            "imageDigest": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "nodeEvidence": {
+              "items": {
+                "$ref": "#/$defs/nodeEvidence"
+              },
+              "maxItems": 100,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "observedAt": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "optIn": {
+              "type": "boolean"
+            },
+            "schemaVersion": {
+              "const": 1,
+              "type": "integer"
+            },
+            "workloads": {
+              "items": {
+                "$ref": "#/$defs/workload"
+              },
+              "maxItems": 100,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "clusterUid",
+            "optIn",
+            "hostAccessApproved",
+            "excludeSDKInstrumentedServices",
+            "imageDigest",
+            "approvedNodes",
+            "workloads",
+            "observedAt",
+            "nodeEvidence"
+          ],
+          "title": "Trusted Elven reader evidence for a bounded eBPF pilot",
+          "type": "object"
+        }
+      ]
+    },
+    "namespace": {
+      "maxLength": 63,
+      "minLength": 1,
+      "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+      "type": "string"
+    },
+    "namespaces": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+            "type": "string"
+          },
+          "uid": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "uid"
+        ],
+        "type": "object"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "network": {
+      "additionalProperties": false,
+      "properties": {
+        "api": {
+          "items": {
+            "format": "cidr",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "dns": {
+          "items": {
+            "format": "cidr",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 0,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "dnsNamespace": {
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+          "type": "string"
+        },
+        "exports": {
+          "items": {
+            "format": "cidr",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "exports",
+        "api",
+        "dnsNamespace",
+        "dns"
+      ],
+      "type": "object"
+    },
+    "nodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$",
+            "type": "string"
+          },
+          "uid": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "uid"
+        ],
+        "type": "object"
+      },
+      "maxItems": 100,
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "observedAt": {
+      "format": "date-time",
+      "maxLength": 40,
+      "type": "string"
+    },
+    "operatorRelease": {
+      "maxLength": 63,
+      "minLength": 1,
+      "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+      "type": "string"
+    },
+    "release": {
+      "maxLength": 63,
+      "minLength": 1,
+      "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+      "type": "string"
+    },
+    "storage": {
+      "additionalProperties": false,
+      "properties": {
+        "class": {
+          "maxLength": 63,
+          "minLength": 1,
+          "pattern": "^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$",
+          "type": "string"
+        },
+        "sizeGiB": {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "class",
+        "sizeGiB"
+      ],
+      "type": "object"
+    },
+    "tenantId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$",
+      "type": "string"
+    },
+    "traceSampling": {
+      "enum": [
+        "1",
+        "0.5",
+        "0.1",
+        "0.01"
+      ]
+    }
+  },
+  "required": [
+    "contractVersion",
+    "catalogSha256",
+    "cluster",
+    "observedAt",
+    "namespace",
+    "release",
+    "operatorRelease",
+    "tenantId",
+    "namespaces",
+    "apps",
+    "nodes",
+    "collection",
+    "storage",
+    "network",
+    "traceSampling",
+    "ebpf"
+  ],
+  "type": "object"
+}
