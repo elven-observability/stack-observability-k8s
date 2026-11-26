@@ -1,0 +1,1295 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-26",
+  "scope": "DISPOSABLE_HOSTED_LAB_NOT_CUSTOMER_ACCEPTANCE",
+  "sourceRevision": "3681f04f095e4e04a72f8ab1591d6d8694f5601d",
+  "customerInstallable": false,
+  "signed": false,
+  "publishedToRegistry": false,
+  "promoted": false,
+  "candidate": {
+    "filename": "elven-lab-candidate-3681f04f095e.zip",
+    "bytes": 253742,
+    "sha256": "632c7f2d6247e5bd7b720a0b0432bb5cfb75c7049c7a5905e422e7da0b0c7b07",
+    "payloadSha256": "2f63ee5f692eb9228056fdbee1bcec115d6954c6f59d94ecef41853197526910",
+    "artifactId": 15140637966,
+    "artifactZipSha256": "sha256:cf96625aac832cac9d8dc5b8c4f2d43fe3a2b209441840acfc8a4e8fe80bcd80",
+    "embeddedRuntimeAcceptance": "NOT_PROVEN",
+    "qualification": "PASS_LAB_NOT_RELEASE"
+  },
+  "runs": {
+    "core": {
+      "id": 45861736961,
+      "result": "success",
+      "buildRevision": "9c328546c2feea044617920ba8c0791a035a9cdf",
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45861736961"
+    },
+    "sdk": {
+      "id": 45862423689,
+      "result": "success",
+      "buildRevision": "056ec8b5341b83b9959db4f826ae82e03eff3825",
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45862423689"
+    },
+    "hybrid": {
+      "id": 45866699211,
+      "result": "success",
+      "headSha": "3681f04f095e4e04a72f8ab1591d6d8694f5601d",
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45866699211"
+    },
+    "source": {
+      "id": 45866478499,
+      "result": "success",
+      "headSha": "cf97ca8901715b15cd2e30a655af97771c3cfa45",
+      "url": "https://github.com/elven-observability/stack-observability-k8s/actions/runs/45866478499"
+    }
+  },
+  "securityAdmission": {
+    "result": "PASS_LAB_ONLY_NOT_RELEASE_ADMISSION",
+    "gate": "qualify-candidate-artifacts.py in hybrid run",
+    "imageFamilies": {
+      "core": 3,
+      "sdk": 5
+    },
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "scanner": "trivy/0.76.2",
+    "highCriticalCount": 0,
+    "scanMaxAgeHours": 24,
+    "databaseMaxAgeHours": 48,
+    "archiveReportSbomAndBuildInputHashesVerified": true,
+    "collectorGovulncheck": {
+      "tool": "govulncheck/1.9.0",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "exitCode": 0,
+      "mode": "binary-symbol-analysis-not-native-execution"
+    }
+  },
+  "coreManifest": {
+    "artifactId": 15139997396,
+    "artifactZipSha256": "sha256:63fd1c62491284a06c22d432ec43360d0cd61ce4c5eec768157d02e5dfc776a7",
+    "originalManifestSha256": "48dc796acdef12dfe4a018d8d7a2baf1a7c065397a432e2550b2fa6642e97866",
+    "ociArtifactId": 15140592097,
+    "ociArtifactZipSha256": "sha256:b4f6b2d5cd7f0a46806bc04abcd39a83ca3bcdb5c66f58d025552eda19919d4c"
+  },
+  "images": {
+    "collector": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533",
+    "beyla": "docker.io/elvenobservability/elven-ebpf:1.0.1-dev@sha256:85efeb8471bc223212fc155608df9a8030ac10cbbf1b042f034b25df7f9e057b",
+    "profiler": "docker.io/elvenobservability/elven-profiler:1.0.1-dev@sha256:b3c8a5b511f69c3b001963f3f97644759a0d54bd6ff1c58b1155b2c4306de3e0",
+    "operator": "docker.io/elvenobservability/elven-instrumentation-operator:1.0.1-dev@sha256:91b8f031092612d764d46c35f2e91bb304ea79292e42c9e95d6e69d621add65e",
+    "java": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:245d459b8af24fcfb3e24d2a27761dd5d29b9cb315566c13f28196bfc48253aa",
+    "nodejs": "docker.io/elvenobservability/elven-auto-nodejs:1.0.1-dev@sha256:8753b8a2f2b84061ba77b048139f0b45b68de4393c0992eb7e7ae65e1c901f32",
+    "nodejs20": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.1-dev@sha256:75f531b9daa0441b26a86b8deff1d6624cadaeba137a8897e6d31234d266f2e1",
+    "python": "docker.io/elvenobservability/elven-auto-python:1.0.1-dev@sha256:0b49469f285874ec0b977a938c1207f0d81b8ad4351a5d5559ca5cc3d0091f89"
+  },
+  "runtimeEvidence": [
+    {
+      "artifactId": 15140567045,
+      "artifactName": "elven-runtime-evidence",
+      "artifactZipSha256": "sha256:f3409c61691e136a5f8947e15d5eca613aa321f4f1e21ff7b5db3d52b3892b39",
+      "artifactBytes": 8026,
+      "reports": [
+        {
+          "path": "kind-55efe40c9f/report.json",
+          "originalReportSha256": "9c28b0c96de16c0156a2847653b992267b4d3e46528d8cdb8c4bc43ee733589c",
+          "summary": {
+            "completed": true,
+            "runtime_platform": {
+              "source": "kubectl version.serverVersion.platform",
+              "reported": "linux/amd64",
+              "tested": "linux/amd64"
+            },
+            "customer_cluster_access": false,
+            "cluster_retained": false,
+            "not_proven": [
+              "NetworkPolicy enforcement (Kind default CNI)",
+              "customer network/tenant ingestion",
+              "eBPF/kernel compatibility",
+              "production scale/HA",
+              "all supported Kubernetes versions live",
+              "native arm64 runtime"
+            ],
+            "checks": [
+              {
+                "name": "local Collector OCI archive loaded into only the disposable Kind node",
+                "result": "passed",
+                "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533"
+              },
+              {
+                "name": "isolated Kind boot",
+                "result": "passed",
+                "server": "v1.37.0"
+              },
+              {
+                "name": "synthetic TLS and ingestion Secrets created without argv values",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+                "result": "passed"
+              },
+              {
+                "name": "Kind kubelet public serving identity trusted with exact SAN/DNS verification",
+                "result": "passed",
+                "certificate_sha256": "6c82e530f36d99b5fcc94a5ff242532cd89e78d7b5070bd1d767d777cfbf540e"
+              },
+              {
+                "name": "existing customer resource with the intended name is rejected, not adopted",
+                "result": "passed"
+              },
+              {
+                "name": "clean Helm install elven-a",
+                "result": "passed",
+                "manifest_sha256": "6e24a84475634c1777245bcf89e8b9e55f8b0a52c84801f2cbe8e13f78380ed3"
+              },
+              {
+                "name": "actual Elven CLI preflight status and upgrade succeed with explicit context UID and existing mTLS Secrets",
+                "result": "passed"
+              },
+              {
+                "name": "positive OTLP logs metrics traces; selective privacy preserves useful text and sanitized span links; outbound tenant/auth verified",
+                "result": "passed"
+              },
+              {
+                "name": "mTLS rejects a client without a certificate",
+                "result": "passed"
+              },
+              {
+                "name": "untrusted server CA fails certificate verification",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic backend rejects invalid Bearer credentials",
+                "result": "passed"
+              },
+              {
+                "name": "own cluster reader exports Kubernetes API metrics without customer Prometheus",
+                "result": "passed"
+              },
+              {
+                "name": "own kubelet collector exports usage metrics with verified TLS, not skip_verify",
+                "result": "passed"
+              },
+              {
+                "name": "node log collector reads actual CRI stdout and exports sanitized data without application SDK",
+                "result": "passed"
+              },
+              {
+                "name": "runtime RBAC denies Secret access and writes; cluster-reader Pod discovery allowed",
+                "result": "passed"
+              },
+              {
+                "name": "original log survives outage longer than 30 seconds without new input",
+                "result": "passed"
+              },
+              {
+                "name": "persistent queue contains sanitized data, not private body/link sentinels or exporter token",
+                "result": "passed"
+              },
+              {
+                "name": "persistent sanitized queue replays after forced Pod recreation with the same PVC",
+                "result": "passed"
+              },
+              {
+                "name": "upgrade with changed chart version and health port succeeds without changing immutable PVC labels",
+                "result": "passed",
+                "previous_chart_version": "1.0.1",
+                "new_chart_version": "1.0.1-rc.1"
+              },
+              {
+                "name": "invalid configuration rejected by Helm before apply",
+                "result": "passed"
+              },
+              {
+                "name": "actual Elven CLI rollback validates storage and tenant identity before restoring the prior revision",
+                "result": "passed"
+              },
+              {
+                "name": "clean Helm install elven-b",
+                "result": "passed",
+                "manifest_sha256": "dd4de5fbc4e644e3532c4191df0b3ec6a33bb1fff8d29ecf461dda0e52146937"
+              },
+              {
+                "name": "two releases coexist without overwriting customer-owned sentinel",
+                "result": "passed"
+              },
+              {
+                "name": "uninstall preserves both PVCs and customer-owned sentinel",
+                "result": "passed"
+              }
+            ]
+          }
+        },
+        {
+          "path": "privacy-b91596b0ea3b/report.json",
+          "originalReportSha256": "94117ea4f7acf2cfa90a3839f439fc320b19e43074ce805b91c37f58c02adbf3",
+          "summary": {
+            "result": "PASS",
+            "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533",
+            "runtime_platform": "linux/amd64",
+            "customer_cluster_access": false,
+            "cleanup": {
+              "completed": true
+            },
+            "not_proven": [
+              "universal PII detection",
+              "client data/tenant ingestion",
+              "NetworkPolicy enforcement",
+              "production disk capacity/scale",
+              "all SQL dialects"
+            ],
+            "checks": [
+              {
+                "name": "verified server TLS and required client certificate",
+                "result": "PASS"
+              },
+              {
+                "name": "upstream protobuf recursion defense rejects hostile depth without relaxing limits",
+                "nested_maps": 40,
+                "result": "PASS",
+                "status": 400
+              },
+              {
+                "correlation_preserved": true,
+                "known_sensitive_values_absent": true,
+                "log_cases": 15,
+                "metric_points": 1,
+                "name": "selective privacy and correlation",
+                "result": "PASS",
+                "span_links_preserved": 1,
+                "spans": 2,
+                "useful_operational_text_preserved": true
+              },
+              {
+                "name": "idempotent second privacy boundary for node-to-gateway",
+                "result": "PASS",
+                "signals": [
+                  "logs",
+                  "metrics",
+                  "traces"
+                ]
+              },
+              {
+                "files": [
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_logs_logs"
+                  },
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_metrics_metrics"
+                  },
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_traces_traces"
+                  }
+                ],
+                "forbidden_matches": [],
+                "name": "privacy before persistent WAL and restart recovery",
+                "redaction_markers": 58,
+                "required_markers": {},
+                "result": "PASS",
+                "useful_message_occurrences": 2
+              },
+              {
+                "cases": [
+                  "auth",
+                  "eval",
+                  "explicit",
+                  "get",
+                  "resp",
+                  "set"
+                ],
+                "correlation_preserved": true,
+                "known_sensitive_values_absent": true,
+                "logs": 6,
+                "metric_points": 1,
+                "name": "Redis operations, errors and correlation through real Collector export",
+                "result": "PASS",
+                "spans": 6,
+                "useful_operation_error_and_log_preserved": true
+              },
+              {
+                "name": "Redis idempotent second privacy boundary",
+                "result": "PASS"
+              },
+              {
+                "cases": [
+                  "auth",
+                  "eval",
+                  "explicit",
+                  "get",
+                  "resp",
+                  "set"
+                ],
+                "correlation_preserved": true,
+                "delivery_semantics": "at-least-once",
+                "known_sensitive_values_absent": true,
+                "logs": 6,
+                "metric_points": 1,
+                "name": "Redis privacy before actual three-signal WAL and restart replay",
+                "result": "PASS",
+                "spans": 6,
+                "useful_operation_error_and_log_preserved": true,
+                "wal": {
+                  "files": [
+                    {
+                      "bytes": 65536,
+                      "name": "exports/exporter_otlp_http_logs_logs"
+                    },
+                    {
+                      "bytes": 32768,
+                      "name": "exports/exporter_otlp_http_metrics_metrics"
+                    },
+                    {
+                      "bytes": 65536,
+                      "name": "exports/exporter_otlp_http_traces_traces"
+                    }
+                  ],
+                  "forbidden_matches": [],
+                  "redaction_markers": 317,
+                  "required_markers": {
+                    "elven redis log wal cache operation failed status=503": 12,
+                    "elven redis trace wal": 12,
+                    "elven.redis.synthetic.wal.duration": 2
+                  },
+                  "useful_message_occurrences": 0
+                }
+              },
+              {
+                "cases": [
+                  "java",
+                  "nodejs",
+                  "python"
+                ],
+                "evidence_boundary": "compiled_collector_https_export",
+                "exception_type_frames_and_operational_context_preserved": true,
+                "http_error_status_and_log_trace_correlation_preserved": true,
+                "input_origin": "synthetic_otlp_language_shaped_fixtures",
+                "known_sensitive_values_absent": true,
+                "name": "Selective exceptions through compiled Collector HTTPS export and second boundary",
+                "result": "PASS",
+                "sdk_runtime_execution_qualified": false,
+                "second_boundary_idempotent": true,
+                "signals": [
+                  "logs",
+                  "traces"
+                ]
+              },
+              {
+                "log_cases": 15,
+                "name": "explicit strict mode",
+                "result": "PASS"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "artifactId": 15139354721,
+      "artifactName": "elven-native-arm-runtime-evidence",
+      "artifactZipSha256": "sha256:53edfccaeac01ba3dc59779d9722f7167522172dc7a99515b0ef3dcf384595c0",
+      "artifactBytes": 8148,
+      "reports": [
+        {
+          "path": "kind-c66822fdad/report.json",
+          "originalReportSha256": "772c08ff12495749071f539fbc4148ecc8495846d452f43481da94c2b4544e10",
+          "summary": {
+            "completed": true,
+            "runtime_platform": {
+              "source": "kubectl version.serverVersion.platform",
+              "reported": "linux/arm64",
+              "tested": "linux/arm64"
+            },
+            "customer_cluster_access": false,
+            "cluster_retained": false,
+            "not_proven": [
+              "NetworkPolicy enforcement (Kind default CNI)",
+              "customer network/tenant ingestion",
+              "eBPF/kernel compatibility",
+              "production scale/HA",
+              "all supported Kubernetes versions live",
+              "native amd64 runtime"
+            ],
+            "checks": [
+              {
+                "name": "local Collector OCI archive loaded into only the disposable Kind node",
+                "result": "passed",
+                "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533"
+              },
+              {
+                "name": "isolated Kind boot",
+                "result": "passed",
+                "server": "v1.37.0"
+              },
+              {
+                "name": "synthetic TLS and ingestion Secrets created without argv values",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+                "result": "passed"
+              },
+              {
+                "name": "Kind kubelet public serving identity trusted with exact SAN/DNS verification",
+                "result": "passed",
+                "certificate_sha256": "f44a7d770cde6f20ad2b782de3c71768b042f52bf581ee1315e2037ceb8fbc22"
+              },
+              {
+                "name": "existing customer resource with the intended name is rejected, not adopted",
+                "result": "passed"
+              },
+              {
+                "name": "clean Helm install elven-a",
+                "result": "passed",
+                "manifest_sha256": "89e9767dfd6e954351ae96d6a2da8b51e06761fbd7aea88a0a2b1a967e655fb1"
+              },
+              {
+                "name": "actual Elven CLI preflight status and upgrade succeed with explicit context UID and existing mTLS Secrets",
+                "result": "passed"
+              },
+              {
+                "name": "positive OTLP logs metrics traces; selective privacy preserves useful text and sanitized span links; outbound tenant/auth verified",
+                "result": "passed"
+              },
+              {
+                "name": "mTLS rejects a client without a certificate",
+                "result": "passed"
+              },
+              {
+                "name": "untrusted server CA fails certificate verification",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic backend rejects invalid Bearer credentials",
+                "result": "passed"
+              },
+              {
+                "name": "own cluster reader exports Kubernetes API metrics without customer Prometheus",
+                "result": "passed"
+              },
+              {
+                "name": "own kubelet collector exports usage metrics with verified TLS, not skip_verify",
+                "result": "passed"
+              },
+              {
+                "name": "node log collector reads actual CRI stdout and exports sanitized data without application SDK",
+                "result": "passed"
+              },
+              {
+                "name": "runtime RBAC denies Secret access and writes; cluster-reader Pod discovery allowed",
+                "result": "passed"
+              },
+              {
+                "name": "original log survives outage longer than 30 seconds without new input",
+                "result": "passed"
+              },
+              {
+                "name": "persistent queue contains sanitized data, not private body/link sentinels or exporter token",
+                "result": "passed"
+              },
+              {
+                "name": "persistent sanitized queue replays after forced Pod recreation with the same PVC",
+                "result": "passed"
+              },
+              {
+                "name": "upgrade with changed chart version and health port succeeds without changing immutable PVC labels",
+                "result": "passed",
+                "previous_chart_version": "1.0.1",
+                "new_chart_version": "1.0.1-rc.1"
+              },
+              {
+                "name": "invalid configuration rejected by Helm before apply",
+                "result": "passed"
+              },
+              {
+                "name": "actual Elven CLI rollback validates storage and tenant identity before restoring the prior revision",
+                "result": "passed"
+              },
+              {
+                "name": "clean Helm install elven-b",
+                "result": "passed",
+                "manifest_sha256": "1134889c4308db69abe712c83f512610dfc42f540ef3768f83c27b160d6558b9"
+              },
+              {
+                "name": "two releases coexist without overwriting customer-owned sentinel",
+                "result": "passed"
+              },
+              {
+                "name": "uninstall preserves both PVCs and customer-owned sentinel",
+                "result": "passed"
+              }
+            ]
+          }
+        },
+        {
+          "path": "privacy-e3ba282ae510/report.json",
+          "originalReportSha256": "5e5d452b5a688c819b5e9b013f8c342b0add1695ce1e146ef0e874e5e274246e",
+          "summary": {
+            "result": "PASS",
+            "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533",
+            "runtime_platform": "linux/arm64",
+            "customer_cluster_access": false,
+            "cleanup": {
+              "completed": true
+            },
+            "not_proven": [
+              "universal PII detection",
+              "client data/tenant ingestion",
+              "NetworkPolicy enforcement",
+              "production disk capacity/scale",
+              "all SQL dialects"
+            ],
+            "checks": [
+              {
+                "name": "verified server TLS and required client certificate",
+                "result": "PASS"
+              },
+              {
+                "name": "upstream protobuf recursion defense rejects hostile depth without relaxing limits",
+                "nested_maps": 40,
+                "result": "PASS",
+                "status": 400
+              },
+              {
+                "correlation_preserved": true,
+                "known_sensitive_values_absent": true,
+                "log_cases": 15,
+                "metric_points": 1,
+                "name": "selective privacy and correlation",
+                "result": "PASS",
+                "span_links_preserved": 1,
+                "spans": 2,
+                "useful_operational_text_preserved": true
+              },
+              {
+                "name": "idempotent second privacy boundary for node-to-gateway",
+                "result": "PASS",
+                "signals": [
+                  "logs",
+                  "metrics",
+                  "traces"
+                ]
+              },
+              {
+                "files": [
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_logs_logs"
+                  },
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_metrics_metrics"
+                  },
+                  {
+                    "bytes": 32768,
+                    "name": "exports/exporter_otlp_http_traces_traces"
+                  }
+                ],
+                "forbidden_matches": [],
+                "name": "privacy before persistent WAL and restart recovery",
+                "redaction_markers": 30,
+                "required_markers": {},
+                "result": "PASS",
+                "useful_message_occurrences": 2
+              },
+              {
+                "cases": [
+                  "auth",
+                  "eval",
+                  "explicit",
+                  "get",
+                  "resp",
+                  "set"
+                ],
+                "correlation_preserved": true,
+                "known_sensitive_values_absent": true,
+                "logs": 6,
+                "metric_points": 1,
+                "name": "Redis operations, errors and correlation through real Collector export",
+                "result": "PASS",
+                "spans": 6,
+                "useful_operation_error_and_log_preserved": true
+              },
+              {
+                "name": "Redis idempotent second privacy boundary",
+                "result": "PASS"
+              },
+              {
+                "cases": [
+                  "auth",
+                  "eval",
+                  "explicit",
+                  "get",
+                  "resp",
+                  "set"
+                ],
+                "correlation_preserved": true,
+                "delivery_semantics": "at-least-once",
+                "known_sensitive_values_absent": true,
+                "logs": 6,
+                "metric_points": 1,
+                "name": "Redis privacy before actual three-signal WAL and restart replay",
+                "result": "PASS",
+                "spans": 6,
+                "useful_operation_error_and_log_preserved": true,
+                "wal": {
+                  "files": [
+                    {
+                      "bytes": 65536,
+                      "name": "exports/exporter_otlp_http_logs_logs"
+                    },
+                    {
+                      "bytes": 32768,
+                      "name": "exports/exporter_otlp_http_metrics_metrics"
+                    },
+                    {
+                      "bytes": 65536,
+                      "name": "exports/exporter_otlp_http_traces_traces"
+                    }
+                  ],
+                  "forbidden_matches": [],
+                  "redaction_markers": 316,
+                  "required_markers": {
+                    "elven redis log wal cache operation failed status=503": 12,
+                    "elven redis trace wal": 12,
+                    "elven.redis.synthetic.wal.duration": 2
+                  },
+                  "useful_message_occurrences": 0
+                }
+              },
+              {
+                "cases": [
+                  "java",
+                  "nodejs",
+                  "python"
+                ],
+                "evidence_boundary": "compiled_collector_https_export",
+                "exception_type_frames_and_operational_context_preserved": true,
+                "http_error_status_and_log_trace_correlation_preserved": true,
+                "input_origin": "synthetic_otlp_language_shaped_fixtures",
+                "known_sensitive_values_absent": true,
+                "name": "Selective exceptions through compiled Collector HTTPS export and second boundary",
+                "result": "PASS",
+                "sdk_runtime_execution_qualified": false,
+                "second_boundary_idempotent": true,
+                "signals": [
+                  "logs",
+                  "traces"
+                ]
+              },
+              {
+                "log_cases": 15,
+                "name": "explicit strict mode",
+                "result": "PASS"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "artifactId": 15139226259,
+      "artifactName": "elven-instrumentation-runtime-evidence",
+      "artifactZipSha256": "sha256:2ac6acddeeee2d1b3da0a2f6e3a0b9a171e38d928b91e57ea6cf248266a569a3",
+      "artifactBytes": 6198,
+      "reports": [
+        {
+          "path": "instrumentation-kind-95d03c9097/report.json",
+          "originalReportSha256": "fd8cc785ea48de8a9eaa6832ce4fe8bdcc49ff43e77fb87f512871a1412f4409",
+          "summary": {
+            "test": "actual Elven admission and auto-instrumentation SDKs",
+            "completed": true,
+            "runtime_platform": {
+              "source": "kubectl version.serverVersion.platform",
+              "reported": "linux/amd64",
+              "tested": "linux/amd64"
+            },
+            "customer_cluster_access": false,
+            "cluster_retained": false,
+            "runtime_coverage": {
+              "java17": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "PASS",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "java21": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "PASS",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "node22": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "node20": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "python": {
+                "http_server_client": "NOT_TESTED",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              }
+            },
+            "observed_spans_by_service": {
+              "java17": 19,
+              "java21": 11,
+              "node20": 6,
+              "node22": 6
+            },
+            "sink_wire": {
+              "verified_client_certificate_exports": 11,
+              "chunked_exports": 2,
+              "empty_chunked_exports": 0,
+              "backend_bearer_credentials_in_sdk_exports": false
+            },
+            "not_proven": [
+              "NetworkPolicy enforcement (Kind default CNI)",
+              "customer infrastructure/tenant acceptance",
+              "all supported Kubernetes versions live",
+              "production scale/HA",
+              "Python SDK application compatibility",
+              "independent registry/signature verification by this runtime harness",
+              "gateway privacy/durable queues in this standalone SDK run",
+              "gateway/instrumentation installer ownership bootstrap in this standalone SDK run",
+              "native arm64 runtime"
+            ],
+            "checks": [
+              {
+                "name": "isolated Kind boot",
+                "result": "passed",
+                "server": "v1.37.0"
+              },
+              {
+                "name": "all five instrumentation OCI indices verified and loaded only into isolated Kind",
+                "result": "passed"
+              },
+              {
+                "name": "official pinned Java17 Java21 Node22 and explicit EOL Node20 fixtures built without bundled SDKs",
+                "result": "passed",
+                "h2_sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+              },
+              {
+                "name": "synthetic TLS and ingestion Secrets created without argv values",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+                "result": "passed"
+              },
+              {
+                "name": "real Operator chart with verified serving PKI and mTLS SDK client fixture installed",
+                "result": "passed"
+              },
+              {
+                "name": "Operator runtime has no Kubernetes Secret read permissions",
+                "result": "passed"
+              },
+              {
+                "name": "actual SDK init copy and app readiness java17",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:245d459b8af24fcfb3e24d2a27761dd5d29b9cb315566c13f28196bfc48253aa",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness java21",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:245d459b8af24fcfb3e24d2a27761dd5d29b9cb315566c13f28196bfc48253aa",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness node22",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs:1.0.1-dev@sha256:8753b8a2f2b84061ba77b048139f0b45b68de4393c0992eb7e7ae65e1c901f32",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness node20",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.1-dev@sha256:75f531b9daa0441b26a86b8deff1d6624cadaeba137a8897e6d31234d266f2e1",
+                "init_exit_code": 0
+              },
+              {
+                "name": "explicit app-container target leaves Node sidecar security loader and mounts untouched",
+                "result": "passed"
+              },
+              {
+                "name": "unlabelled app and opted-in foreign namespace are not injected",
+                "result": "passed"
+              },
+              {
+                "name": "unknown runtime existing SDK conflict and ambiguous multi-container target are denied before creation",
+                "result": "passed"
+              },
+              {
+                "name": "Operator install and admissions do not update or restart an existing application",
+                "result": "passed"
+              },
+              {
+                "name": "real auto-instrumented HTTP server client and JDBC SQL spans java17",
+                "result": "passed",
+                "span_count": 19,
+                "scopes": [
+                  "io.opentelemetry.http-url-connection",
+                  "io.opentelemetry.java-http-server",
+                  "io.opentelemetry.jdbc"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client and JDBC SQL spans java21",
+                "result": "passed",
+                "span_count": 11,
+                "scopes": [
+                  "io.opentelemetry.http-url-connection",
+                  "io.opentelemetry.java-http-server",
+                  "io.opentelemetry.jdbc"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client spans node20",
+                "result": "passed",
+                "span_count": 6,
+                "scopes": [
+                  "@opentelemetry/instrumentation-http"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client spans node22",
+                "result": "passed",
+                "span_count": 6,
+                "scopes": [
+                  "@opentelemetry/instrumentation-http"
+                ]
+              },
+              {
+                "name": "actual SDK OTLP exports authenticate with verified TLS client certificates",
+                "result": "passed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "artifactId": 15138654481,
+      "artifactName": "elven-instrumentation-native-arm-evidence",
+      "artifactZipSha256": "sha256:795f386c93052042506cadee21b23dbb046cb6c967b7ba373f9a781f730fd25f",
+      "artifactBytes": 5467,
+      "reports": [
+        {
+          "path": "instrumentation-kind-c6876e4709/report.json",
+          "originalReportSha256": "50abcaaa68d477a607290c09b5aa3b5ce7f7915241d29cacb5f58d608b130077",
+          "summary": {
+            "test": "actual Elven admission and auto-instrumentation SDKs",
+            "completed": true,
+            "runtime_platform": {
+              "source": "kubectl version.serverVersion.platform",
+              "reported": "linux/arm64",
+              "tested": "linux/arm64"
+            },
+            "customer_cluster_access": false,
+            "cluster_retained": false,
+            "runtime_coverage": {
+              "java17": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "PASS",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "java21": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "PASS",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "node22": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "node20": {
+                "http_server_client": "PASS",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              },
+              "python": {
+                "http_server_client": "NOT_TESTED",
+                "sql_query_shape": "NOT_TESTED",
+                "exceptions": "NOT_TESTED",
+                "redis_command_privacy": "NOT_TESTED",
+                "application_logs": "NOT_TESTED",
+                "application_metrics": "NOT_TESTED",
+                "rollback": "NOT_TESTED"
+              }
+            },
+            "observed_spans_by_service": {
+              "java17": 18,
+              "java21": 13,
+              "node20": 7,
+              "node22": 6
+            },
+            "sink_wire": {
+              "verified_client_certificate_exports": 12,
+              "chunked_exports": 2,
+              "empty_chunked_exports": 0,
+              "backend_bearer_credentials_in_sdk_exports": false
+            },
+            "not_proven": [
+              "NetworkPolicy enforcement (Kind default CNI)",
+              "customer infrastructure/tenant acceptance",
+              "all supported Kubernetes versions live",
+              "production scale/HA",
+              "Python SDK application compatibility",
+              "independent registry/signature verification by this runtime harness",
+              "gateway privacy/durable queues in this standalone SDK run",
+              "gateway/instrumentation installer ownership bootstrap in this standalone SDK run",
+              "native amd64 runtime"
+            ],
+            "checks": [
+              {
+                "name": "isolated Kind boot",
+                "result": "passed",
+                "server": "v1.37.0"
+              },
+              {
+                "name": "all five instrumentation OCI indices verified and loaded only into isolated Kind",
+                "result": "passed"
+              },
+              {
+                "name": "official pinned Java17 Java21 Node22 and explicit EOL Node20 fixtures built without bundled SDKs",
+                "result": "passed",
+                "h2_sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+              },
+              {
+                "name": "synthetic TLS and ingestion Secrets created without argv values",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+                "result": "passed"
+              },
+              {
+                "name": "real Operator chart with verified serving PKI and mTLS SDK client fixture installed",
+                "result": "passed"
+              },
+              {
+                "name": "Operator runtime has no Kubernetes Secret read permissions",
+                "result": "passed"
+              },
+              {
+                "name": "actual SDK init copy and app readiness java17",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:245d459b8af24fcfb3e24d2a27761dd5d29b9cb315566c13f28196bfc48253aa",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness java21",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:245d459b8af24fcfb3e24d2a27761dd5d29b9cb315566c13f28196bfc48253aa",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness node22",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs:1.0.1-dev@sha256:8753b8a2f2b84061ba77b048139f0b45b68de4393c0992eb7e7ae65e1c901f32",
+                "init_exit_code": 0
+              },
+              {
+                "name": "actual SDK init copy and app readiness node20",
+                "result": "passed",
+                "sdk_image": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.1-dev@sha256:75f531b9daa0441b26a86b8deff1d6624cadaeba137a8897e6d31234d266f2e1",
+                "init_exit_code": 0
+              },
+              {
+                "name": "explicit app-container target leaves Node sidecar security loader and mounts untouched",
+                "result": "passed"
+              },
+              {
+                "name": "unlabelled app and opted-in foreign namespace are not injected",
+                "result": "passed"
+              },
+              {
+                "name": "unknown runtime existing SDK conflict and ambiguous multi-container target are denied before creation",
+                "result": "passed"
+              },
+              {
+                "name": "Operator install and admissions do not update or restart an existing application",
+                "result": "passed"
+              },
+              {
+                "name": "real auto-instrumented HTTP server client and JDBC SQL spans java17",
+                "result": "passed",
+                "span_count": 18,
+                "scopes": [
+                  "io.opentelemetry.http-url-connection",
+                  "io.opentelemetry.java-http-server",
+                  "io.opentelemetry.jdbc"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client and JDBC SQL spans java21",
+                "result": "passed",
+                "span_count": 13,
+                "scopes": [
+                  "io.opentelemetry.http-url-connection",
+                  "io.opentelemetry.java-http-server",
+                  "io.opentelemetry.jdbc"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client spans node20",
+                "result": "passed",
+                "span_count": 7,
+                "scopes": [
+                  "@opentelemetry/instrumentation-http"
+                ]
+              },
+              {
+                "name": "real auto-instrumented HTTP server client spans node22",
+                "result": "passed",
+                "span_count": 6,
+                "scopes": [
+                  "@opentelemetry/instrumentation-http"
+                ]
+              },
+              {
+                "name": "actual SDK OTLP exports authenticate with verified TLS client certificates",
+                "result": "passed"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "artifactId": 15140862865,
+      "artifactName": "elven-lab-candidate-evidence",
+      "artifactZipSha256": "sha256:3afdc2f443569ec5f8dd67e067c878ab816e942d2055efcdc5aca4d86b0340ec",
+      "artifactBytes": 2727,
+      "reports": [
+        {
+          "path": "kind-5f174217cd/report.json",
+          "originalReportSha256": "d564fc1e104585b74becceda67878d90f90485d8d7cae97a438c3bc3ee0188ae",
+          "summary": {
+            "test": "verified ZIP real SDK/Beyla disjoint capture and rollback",
+            "result": "PASS_LAB_NOT_RELEASE",
+            "completed": true,
+            "runtime_platform": {
+              "source": "kubectl version.serverVersion.platform",
+              "reported": "linux/amd64",
+              "tested": "linux/amd64"
+            },
+            "customer_cluster_access": false,
+            "cluster_retained": false,
+            "candidate": {
+              "sha256": "632c7f2d6247e5bd7b720a0b0432bb5cfb75c7049c7a5905e422e7da0b0c7b07",
+              "sourceRevision": "3681f04f095e4e04a72f8ab1591d6d8694f5601d"
+            },
+            "image_build_revisions": {
+              "core": "9c328546c2feea044617920ba8c0791a035a9cdf",
+              "sdk": "056ec8b5341b83b9959db4f826ae82e03eff3825"
+            },
+            "host_access_approved": true,
+            "host": {
+              "node": "elven-dist-5f174217cd-control-plane",
+              "uid": "7bffc5d1-2010-4c45-b3bf-febdaa6f836a",
+              "nodeInfo": {
+                "architecture": "amd64",
+                "bootID": "80ebff9a-469f-482b-85af-0f2fc43c09b2",
+                "containerRuntimeVersion": "containerd://2.3.4",
+                "kernelVersion": "7.0.0-1020-azure",
+                "kubeProxyVersion": "",
+                "kubeletVersion": "v1.37.0",
+                "machineID": "81eb981e412542d4b1953c8dfca2bd6e",
+                "operatingSystem": "linux",
+                "osImage": "Debian GNU/Linux 13 (trixie)",
+                "runningInUserNamespace": false,
+                "swap": {
+                  "capacity": 3221221376
+                },
+                "systemUUID": "48070b5b-921e-4e3d-904e-5364b2314ef9"
+              },
+              "btfPresent": true,
+              "cniDaemonSets": [
+                {
+                  "name": "kindnet",
+                  "images": [
+                    "docker.io/kindest/kindnetd:v20260820-69b56db7"
+                  ]
+                },
+                {
+                  "name": "kube-proxy",
+                  "images": [
+                    "registry.k8s.io/kube-proxy:v1.37.0"
+                  ]
+                }
+              ],
+              "networkPolicyEnforcement": "NOT_PROVEN"
+            },
+            "beyla_security": {
+              "allowPrivilegeEscalation": false,
+              "appArmorProfile": {
+                "type": "Unconfined"
+              },
+              "capabilities": {
+                "add": [
+                  "BPF",
+                  "PERFMON",
+                  "SYS_PTRACE",
+                  "DAC_READ_SEARCH",
+                  "CHECKPOINT_RESTORE",
+                  "NET_RAW"
+                ],
+                "drop": [
+                  "ALL"
+                ]
+              },
+              "privileged": false,
+              "readOnlyRootFilesystem": true,
+              "runAsGroup": 10001,
+              "runAsNonRoot": false,
+              "runAsUser": 0,
+              "seccompProfile": {
+                "type": "Unconfined"
+              }
+            },
+            "sdk_bpf_disjoint": {
+              "sdk_server": 4,
+              "bpf_server": 3,
+              "bpf_on_sdk": 0,
+              "sdk_on_bpf": 0,
+              "unknown_selected_scope": 0,
+              "scopes": [
+                "@opentelemetry/instrumentation-http",
+                "go.opentelemetry.io/obi"
+              ]
+            },
+            "rollback": {
+              "secretPvcUidsPreserved": true,
+              "applicationPodUidsPreserved": true,
+              "beylaWorkerPodsRemaining": 0,
+              "freshSdkSpans": 4,
+              "freshBeylaSpans": 0,
+              "boundedObservationSeconds": 15,
+              "kernelProbePurge": "NOT_PROVEN"
+            },
+            "functional_checks_passed": true,
+            "not_proven": [
+              "NetworkPolicy enforcement (Kind default CNI)",
+              "customer network/tenant ingestion",
+              "eBPF/kernel compatibility",
+              "production scale/HA",
+              "all supported Kubernetes versions live",
+              "production release/signatures",
+              "kernel probe/map purge after process exit",
+              "other CNI/kernel/architecture combinations",
+              "eBPF SQL or internal SDK spans",
+              "native arm64 runtime"
+            ],
+            "checks": [
+              {
+                "name": "local Collector OCI archive loaded into only the disposable Kind node",
+                "result": "passed",
+                "image": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:3cf2a66ddac3509f184cda5d3306e30269c7cd7bf54214f65fbd783ac066b533"
+              },
+              {
+                "name": "isolated Kind boot",
+                "result": "passed",
+                "server": "v1.37.0"
+              },
+              {
+                "name": "Kind kubelet public serving identity trusted with exact SAN/DNS verification",
+                "result": "passed",
+                "certificate_sha256": "d821a0e28754ae1c2a2ced53349fb9470995c745af39d100947583fcc0dee3f3"
+              },
+              {
+                "name": "synthetic TLS and ingestion Secrets created without argv values",
+                "result": "passed"
+              },
+              {
+                "name": "synthetic HTTPS sink and customer-owned sentinel ready",
+                "result": "passed"
+              },
+              {
+                "name": "clean Helm install elven-a",
+                "result": "passed",
+                "manifest_sha256": "a6a3650888a2c4a5a17bc63d8081128a4bcae28675665020f33af2b51ec0b5b9"
+              },
+              {
+                "name": "actual Node22 SDK admission and SDK-less Go deployment are disjoint",
+                "result": "passed"
+              },
+              {
+                "name": "installed ZIP chart retains exact node affinity and disjoint Beyla selector",
+                "result": "passed",
+                "nodeUid": "7bffc5d1-2010-4c45-b3bf-febdaa6f836a"
+              },
+              {
+                "name": "actual SDK and Beyla server spans are disjoint, with real Beyla RED histogram",
+                "result": "passed"
+              },
+              {
+                "name": "actual rollback removes Beyla worker, preserves identities and SDK delivery",
+                "result": "passed"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Exception inputs are synthetic OTLP fixtures shaped as Java/Node/Python errors, exported by the actual compiled Collector. This is not evidence that those three SDK applications generated exceptions.",
+    "Redis and SQL privacy corpora are synthetic. Actual Redis server/SDK capture, all commands/dialects and universal PII detection are not proven.",
+    "Hybrid capture is one Node22 SDK application and one SDK-less Go/Beyla application on one amd64 Kind node, Kubernetes 1.37, kernel 7.0.0-1020-azure with BTF and kindnet. Other kernel/CNI/architecture combinations are not implied.",
+    "Beyla retained its existing explicitly consented host baseline: UID 0, six recorded capabilities and seccomp/AppArmor Unconfined; privileged=false, allowPrivilegeEscalation=false. No expanded-capability fallback was added. This is not a restricted Pod Security profile.",
+    "Kind default CNI does not prove NetworkPolicy enforcement.",
+    "Beyla rollback proves worker Pod termination, preserved Secret/PVC/application Pod UIDs, continuing SDK delivery and no fresh Beyla exercise spans during a bounded 15-second observation. Kernel probe/map purge is NOT_PROVEN.",
+    "The ZIP is source-only laboratory material, not ./instalar or a customer-installable kit. Embedded runtimeAcceptance remains NOT_PROVEN because it predates this external experiment; this receipt qualifies only the exact external hash.",
+    "The immutable production adapter still rejects hybrid/host/nodes with TEMPLATE_REPACKAGE_REQUIRED. No stable v1.0.1 lock, artifact or installer was changed.",
+    "No EIP, Auth Public, shared EO or customer infrastructure was accessed. No image signing, registry publication or release promotion occurred in this laboratory scope.",
+    "CI artifacts expire. Original report/manifest and archive hashes identify the checked bytes; embedded summaries are not byte-for-byte replacements."
+  ]
+}

@@ -85,3 +85,11 @@ ZIP e reports ficam nos artifacts do CI (`elven-lab-candidate` e
 `elven-lab-candidate-evidence`), nunca em release. Somente gates reais aprovados
 permitem propor assinatura, promoção e um kit de cliente posterior; os locks e
 o bootstrap estável continuam intactos.
+
+## Recibo executado
+
+Em 26/11/2026, o [candidato exato e seus gates de laboratório](evidence/2026-11-26/README.md)
+passaram: privacidade pós-Collector em amd64/arm64, scans frescos, captura real
+SDK/Beyla disjunta e rollback com readback. O recibo explicita kernel/CNI,
+baseline host e limites da prova. Isso não promove o ZIP nem o torna um kit
+instalável no cliente.
