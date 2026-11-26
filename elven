@@ -27,6 +27,14 @@ class Failure(Exception):
     pass
 
 
+def require_candidate_lab(args):
+    # An accidental-use guard, not authentication or runner attestation.
+    if (ROOT / "LAB-ONLY.txt").exists() and args.command not in ("render", "version"):
+        if not (args.development_images and os.environ.get("GITHUB_ACTIONS") == "true"
+                and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"):
+            raise Failure("This source ZIP is a laboratory candidate, not a customer install kit. Online use requires the explicitly approved disposable hosted laboratory.")
+
+
 def run(argv, data=None, quiet_error=False, timeout=120):
     try:
         result = subprocess.run([str(arg) for arg in argv], input=data, text=True,
@@ -791,6 +799,7 @@ def main(argv=None):
     parser.add_argument("--revision", type=int)
     parser.add_argument("--timeout", default="15m")
     args = parser.parse_args(argv)
+    require_candidate_lab(args)
     combined_options(args)
     if args.command == "version":
         print(f"Elven Observability Distribution {VERSION}")
