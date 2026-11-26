@@ -241,8 +241,21 @@ class HybridLab(CORE.Lab):
         uid = self.get("namespace", "kube-system", "default")["metadata"]["uid"]
         arguments = [sys.executable, self.payload / "elven", command, "--release", release, "--namespace", self.namespace,
                      "--context", "kind-" + self.name, "--kubeconfig", self.kubeconfig, "--expect-cluster-uid", uid,
-                     "--cluster-name", "synthetic-kind", "--use-existing-secrets", "--credentials-secret", "elven-ingest",
-                     "--tls-secret", "elven-internal-tls", "--development-images", "--timeout", "180s"]
+                     "--cluster-name", "synthetic-kind", "--credentials-secret", release + "-ingest",
+                     "--tls-secret", release + "-internal-tls", "--development-images", "--timeout", "180s"]
+        if command == "install":
+            # CORE.tls() owns the independent HTTPS sink's synthetic PKI. Do
+            # not relabel/adopt that fixture as a CLI-owned gateway identity.
+            # The actual ZIP installer creates NEW ingestion and server/client
+            # PKI Secrets; the Operator may then trust their real ownership.
+            for role, value in (("tenant", "synthetic-tenant"), ("token", "synthetic-test-token")):
+                path = self.directory / (release + "-" + role + ".txt")
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w") as stream:
+                    stream.write(value + "\n")
+                arguments += ["--" + role + "-file", path]
+        else:
+            arguments.append("--use-existing-secrets")
         if values:
             arguments += ["--values", values]
         if revision is not None:
@@ -286,6 +299,8 @@ class HybridLab(CORE.Lab):
         value = yaml.safe_load(source.read_text())
         value["selfMonitoring"] = {"enabled": False}
         value["nodeAgent"]["approvedNodes"] = [self.node_name]
+        value["credentials"] = {"existingSecret": release + "-ingest"}
+        value["tls"] = {"existingSecret": release + "-internal-tls"}
         source.write_text(yaml.safe_dump(value))
         return source
 
@@ -350,8 +365,14 @@ class HybridLab(CORE.Lab):
         self.check("actual Node22 SDK admission and SDK-less Go deployment are disjoint")
 
     def snapshot(self):
-        return {kind + "/" + name: self.get(kind, name)["metadata"]["uid"] for kind, name in
-                (("pvc", "data-elven-a-gateway-0"), ("secret", "elven-ingest"), ("secret", "elven-internal-tls"))}
+        # Include both the independent sink fixtures and the CLI-owned gateway
+        # identity, plus the actual client identity consumed by the SDK.
+        resources = (("pvc", "data-elven-a-gateway-0", self.namespace),
+                     ("secret", "elven-a-ingest", self.namespace), ("secret", "elven-a-internal-tls", self.namespace),
+                     ("secret", "elven-ingest", self.namespace), ("secret", "elven-internal-tls", self.namespace),
+                     ("secret", "elven-instrumentation-tls", self.app_namespace))
+        return {namespace + "/" + kind + "/" + name: self.get(kind, name, namespace)["metadata"]["uid"]
+                for kind, name, namespace in resources}
 
     def exercise(self):
         trace = uuid.uuid4().hex
