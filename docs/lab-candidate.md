@@ -18,6 +18,11 @@ Ele **não** embute o antigo bundle v1.0.1. Permissões e timestamps do ZIP são
 fixos; o mesmo commit produz os mesmos bytes. O manifesto inclui SHA completo
 da fonte, hash de cada arquivo e `payloadSha256` do mapa canônico de hashes.
 `SHA256SUMS` identifica tanto o ZIP quanto o manifesto, sem autorreferência.
+Com o marcador `LAB-ONLY.txt`, os CLIs do ZIP recusam operações online normais
+antes de chamar programas externos. O laboratório exige imagem dev explícita
+e ambiente hosted aprovado; esse guard previne uso acidental, não é autenticação
+nem atestação do runner. Render offline continua disponível. Fora do ZIP, a
+ausência do marcador não altera os gates existentes de produção.
 
 Antes de extrair, o harness CI confere o SHA esperado obtido pelo canal de
 artefatos confiável (um checksum dentro do próprio ZIP não é confiança):

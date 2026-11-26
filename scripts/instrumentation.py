@@ -36,6 +36,13 @@ class Failure(Exception):
     pass
 
 
+def require_candidate_lab(args):
+    if (ROOT / "LAB-ONLY.txt").exists() and args.command != "render":
+        if not (args.development_images and os.environ.get("GITHUB_ACTIONS") == "true"
+                and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"):
+            raise Failure("This source ZIP is a laboratory candidate, not a customer install kit. Online use requires the explicitly approved disposable hosted laboratory.")
+
+
 def run(command, data=None, timeout=120):
     try:
         result = subprocess.run([str(value) for value in command], input=data, text=True,
@@ -601,6 +608,7 @@ def main(argv=None):
     parser.add_argument("--output")
     parser.add_argument("--timeout", default="15m")
     args = parser.parse_args(argv)
+    require_candidate_lab(args)
     identifier(args.release, "--release", 53)
     identifier(args.namespace, "--namespace")
     duration_seconds(args.timeout)
