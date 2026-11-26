@@ -395,6 +395,159 @@ def outage_payload():
     return payload
 
 
+EXCEPTION_EMAIL = "native.synthetic.customer@example.invalid"
+EXCEPTION_SECRET = "ELVEN_SYNTHETIC_EXCEPTION_SECRET"
+FORBIDDEN.extend((EXCEPTION_EMAIL, EXCEPTION_SECRET))
+
+
+def exception_cases():
+    """Synthetic language-shaped errors; not captures from running SDKs."""
+    return {
+        "java": ("java.io.IOException", "\n\tat works.elven.checkout.Pricing.fetch(Pricing.java:42)"
+                 "\n\tat works.elven.checkout.Handler.handle(Handler.java:18)"),
+        "nodejs": ("Error", "\n    at fetchPrice (/app/checkout.js:42:9)"
+                   "\n    at handleCheckout (/app/checkout.js:18:5)"),
+        "python": ("RuntimeError", '\n  File "/app/checkout.py", line 42, in fetch_price'
+                   '\n  File "/app/handler.py", line 18, in handle_checkout'),
+    }
+
+
+def exception_identity(case):
+    return hashlib.sha256(("elven-exception-" + case).encode()).digest()[:16], \
+        hashlib.sha256(("elven-exception-span-" + case).encode()).digest()[:8]
+
+
+def exception_stack(case, message):
+    kind, frames = exception_cases()[case]
+    if case == "python":
+        return "Traceback (most recent call last):" + frames + "\n" + kind + ": " + message
+    return kind + ": " + message + frames
+
+
+def exception_corpus():
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+    logs, traces = ExportLogsServiceRequest(), ExportTraceServiceRequest()
+    lr, tr = logs.resource_logs.add(), traces.resource_spans.add()
+    for resource in (lr.resource, tr.resource):
+        attributes(resource.attributes, {"service.name": "elven-synthetic-checkout"})
+    ls, ts = lr.scope_logs.add(), tr.scope_spans.add()
+    now = time.time_ns()
+    message = "pricing upstream failed for " + EXCEPTION_EMAIL
+    for case, (kind, frames) in exception_cases().items():
+        diagnostic = {"exception.type": kind, "exception.message": message,
+                      "exception.stacktrace": exception_stack(case, message),
+                      "status.description": message,
+                      "error.detail": "pricing failed password=" + EXCEPTION_SECRET + " retry=false"}
+        common = {**diagnostic, "privacy.test.case": "exception-" + case,
+                  "http.request.method": "GET", "http.route": "/checkout", "http.response.status_code": 502}
+        span = ts.spans.add()
+        span.trace_id, span.span_id = exception_identity(case)
+        span.parent_span_id = PARENT_ID
+        span.name, span.kind = "GET /checkout", 2
+        span.start_time_unix_nano, span.end_time_unix_nano = now, now + 1_000_000
+        span.status.code, span.status.message = 2, message
+        attributes(span.attributes, common)
+        event = span.events.add()
+        event.name, event.time_unix_nano = "exception", now
+        attributes(event.attributes, diagnostic)
+        log = ls.log_records.add()
+        log.trace_id, log.span_id = exception_identity(case)
+        log.time_unix_nano, log.observed_time_unix_nano = now, now
+        log.severity_number, log.severity_text = 17, "ERROR"
+        attributes(log.attributes, common)
+        log.body.string_value = "checkout failed: pricing upstream unavailable for " + EXCEPTION_EMAIL + " retry=false"
+    return {"logs": logs, "traces": traces}
+
+
+def exception_complete(decoded):
+    expected = {"exception-" + case for case in exception_cases()}
+    logs = {case_of(record) for record in records(decoded)}
+    spans = {item.value.string_value for message in decoded["traces"] for resource in message.resource_spans
+             for scope in resource.scope_spans for span in scope.spans for item in span.attributes
+             if item.key == "privacy.test.case"}
+    return expected <= logs and expected <= spans
+
+
+def assert_exception_corpus(decoded):
+    if any(value in serialized(decoded) for value in FORBIDDEN):
+        raise AssertionError("Synthetic exception private value crossed the privacy boundary")
+    def required(items, name):
+        value = next((item.value for item in items if item.key == name), None)
+        if value is None:
+            raise AssertionError("Exception required attribute lost: " + name)
+        return value
+    spans = [span for message in decoded["traces"] for resource in message.resource_spans
+             for scope in resource.scope_spans for span in scope.spans]
+    for case, (kind, frames) in exception_cases().items():
+        tag = "exception-" + case
+        matched_logs = [record for record in records(decoded) if case_of(record) == tag]
+        matched_spans = [span for span in spans if case_of(span) == tag]
+        if not matched_logs or not matched_spans:
+            raise AssertionError("Exception log/span case missing: " + tag)
+        trace_id, span_id = exception_identity(case)
+        for item in [*matched_logs, *matched_spans]:
+            if item.trace_id != trace_id or item.span_id != span_id:
+                raise AssertionError("Exception log/trace correlation lost: " + tag)
+            for name, expected in (("http.request.method", "GET"), ("http.route", "/checkout")):
+                if required(item.attributes, name).string_value != expected:
+                    raise AssertionError("Exception HTTP context lost: " + name)
+            if required(item.attributes, "http.response.status_code").int_value != 502:
+                raise AssertionError("Exception HTTP status lost")
+        diagnostics = [item.attributes for item in [*matched_logs, *matched_spans]]
+        for span in matched_spans:
+            if (span.name != "GET /checkout" or span.kind != 2 or span.parent_span_id != PARENT_ID
+                    or span.status.code != 2 or span.status.message != "pricing upstream failed for [REDACTED]"):
+                raise AssertionError("Exception operational span/error status lost")
+            events = [event for event in span.events if event.name == "exception"]
+            if not events:
+                raise AssertionError("Exception event lost")
+            diagnostics.extend(event.attributes for event in events)
+        for attrs in diagnostics:
+            expected = {"exception.type": kind, "exception.message": "pricing upstream failed for [REDACTED]",
+                        "exception.stacktrace": exception_stack(case, "pricing upstream failed for [REDACTED]"),
+                        "status.description": "pricing upstream failed for [REDACTED]",
+                        "error.detail": "pricing failed password=[REDACTED] retry=false"}
+            for name, value in expected.items():
+                if required(attrs, name).string_value != value:
+                    raise AssertionError("Exception selective masking/type/frames/context changed: " + tag + "/" + name)
+        for record in matched_logs:
+            if (record.severity_number != 17 or record.severity_text != "ERROR"
+                    or record.body.string_value != "checkout failed: pricing upstream unavailable for [REDACTED] retry=false"):
+                raise AssertionError("Exception useful error log text/level lost")
+    return {"cases": sorted(exception_cases()), "signals": ["logs", "traces"],
+            "known_sensitive_values_absent": True, "exception_type_frames_and_operational_context_preserved": True,
+            "http_error_status_and_log_trace_correlation_preserved": True,
+            "sdk_runtime_execution_qualified": False}
+
+
+def exception_runtime_checks(send, state, wait_for):
+    """Acceptance requires actual compiled Collector export, never the unit oracle."""
+    baseline = len(state()["accepted"])
+    for signal, payload in exception_corpus().items():
+        send(signal, payload)
+    wait_for(lambda: exception_complete(decode(state()["accepted"][baseline:])),
+             "Java/Node/Python-shaped exceptions exported by compiled Collector")
+    first = decode(state()["accepted"][baseline:])
+    result = assert_exception_corpus(first)
+    baseline = len(state()["accepted"])
+    for signal, messages in first.items():
+        for message in messages:
+            send(signal, message)
+    wait_for(lambda: exception_complete(decode(state()["accepted"][baseline:])),
+             "selective exceptions preserved across second privacy boundary")
+    second = decode(state()["accepted"][baseline:])
+    assert_exception_corpus(second)
+    def content(decoded):
+        return {signal: sorted(set(items)) for signal, items in semantic_items(decoded).items()}
+    if content(first) != content(second):
+        raise AssertionError("Second exception privacy boundary changed sanitized semantic content")
+    return [{"name": "Selective exceptions through compiled Collector HTTPS export and second boundary",
+             "result": "PASS", "evidence_boundary": "compiled_collector_https_export",
+             "input_origin": "synthetic_otlp_language_shaped_fixtures", "second_boundary_idempotent": True,
+             **result}]
+
+
 def redis_cases():
     """Finite synthetic formats, including explicit Redis context without db.system."""
     private = REDIS_PRIVATE
@@ -1092,6 +1245,7 @@ def smoke(image):
             evidence["checks"].append({"name": "privacy before persistent WAL and restart recovery", "result": "PASS", **wal})
 
             evidence["checks"].extend(redis_runtime_checks(send, state, fixture_action, wait_for, selective))
+            evidence["checks"].extend(exception_runtime_checks(send, state, wait_for))
 
             gateway("strict")
             baseline = len(state()["accepted"])
