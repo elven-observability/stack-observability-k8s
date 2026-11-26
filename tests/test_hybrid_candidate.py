@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import copy
 import hashlib
 import importlib.util
+from importlib.machinery import SourceFileLoader
 import io
 import json
 import os
@@ -37,6 +38,73 @@ def daemonset():
 
 
 class HybridCandidateTests(unittest.TestCase):
+    def test_operator_ownership_guard_rejects_fixture_tls_but_accepts_real_cli_labels(self):
+        instrumentation = H.module("hybrid_operator_ownership_test", ROOT / "scripts/instrumentation.py")
+        loader = SourceFileLoader("hybrid_core_labels_test", str(ROOT / "elven"))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        core_cli = importlib.util.module_from_spec(spec)
+        loader.exec_module(core_cli)
+        args = SimpleNamespace(namespace="elven-e2e", release="elven-hybrid-operator", development_images=True)
+        settings = {"enabled": True, "namespaces": ["synthetic-app"], "clusterDomain": "cluster.local",
+            "gateway": {"sourceRelease": "elven-a", "sourceNamespace": "elven-e2e",
+                        "endpoint": "https://elven-a-gateway.elven-e2e.svc.cluster.local:4318"}}
+        gateway = {"cluster": {"domain": "cluster.local"}, "ports": {"otlpHttp": 4318},
+            "networkPolicy": {"enabled": True}, "collection": {"namespaces": ["synthetic-app"]},
+            "tls": {"existingSecret": "elven-a-internal-tls"}}
+        source_secret = {"metadata": {"name": "elven-a-internal-tls"}}
+        def get_object(args, kind, name, namespace=None):
+            if kind == "namespace":
+                return {"metadata": {"name": name}}
+            if kind == "configmap" and name == "elven-a-settings":
+                return {"data": {"settings.json": json.dumps(gateway)}}
+            if kind == "secret" and name == "elven-a-internal-tls":
+                return source_secret
+            return None
+        class ClientMaterialReached(Exception):
+            pass
+        with mock.patch.object(instrumentation, "cluster_identity"), mock.patch.object(instrumentation, "require_images"), \
+             mock.patch.object(instrumentation, "release_inventory", return_value=None), \
+             mock.patch.object(instrumentation, "check_injection_claims"), mock.patch.object(instrumentation, "check_namespace_instrumentation"), \
+             mock.patch.object(instrumentation, "helm_owned", return_value=True), \
+             mock.patch.object(instrumentation, "get_object", side_effect=get_object), \
+             mock.patch.object(instrumentation, "kube", return_value=json.dumps({"serverVersion": {"gitVersion": "v1.37.0"}})), \
+             mock.patch.object(instrumentation, "client_material", side_effect=ClientMaterialReached) as material:
+            with self.assertRaisesRegex(instrumentation.Failure, "source client TLS Secret must be owned"):
+                instrumentation.preflight(args, settings, Path("/unused-synthetic"), True)
+            material.assert_not_called()
+            # Real core-CLI label generation, not a relaxed Operator guard.
+            source_secret["metadata"]["labels"] = core_cli.labels(SimpleNamespace(namespace="elven-e2e", release="elven-a"))
+            with self.assertRaises(ClientMaterialReached):
+                instrumentation.preflight(args, settings, Path("/unused-synthetic"), True)
+
+    def test_first_zip_install_creates_own_identity_and_recovery_reuses_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            lab = object.__new__(H.HybridLab)
+            lab.directory, lab.payload, lab.kubeconfig = Path(folder), Path(folder) / "verified-payload", Path(folder) / "isolated-kubeconfig"
+            lab.namespace, lab.name, lab.app_namespace = "elven-e2e", "elven-dist-synthetic", "synthetic-app"
+            lab.get = mock.Mock(return_value={"metadata": {"uid": "synthetic-cluster-uid"}})
+            with mock.patch.object(H.CORE, "execute") as execute:
+                lab.cli("install", values=Path(folder) / "values.yaml")
+                args = execute.call_args.args[0]
+                self.assertEqual(args[1], lab.payload / "elven")
+                self.assertNotIn("--use-existing-secrets", args)
+                self.assertEqual(args[args.index("--credentials-secret") + 1], "elven-a-ingest")
+                self.assertEqual(args[args.index("--tls-secret") + 1], "elven-a-internal-tls")
+                for role, expected in (("tenant", "synthetic-tenant"), ("token", "synthetic-test-token")):
+                    path = args[args.index("--" + role + "-file") + 1]
+                    self.assertEqual(path.read_text().strip(), expected)
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                    self.assertNotIn(expected, [str(item) for item in args])
+                lab.cli("rollback", revision=1)
+                recovery_args = execute.call_args.args[0]
+                self.assertIn("--use-existing-secrets", recovery_args)
+                self.assertNotIn("--token-file", recovery_args)
+                self.assertEqual(recovery_args[recovery_args.index("--tls-secret") + 1], "elven-a-internal-tls")
+            snapshot = lab.snapshot()
+            self.assertIn("elven-e2e/secret/elven-a-internal-tls", snapshot)
+            self.assertIn("elven-e2e/secret/elven-internal-tls", snapshot)
+            self.assertIn("synthetic-app/secret/elven-instrumentation-tls", snapshot)
+
     def test_independent_actual_scopes_are_required_and_crossovers_fail(self):
         messages = [trace(H.SDK_NAME, "@opentelemetry/instrumentation-http"),
                     trace(H.BPF_NAME, "go.opentelemetry.io/obi")]
