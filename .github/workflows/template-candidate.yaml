@@ -1,0 +1,112 @@
+name: Qualify isolated Elven template candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_run:
+        description: "Same-input fresh core OCI build/scan run (never a tag/publication request)"
+        required: true
+        type: string
+      sdk_run:
+        description: "Same-input fresh independent SDK OCI build/scan run"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  KUBECONFIG: /dev/null
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: elven-lab-template-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - name: Install pinned test tooling on the disposable hosted runner only
+        run: |
+          python -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-oci-release
+          path: artifacts/images
+          run-id: ${{ inputs.core_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-instrumentation-oci
+          path: artifacts/instrumentation
+          run-id: ${{ inputs.sdk_run }}
+          github-token: ${{ github.token }}
+      - name: Refuse changed inputs, stale scans or mismatched archives and reports
+        run: >-
+          python scripts/qualify-candidate-artifacts.py
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+      - name: Generate and verify a small reproducible source-only candidate ZIP
+        id: package
+        run: |
+          python scripts/package-candidate.py pack --output-dir artifacts/candidate
+          python - <<'PY'
+          import hashlib, importlib.util, json, os, pathlib, subprocess
+          s = importlib.util.spec_from_file_location("candidate", "scripts/package-candidate.py")
+          p = importlib.util.module_from_spec(s)
+          s.loader.exec_module(p)
+          paths = list(pathlib.Path("artifacts/candidate").glob("*.zip"))
+          assert len(paths) == 1
+          path = paths[0]
+          raw = path.read_bytes()
+          checksum = hashlib.sha256(raw).hexdigest()
+          manifest = p.verify(raw, checksum)
+          assert manifest["sourceRevision"] == subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          assert manifest["customerInstallable"] is False
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write("archive=" + str(path) + "\nsha256=" + checksum + "\n")
+          print(json.dumps({"sourceRevision": manifest["sourceRevision"], "sha256": checksum, "bytes": len(raw), "customerInstallable": False}))
+          PY
+      - name: Actual SDK and Beyla capture, exact nodes, disjoint selection and rollback
+        env:
+          ELVEN_CANDIDATE_ZIP: ${{ steps.package.outputs.archive }}
+          ELVEN_CANDIDATE_SHA256: ${{ steps.package.outputs.sha256 }}
+        run: >-
+          python scripts/test-hybrid-candidate.py
+          --candidate "$ELVEN_CANDIDATE_ZIP" --candidate-sha256 "$ELVEN_CANDIDATE_SHA256"
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+          --development-images --host-access-approved
+      - name: Preserve candidate only; never publish a release or promote a lock
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: elven-lab-candidate
+          path: artifacts/candidate/*
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve only sanitized laboratory receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: elven-lab-candidate-evidence
+          include-hidden-files: true
+          path: |
+            .artifacts/hybrid-*/report.json
+            .artifacts/kind-*/report.json
+          if-no-files-found: warn
+          retention-days: 30

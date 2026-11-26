@@ -44,3 +44,39 @@ rejeição de wildcard/duplicata e contradição UID/nome SDK/eBPF. O contrato d
 rollback restaura cada aplicação SDK uma única vez antes dos releases e
 preserva Secrets/PVCs. Isso não substitui a execução/readback do rollback no
 laboratório; nenhuma evidência de runtime é fabricada pelo empacotador.
+
+## Ensaio isolado no CI
+
+O workflow manual `template-candidate.yaml` recebe IDs de **dois builds próprios**:
+core (`images.yaml`) e SDKs (`instrumentation.yaml`). Ambos devem corresponder
+integralmente às entradas da revisão de teste e ter scans aprovados nas duas
+arquiteturas (até 24h; DB até 48h). Archives, reports e SBOMs têm SHA conferido;
+os dois binários Collector também exigem Govulncheck recente aprovado.
+
+```sh
+gh workflow run template-candidate.yaml --ref REVISAO_APROVADA \
+  -f core_run=ID_CORE_APROVADO -f sdk_run=ID_SDK_APROVADO
+```
+
+O job gera o ZIP da fonte limpa, verifica seu SHA/manifesto e entrega esse
+artefato ao harness. A prova deve usar os charts/CLIs extraídos, um nó aprovado,
+Node 22 com SDK e um serviço Go sem SDK selecionado somente para Beyla.
+Exige captura real, RED, ausência de sobreposição e rollback com leitura dos
+UIDs/estado. Flags de imagem de desenvolvimento e consentimento de host são
+somente para esse laboratório descartável. Nenhuma concessão de privilégio,
+sysctl ou fallback SYS_ADMIN é adicionada para contornar kernel incompatível.
+
+O kernel, BTF, CNI e capacidades efetivos são registrados. Se o runner não
+suportar BPF, o gate falha como `UNSUPPORTED`, não como PASS sintético. O CNI
+padrão de Kind não comprova enforcement de NetworkPolicy de produção.
+
+O gate separado `tests/privacy-runtime.py` exige envio real por mTLS através
+do Collector compilado e leitura da exportação para exceptions nos formatos
+Java/Node/Python, preservando tipos, frames, contexto HTTP e correlação enquanto
+remove email/password conhecidos. A origem desses registros é corpus OTLP
+sintético: isso **não** prova execução/injeção dos três SDKs nem PII universal.
+
+ZIP e reports ficam nos artifacts do CI (`elven-lab-candidate` e
+`elven-lab-candidate-evidence`), nunca em release. Somente gates reais aprovados
+permitem propor assinatura, promoção e um kit de cliente posterior; os locks e
+o bootstrap estável continuam intactos.
