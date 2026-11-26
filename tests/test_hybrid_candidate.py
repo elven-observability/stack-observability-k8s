@@ -54,6 +54,11 @@ class HybridCandidateTests(unittest.TestCase):
         for unknown in ("", "unknown", "not-a-real-ebpf-scope"):
             with self.assertRaises(AssertionError):
                 H.assert_disjoint(H.classify([trace(H.SDK_NAME, unknown), messages[1]]))
+        for unknown in ("go.opentelemetry.io/obi-NOT-A-REAL-SCOPE", "github.com/grafana/beyla-fake"):
+            with self.assertRaises(AssertionError):
+                H.assert_disjoint(H.classify([messages[0], trace(H.BPF_NAME, unknown)]))
+        with self.assertRaises(AssertionError):
+            H.assert_disjoint(H.classify([trace(H.SDK_NAME, H.SDK_SCOPE, route="/not-approved/exercise"), messages[1]]))
         # An old span cannot stand in for fresh post-rollback telemetry.
         self.assertFalse(H.classify(messages, after=101)["sdk_server"])
         H.assert_disjoint(H.classify(messages[:1]), require_bpf=False)

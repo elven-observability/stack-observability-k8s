@@ -23,6 +23,7 @@ import threading
 import time
 import uuid
 import zipfile
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -128,7 +129,9 @@ def attrs(values):
 
 
 def bpf_scope(name):
-    return name.startswith(("github.com/grafana/beyla", "go.opentelemetry.io/obi"))
+    # v3.42.0 pinned source: vendor/.../pkg/export/otel/traces.go reporterName.
+    # A look-alike prefix is not evidence from the actual instrumentation.
+    return name in {"github.com/grafana/beyla", "go.opentelemetry.io/obi"}
 
 
 def spans(messages):
@@ -144,7 +147,7 @@ def exercise_span(span):
     values = attrs(span.get("attributes", []))
     for key in ("http.route", "http.target", "url.path", "http.url", "url.full"):
         value = values.get(key)
-        if isinstance(value, str) and value.split("?", 1)[0].rstrip("/").endswith("/exercise"):
+        if isinstance(value, str) and urlsplit(value).path.rstrip("/") == "/exercise":
             return True
     return span.get("name") in ("GET /exercise", "HTTP GET /exercise")
 
@@ -226,6 +229,9 @@ class HybridLab(CORE.Lab):
         fresh_scans(args.sdk_manifest, ("operator", "nodejs"), sdk_lock["tools"]["trivy"])
         self.report.update({"test": "verified ZIP real SDK/Beyla disjoint capture and rollback", "result": "FAIL",
             "candidate": {"sha256": args.candidate_sha256, "sourceRevision": manifest["sourceRevision"]},
+            "image_build_revisions": {
+                "core": json.loads(Path(args.core_manifest).read_text())["revision"],
+                "sdk": json.loads(Path(args.sdk_manifest).read_text())["revision"]},
             "host_access_approved": True, "production_release_admission": "NOT_PROVEN_UNSIGNED_LAB_CANDIDATE",
             "kernel_probe_purge": "NOT_PROVEN", "sdk_bpf_disjoint": "NOT_PROVEN"})
         self.report["not_proven"] += ["production release/signatures", "kernel probe/map purge after process exit",
