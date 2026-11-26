@@ -140,6 +140,15 @@ def spans(messages):
                     yield resource_attrs, scope.get("scope", {}).get("name", ""), span
 
 
+def exercise_span(span):
+    values = attrs(span.get("attributes", []))
+    for key in ("http.route", "http.target", "url.path", "http.url", "url.full"):
+        value = values.get(key)
+        if isinstance(value, str) and value.split("?", 1)[0].rstrip("/").endswith("/exercise"):
+            return True
+    return span.get("name") in ("GET /exercise", "HTTP GET /exercise")
+
+
 def classify(messages, after=0):
     result = {"sdk_server": [], "bpf_server": [], "bpf_on_sdk": [], "sdk_on_bpf": [], "unknown_selected_scope": [], "scopes": set()}
     for resource, scope, span in spans(messages):
@@ -150,6 +159,10 @@ def classify(messages, after=0):
         deployment = resource.get("k8s.deployment.name")
         if (service in (SDK_NAME, BPF_NAME) or deployment in (SDK_NAME, BPF_NAME)) and scope != SDK_SCOPE and not bpf_scope(scope):
             result["unknown_selected_scope"].append(scope)
+            continue
+        # Kubelet readiness requests are not proof that the exercised request
+        # reached either instrumentation path, including after rollback.
+        if not exercise_span(span):
             continue
         if service == SDK_NAME or deployment == SDK_NAME:
             result["bpf_on_sdk" if bpf_scope(scope) else "sdk_server"].append(span)

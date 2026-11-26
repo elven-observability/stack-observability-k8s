@@ -22,9 +22,10 @@ H = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(H)
 
 
-def trace(service, scope, start=100):
+def trace(service, scope, start=100, route="/exercise"):
     return {"resource_spans": [{"resource": {"attributes": [{"key": "service.name", "value": {"string_value": service}}]},
-        "scope_spans": [{"scope": {"name": scope}, "spans": [{"kind": "SPAN_KIND_SERVER", "start_time_unix_nano": str(start)}]}]}]}
+        "scope_spans": [{"scope": {"name": scope}, "spans": [{"kind": "SPAN_KIND_SERVER", "start_time_unix_nano": str(start),
+            "attributes": [{"key": "http.target", "value": {"string_value": route}}]}]}]}]}
 
 
 def daemonset():
@@ -56,6 +57,10 @@ class HybridCandidateTests(unittest.TestCase):
         # An old span cannot stand in for fresh post-rollback telemetry.
         self.assertFalse(H.classify(messages, after=101)["sdk_server"])
         H.assert_disjoint(H.classify(messages[:1]), require_bpf=False)
+        readiness = [trace(H.SDK_NAME, H.SDK_SCOPE, route="/ready"),
+                     trace(H.BPF_NAME, "go.opentelemetry.io/obi", route="/ready")]
+        with self.assertRaises(AssertionError):
+            H.assert_disjoint(H.classify(readiness))
 
     def test_sdk_evidence_requires_exact_image_init_loader_and_mtls_mounts(self):
         image, gateway = "docker.io/elvenobservability/elven-auto-nodejs:1.0.9-dev@sha256:" + "a"*64, "https://elven-gateway.svc:4318"
