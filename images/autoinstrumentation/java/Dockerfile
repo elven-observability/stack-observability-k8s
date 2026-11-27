@@ -9,8 +9,18 @@ USER root
 COPY --from=build-jdk17 /opt/java/openjdk /opt/elven-toolchains/jdk17
 COPY --from=build-jdk21 /opt/java/openjdk /opt/elven-toolchains/jdk21
 ADD --keep-git-dir=true https://github.com/open-telemetry/opentelemetry-java-instrumentation.git#d9045e02e0711837d54f0fd058cd55f77742506d /src
+# Historical official release source subtrees only, not a Maven mirror or the
+# entire SVN-tag tree. These dependencies remain build-only compile signatures.
+ADD https://github.com/restlet/restlet-framework-java.git#93fab9888a9eded2c527e9eee8da46a30c403889:1.1.5 /opt/elven-restlet-sources/1.1.5
+ADD https://github.com/restlet/restlet-framework-java.git#aec544eb2622f1959e9c905d435077dd7fec4092:2.0.2 /opt/elven-restlet-sources/2.0.2
 WORKDIR /src
 COPY images/autoinstrumentation/java/jedis4-terminal-error.patch /tmp/jedis4-terminal-error.patch
+COPY images/autoinstrumentation/java/build-restlet-compile-only.sh /tmp/build-restlet-compile-only.sh
+COPY images/autoinstrumentation/java/restlet-compile-only.init.gradle /tmp/restlet-compile-only.init.gradle
+COPY images/autoinstrumentation/java/verify-restlet-payload.sh /tmp/verify-restlet-payload.sh
+RUN echo 'a66a6b25647b88e187e8a0d1a6a609de00942aec9e88b45db3baa1e1c2b83b2b  /tmp/build-restlet-compile-only.sh' | sha256sum -c - \
+    && echo '41acdfa8bf4662e8ba0b97225e6bc04042c5999edc8dc71d12bba4f53d32a84c  /tmp/restlet-compile-only.init.gradle' | sha256sum -c - \
+    && echo '9ed3071ce9b4fc915a19ca6ba3092a367bc91725c1b7e95971bbf8a54625c776  /tmp/verify-restlet-payload.sh' | sha256sum -c -
 RUN test "$(git rev-parse HEAD)" = d9045e02e0711837d54f0fd058cd55f77742506d \
     && echo '25dc0866daf97461bb4110d38d36225d8f336b90d1c4c1a9a00b949006b54be0  /tmp/jedis4-terminal-error.patch' | sha256sum -c - \
     && git apply --check /tmp/jedis4-terminal-error.patch \
@@ -21,9 +31,11 @@ RUN java -XshowSettings:properties -version 2>&1 | grep -E '^[[:space:]]*java.sp
 RUN javac -version 2>&1 | grep -E '^javac 25([.]|$)'
 RUN /opt/elven-toolchains/jdk17/bin/javac -version 2>&1 | grep -E '^javac 17([.]|$)'
 RUN /opt/elven-toolchains/jdk21/bin/javac -version 2>&1 | grep -E '^javac 21([.]|$)'
+RUN sh /tmp/build-restlet-compile-only.sh
 RUN grep -Fx 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.8.2-bin.zip' gradle/wrapper/gradle-wrapper.properties \
     && grep -Fx 'distributionSha256Sum=21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607' gradle/wrapper/gradle-wrapper.properties \
     && ./gradlew --no-daemon --no-parallel --max-workers=2 \
+       --init-script /tmp/restlet-compile-only.init.gradle \
        -Pkotlin.compiler.execution.strategy=in-process \
        -Porg.gradle.java.installations.auto-download=false \
        -Porg.gradle.java.installations.auto-detect=false \
@@ -37,6 +49,7 @@ RUN grep -Fx 'distributionUrl=https\://services.gradle.org/distributions/gradle-
 # Keep Kotlin in-process instead of allowing a second inherited 3GiB heap.
 RUN attempt=1; while true; do \
     if ./gradlew --no-daemon --no-parallel --max-workers=2 \
+    --init-script /tmp/restlet-compile-only.init.gradle \
     '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m' \
     -Pkotlin.compiler.execution.strategy=in-process \
     -Porg.gradle.java.installations.auto-download=false \
@@ -55,7 +68,8 @@ RUN attempt=1; while true; do \
       fi; \
       attempt=$((attempt + 1)); sleep $((attempt * 10)); \
     fi; \
-    done && test -s /src/javaagent/build/libs/opentelemetry-javaagent.jar
+    done && test -s /src/javaagent/build/libs/opentelemetry-javaagent.jar \
+    && sh /tmp/verify-restlet-payload.sh /src/javaagent/build/libs/opentelemetry-javaagent.jar
 
 # Preserve the upstream copy utility, entrypoint, user and dependency notices.
 FROM ${UPSTREAM_IMAGE}

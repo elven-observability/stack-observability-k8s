@@ -1,0 +1,19 @@
+// Build-only source reconstructions. Never a repository for customer libraries.
+// Exact coordinates/versions only: all other resolution stays upstream.
+allprojects {
+    repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'elvenRestletSourceRebuild'
+                    url = uri('/opt/elven-restlet-maven')
+                }
+            }
+            filter {
+                includeVersion('org.restlet', 'org.restlet', '1.1.5')
+                includeVersion('com.noelios.restlet', 'com.noelios.restlet', '1.1.5')
+                includeVersion('org.restlet.jse', 'org.restlet', '2.0.2')
+            }
+        }
+    }
+}

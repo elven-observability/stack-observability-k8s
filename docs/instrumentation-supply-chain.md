@@ -19,6 +19,24 @@ reais de Redis/SDK/Collector permanecem obrigatórios no CI isolado. O JAR é
 construído no builder nativo e copiado à base upstream imutável, preservando
 entrypoint/utilitário de cópia/licenças. O builder não entra na imagem final.
 
+O CI `46021919983` parou antes de gerar o JAR: o repositório Maven histórico do
+Restlet não resolvia DNS. A receita candidata reconstrói somente as dependências
+**de compilação** Restlet 1.1.5 e 2.0.2 a partir dos commits oficiais
+[`93fab988…`](https://github.com/restlet/restlet-framework-java/tree/93fab9888a9eded2c527e9eee8da46a30c403889/1.1.5)
+e [`aec544eb…`](https://github.com/restlet/restlet-framework-java/tree/aec544eb2622f1959e9c905d435077dd7fec4092/2.0.2).
+Os commits, subdiretórios e helpers locais são vinculados por SHA no lock. As
+coordenadas/versões originais ficam restritas a um repositório local exclusivo;
+não se usa mirror de terceiros, HTTP, remoção da instrumentação ou troca da API
+Restlet. A compilação usa `--release 8` com JDK pinado, sem descoberta/download
+automático de toolchains.
+
+Esses JARs não são dependências novas da aplicação nem devem ser empacotados no
+agente. O build exige uma inspeção do JAR final que rejeita classes da biblioteca
+Restlet e dependências Restlet aninhadas, preservando o código legítimo de
+instrumentação OpenTelemetry. Essa inspeção e os testes sintéticos são gates,
+não comprovam que o novo artefato já passou build/scans/runtime nativo ou foi
+publicado; os recibos das duas arquiteturas continuam necessários.
+
 **Isso não publica/promove uma imagem.** Os registros de distribuição v1.0.1
 continuam históricos e não descrevem o novo JAR. Compilação, scans, footprint,
 runtime nativo, verificação criptográfica e promoção dos novos digests precisam

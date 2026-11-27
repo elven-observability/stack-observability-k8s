@@ -6,3 +6,6 @@
 !images/autoinstrumentation/java/
 !images/autoinstrumentation/java/NOTICE
 !images/autoinstrumentation/java/jedis4-terminal-error.patch
+!images/autoinstrumentation/java/build-restlet-compile-only.sh
+!images/autoinstrumentation/java/restlet-compile-only.init.gradle
+!images/autoinstrumentation/java/verify-restlet-payload.sh

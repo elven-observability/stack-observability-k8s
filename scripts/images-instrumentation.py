@@ -38,6 +38,77 @@ VERSION = re.compile(r"v?1\.[0-9]+\.[0-9]+(?:-dev|-rc\.[0-9]+)?\Z")
 JAVA_BUILD_IMAGE = "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898"
 JAVA_AUXILIARY_JDK17_IMAGE = "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516"
 JAVA_AUXILIARY_JDK21_IMAGE = "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69"
+JAVA_RESTLET_SOURCES = [
+    {"repository": "https://github.com/restlet/restlet-framework-java.git",
+     "revision": "93fab9888a9eded2c527e9eee8da46a30c403889", "subdirectory": "1.1.5", "version": "1.1.5"},
+    {"repository": "https://github.com/restlet/restlet-framework-java.git",
+     "revision": "aec544eb2622f1959e9c905d435077dd7fec4092", "subdirectory": "2.0.2", "version": "2.0.2"},
+]
+
+
+def java_build_helper(build, key, filename):
+    """Return only a reviewed build helper whose exact regular bytes are locked."""
+    entry = build.get(key)
+    relative = "images/autoinstrumentation/java/" + filename
+    if (not isinstance(entry, dict) or entry.get("path") != relative
+            or not isinstance(entry.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])):
+        raise ValueError(f"Java {key} must identify its exact confined helper and SHA256")
+    path = ROOT / relative
+    if (path.is_symlink() or any(p.is_symlink() for p in path.parents if p.is_relative_to(ROOT))
+            or not path.is_file() or OCI.sha256(path) != entry["sha256"]):
+        raise ValueError(f"Java {key} helper bytes changed or are not a regular non-symlink file")
+    return path
+
+
+def validate_java_restlet_build(build, lines):
+    if build.get("restletSources") != JAVA_RESTLET_SOURCES:
+        raise ValueError("Java Restlet compile-only sources must use both exact official historical revisions")
+    for source in JAVA_RESTLET_SOURCES:
+        instruction = (f"ADD {source['repository']}#{source['revision']}:{source['subdirectory']} "
+                       f"/opt/elven-restlet-sources/{source['version']}")
+        if instruction not in lines:
+            raise ValueError("Java Restlet source ADD differs from its locked revision/subdirectory")
+    helpers = {}
+    for key, filename in (("restletBuildScript", "build-restlet-compile-only.sh"),
+                          ("restletRepositoryInit", "restlet-compile-only.init.gradle"),
+                          ("restletPayloadCheck", "verify-restlet-payload.sh")):
+        path = java_build_helper(build, key, filename)
+        helpers[key] = path.read_text()
+        if f"COPY {path.relative_to(ROOT)} /tmp/{filename}" not in lines:
+            raise ValueError("Java Restlet helper COPY differs from its locked local source")
+    init = re.sub(r"\s+", " ", "\n".join(line for line in helpers["restletRepositoryInit"].splitlines()
+                                           if not line.lstrip().startswith("//"))).strip()
+    expected_init = ("allprojects { repositories { exclusiveContent { forRepository { maven { "
+                     "name = 'elvenRestletSourceRebuild' url = uri('/opt/elven-restlet-maven') } } filter { "
+                     "includeVersion('org.restlet', 'org.restlet', '1.1.5') "
+                     "includeVersion('com.noelios.restlet', 'com.noelios.restlet', '1.1.5') "
+                     "includeVersion('org.restlet.jse', 'org.restlet', '2.0.2') } } } }")
+    if init != expected_init:
+        raise ValueError("Java compile-only local repository must resolve only the three original exact coordinates")
+    compiler = helpers["restletBuildScript"]
+    compiler_lines = [line.strip() for line in compiler.replace("\\\n", " ").splitlines()
+                      if line.strip() and not line.lstrip().startswith("#")]
+    if ('jdk=/opt/elven-toolchains/jdk17' not in compiler_lines
+            or not any(line.startswith('"$jdk/bin/javac" -J-Xmx512m --release 8 -proc:none ') for line in compiler_lines)
+            or 'repo=/opt/elven-restlet-maven' not in compiler_lines):
+        raise ValueError("Java Restlet build-only APIs require the pinned JDK17 compiler with --release 8")
+    allowed_runtime_copies = {
+        "COPY --from=builder /src/javaagent/build/libs/opentelemetry-javaagent.jar /javaagent.jar",
+        "COPY images/licenses/APACHE-2.0.txt images/autoinstrumentation/java/NOTICE /usr/share/licenses/elven-auto-java/",
+    }
+    for line in lines[lines.index("FROM ${UPSTREAM_IMAGE}") + 1:]:
+        if line.startswith(("RUN ", "ADD ", "FROM ")) or (line.startswith("COPY ") and line not in allowed_runtime_copies):
+            raise ValueError("Java runtime stage may copy only the agent and license notices, never build-only APIs/tools")
+    run_lines = [line for line in lines if line.startswith("RUN ")]
+    if (not any(re.search(r"(?:\bRUN\s+|&&\s*)sh /tmp/build-restlet-compile-only\.sh(?=\s*(?:&&|;|$))", line) for line in run_lines)
+            or not any(re.search(r"(?:\bRUN\s+|&&\s*)sh /tmp/verify-restlet-payload\.sh /src/javaagent/build/libs/opentelemetry-javaagent\.jar(?=\s*(?:&&|;|$))", line) for line in run_lines)):
+        raise ValueError("Java Restlet build-only compilation and final payload isolation oracle are required")
+    instructions = "\n".join(lines)
+    if not (instructions.index("sh /tmp/build-restlet-compile-only.sh")
+            < instructions.index(":javaagent:assemble")
+            < instructions.index("sh /tmp/verify-restlet-payload.sh /src/javaagent/build/libs/opentelemetry-javaagent.jar")
+            < instructions.index("FROM ${UPSTREAM_IMAGE}")):
+        raise ValueError("Java Restlet payload isolation must check the newly assembled agent before runtime transfer")
 
 
 def source_ref(image):
@@ -136,6 +207,11 @@ def validate_java_source_build(image, recipe):
                 continue
             if not required_flags <= set(args):
                 raise ValueError("Every Gradle invocation must confine toolchains to pinned JAVA_HOME")
+            if (args.count("--init-script") != 1
+                    or args.index("--init-script") + 1 >= len(args)
+                    or args[args.index("--init-script") + 1] != "/tmp/restlet-compile-only.init.gradle"
+                    or any(arg == "-I" or arg.startswith(("--init-script=", "-I/")) for arg in args)):
+                raise ValueError("Every Gradle invocation must use only the locked exclusive compile-only repository init")
             for flag in args:
                 if ((flag.startswith(("-Porg.gradle.java.installations.", "-Pkotlin.compiler.execution.strategy="))
                      and flag not in required_flags)
@@ -145,6 +221,7 @@ def validate_java_source_build(image, recipe):
                 assemblies.append(args)
     if not assemblies or any(not required_flags <= set(args) for args in assemblies):
         raise ValueError("Java assembly must use only pinned JAVA_HOME toolchains without download or parallel compiler heaps")
+    validate_java_restlet_build(build, lines)
 
 
 def read_lock(path=ROOT / "instrumentation.lock.json"):
