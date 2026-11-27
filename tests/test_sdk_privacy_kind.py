@@ -35,8 +35,10 @@ def corpus(sanitized):
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
                         {"kind": 3, "trace_id": "trace", "name": "GET"}),
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
-                        {"kind": 3, "trace_id": "trace", "name": "HGET", "status": {"code": 2, "message": "WRONGTYPE Operation against wrong kind of value"}}),
-                       ("fixture-api", exception)]
+                        {"kind": 3, "trace_id": "trace", "name": "HGET", "status": {"code": 2, "message": "WRONGTYPE Operation against wrong kind of value"},
+                         "events": [{"name": "exception", "attributes": attrs({"exception.type": "redis.clients.jedis.exceptions.JedisDataException" if java else "Error",
+                            "exception.message": "[REDACTED:redis:WRONGTYPE]" if sanitized else "WRONGTYPE Operation against wrong kind of value"})}]}),
+                       ("elven.sdk.privacy.fixture", exception)]
     return result
 
 
@@ -76,6 +78,12 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Missing real"):
             H.check_capture(data, PRIVATE, sanitized=True)
 
+    def test_exception_lookalike_scope_is_not_the_real_fixture_api(self):
+        data = corpus(True)
+        data["java17"][-1] = ("fixture-api", data["java17"][-1][1])
+        with self.assertRaisesRegex(AssertionError, "Missing real"):
+            H.check_capture(data, PRIVATE, sanitized=True)
+
     def test_stale_spans_cannot_prove_fresh_capture_after_rollback(self):
         with self.assertRaisesRegex(AssertionError, "Missing SDK"):
             H.check_capture(corpus(True), PRIVATE, sanitized=True,
@@ -93,6 +101,31 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         post = H.check_capture(corpus(True), PRIVATE, sanitized=True)
         for case in H.CASES:
             self.assertEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
+            self.assertTrue(raw[case]["redisExceptionClassDigests"])
+            self.assertEqual(raw[case]["redisExceptionClassDigests"], post[case]["redisExceptionClassDigests"])
+
+    def test_redis_exception_class_missing_masked_private_or_changed_cannot_qualify_preservation(self):
+        for mutation in ("missing_event", "wrong_event", "missing_type", "masked_type", "private_type", "non_string_type"):
+            data = corpus(True)
+            span = data["java17"][4][1]
+            if mutation == "missing_event":
+                span.pop("events")
+            elif mutation == "wrong_event":
+                span["events"][0]["name"] = "not-exception"
+            else:
+                values = H.attributes(span["events"][0]["attributes"])
+                if mutation == "missing_type":
+                    values.pop("exception.type")
+                else:
+                    values["exception.type"] = {"masked_type": "[REDACTED]", "private_type": PRIVATE["exceptionSecret"], "non_string_type": 42}[mutation]
+                span["events"][0]["attributes"] = attrs(values)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(AssertionError, "exception class|private sentinel"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        changed = corpus(True)
+        changed["java17"][4][1]["events"][0]["attributes"] = attrs({"exception.type": "OtherPublicError"})
+        post = H.check_capture(changed, PRIVATE, sanitized=True)
+        self.assertNotEqual(raw["java17"]["selectiveDiagnosticDigests"], post["java17"]["selectiveDiagnosticDigests"])
 
     def test_blanket_sql_redaction_does_not_preserve_query_shape(self):
         data = corpus(True)
@@ -110,6 +143,7 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
                 data["java17"].insert(0, ("io.opentelemetry.jedis-4.0", {"kind": 3, "trace_id": "trace", "name": "AUTH", "status": {"code": 2}}))
             elif mutation == "lost_context":
                 data["java17"][4][1]["status"] = {"code": 2}
+                data["java17"][4][1]["events"][0]["attributes"] = attrs({"exception.type": "redis.clients.jedis.exceptions.JedisDataException"})
             else:
                 data["java17"].append(data["java17"][4])
             with self.subTest(mutation=mutation), self.assertRaises(AssertionError):

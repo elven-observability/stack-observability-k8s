@@ -61,7 +61,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         servers = [s for scope, s in spans if scope == server_scope and s.get("kind") in (2, "SPAN_KIND_SERVER")]
         sql = [s for scope, s in spans if scope == sql_scope and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
         redis = [s for scope, s in spans if scope in redis_scopes and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
-        exceptions = [s for _, s in spans if s.get("name") == "elven.privacy.exception"]
+        exceptions = [s for scope, s in spans if scope == "elven.sdk.privacy.fixture" and s.get("name") == "elven.privacy.exception"]
         if not servers or not sql or not redis or not exceptions:
             raise AssertionError("Missing real HTTP/SQL/Redis/exception SDK capture: " + case)
         for name, client_spans in (("SQL", sql),):
@@ -81,6 +81,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             operations.append(str(operation).upper())
         if not {"SET", "GET", "HGET"}.issubset(operations):
             raise AssertionError("Real Redis SET/GET operations were lost: " + case)
+        diagnostics, redis_diagnostics = set(), set()
         for operation in ("SET", "GET", "HGET"):
             if operations.count(operation) != 1:
                 raise AssertionError("Real Redis command was duplicated or lost: " + case + "/" + operation)
@@ -90,7 +91,27 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                 raise AssertionError("Actual Redis command/error status incorrect: " + case + "/" + operation)
             if operation == "HGET" and "WRONGTYPE" not in json.dumps(span):
                 raise AssertionError("Useful Redis server error context was lost: " + case)
-        diagnostics = set()
+            if operation == "HGET":
+                # Pinned redis instrumentation v0.73.0 _endSpanWithResponse
+                # calls recordException(error) on a rejected command promise:
+                # github.com/open-telemetry/opentelemetry-js-contrib/blob/
+                # fc3b13eb41e9512fb0d769b431583f90b5ef8326/packages/
+                # instrumentation-redis/src/v4-v5/instrumentation.ts#L596-L599
+                # The Java Instrumenter.end(Throwable) records the same standard
+                # event by default. Status text alone does not prove error type.
+                events = [attributes(event.get("attributes", [])) for event in span.get("events", [])
+                          if event.get("name") == "exception"]
+                if not events:
+                    raise AssertionError("Real Redis HGET exception class event missing: " + case)
+                for event in events:
+                    kind = event.get("exception.type")
+                    if (not isinstance(kind, str) or len(kind) > 256
+                            or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:[.$][A-Za-z_$][A-Za-z0-9_$]*)*", kind)
+                            or any(value in kind for value in private["forbidden"])):
+                        raise AssertionError("Real Redis HGET exception class is missing, masked or non-public: " + case)
+                    digest = hashlib.sha256(json.dumps(["redis-client", "HGET", kind]).encode()).hexdigest()
+                    diagnostics.add(digest)
+                    redis_diagnostics.add(digest)
         for exception in exceptions:
             if not any(server.get("trace_id") == exception.get("trace_id") and server.get("span_id") == exception.get("parent_span_id") for server in servers):
                 raise AssertionError("SDK exception is not a child of the real HTTP server span: " + case)
@@ -124,6 +145,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         summary[case] = {"httpServerSpans": len(servers), "sqlClientSpans": len(sql), "redisClientSpans": len(redis),
                          "exceptionSpans": len(exceptions), "selectiveMasking": sanitized,
                          "selectiveDiagnosticDigests": sorted(diagnostics),
+                         "redisExceptionClassDigests": sorted(redis_diagnostics),
                          "realSdkScopes": sorted({scope for scope, _ in spans})}
     return summary
 
@@ -338,8 +360,8 @@ def main():
                 observed = {case: lab.report["capture"][case]["selectiveDiagnosticDigests"] for case in CASES}
                 if combined:
                     if observed != raw_diagnostics:
-                        raise AssertionError("Post-Collector exception types, selective messages or full frames differ from the real RAW SDK control")
-                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
+                        raise AssertionError("Post-Collector Redis error classes or API exception types, selective messages or full frames differ from the real RAW SDK control")
+                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_REDIS_CLASS_API_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
                 else:
                     raw_diagnostics = observed
             except Exception as error:
