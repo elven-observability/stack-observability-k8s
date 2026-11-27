@@ -18,6 +18,29 @@ import urllib.request
 SOURCE = Path(__file__).resolve().parent
 MAX_JAR_BYTES = 4 * 1024 * 1024
 MAX_TOTAL_BYTES = 8 * 1024 * 1024
+JAVA_GRAPH = {
+    "opentelemetry-api": {"opentelemetry-context": "1.67.0"},
+    "opentelemetry-context": {"opentelemetry-common": "1.67.0"},
+    "opentelemetry-common": {},
+    "jedis": {"slf4j-api": "1.7.36", "commons-pool2": "2.12.0", "json": "20240303", "gson": "2.11.0"},
+    "gson": {"error_prone_annotations": "2.27.0"},
+    "error_prone_annotations": {}, "slf4j-api": {}, "commons-pool2": {}, "json": {}, "h2": {},
+}
+
+
+def java_lock(lock):
+    dependencies = lock["javaDependencies"]
+    if set(dependencies) != set(JAVA_GRAPH):
+        raise ValueError("Complete API/client-only Java dependency closure required; SDK/providers are forbidden")
+    for name, required in JAVA_GRAPH.items():
+        if dependencies[name].get("dependsOn", {}) != required:
+            raise ValueError("Java dependency graph was changed or omitted: " + name)
+        if name.startswith("opentelemetry-") and dependencies[name]["version"] != "1.67.0":
+            raise ValueError("API/context/common must match the pinned agent BOM 1.67.0")
+        for child, version in required.items():
+            if dependencies[child]["version"] != version:
+                raise ValueError("Java transitive dependency version mismatch: " + child)
+    return len(dependencies)
 
 
 def fetch_jar(url):
@@ -64,6 +87,7 @@ def prepare(directory):
     if directory != SOURCE:
         raise ValueError("Prepare only the directory containing this copied fixture script")
     lock = json.loads((directory / "fixtures.json").read_text())
+    java_count = java_lock(lock)
     npm_sha = node_lock(directory)
     observed, total = {}, 0
     for name, dependency in lock["javaDependencies"].items():
@@ -95,6 +119,7 @@ def prepare(directory):
         observed[name] = actual
     return {"schemaVersion": 1, "evidence_boundary": "dependency_preparation_only_not_runtime_acceptance",
             "javaSha256": observed, "nodePackageLockSha256": npm_sha,
+            "javaDependencyCount": java_count, "missingJavaDependencies": [],
             "downloadBytes": total, "sdkBundled": False}
 
 

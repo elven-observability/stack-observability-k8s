@@ -68,7 +68,8 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             if not any(span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR") for span in client_spans):
                 raise AssertionError("Real " + name + " client error status missing: " + case)
         statements = [attributes(s.get("attributes", [])).get(key, "") for s in sql for key in ("db.statement", "db.query.text")]
-        if not any("SELECT" in value.upper() for value in statements if isinstance(value, str)):
+        if not any("SELECT" in value.upper() and "answer" in value.lower() and "customer_email" in value.lower()
+                   for value in statements if isinstance(value, str)):
             raise AssertionError("SQL query shape was not preserved: " + case)
         operations = []
         for span in redis:
