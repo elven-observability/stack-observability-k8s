@@ -1,10 +1,68 @@
-# SDK privacy qualification — retained candidate
+# Native SDK privacy and hybrid qualification — LAB PASS
 
-Status: **HOLD**, 27 November 2026. No new customer kit, image promotion or
-release has been accepted. These failures are not covered by the older
-26 November synthetic Collector corpus or HTTP/JDBC SDK receipts.
+27 November 2026: **LAB PASS; customer distribution remains HOLD**. No new
+customer kit, image signature, promotion or release was published. The latest
+public release remains `v1.0.1`. The failures retained below are historical
+attempts, not the result of the newly qualified candidate.
 
-## Real application runs
+## Current reproducible candidate
+
+Source: `b79d3630a79393ad718d751b536a26a6347be72f`,
+[PR #16](https://github.com/elven-observability/stack-observability-k8s/pull/16).
+The source-only [LAB artifact](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46033926214/artifacts/15215498124)
+contains `elven-lab-candidate-b79d3630a793.zip` (272,265 bytes):
+
+```
+SHA-256: 442a5c3ee3023d4e324f686faf3f5086c2559ec225b4a097d58148fd58942817
+```
+
+Its `LAB-ONLY.txt`, `customerInstallable=false`, unsigned status and unchanged
+immutable v1.0.1 production bootstrap are intentional. It is not a replacement
+customer installer. All ZIP payload member hashes and its embedded manifest
+were independently read back and verified without extraction/execution.
+
+| Gate | Confirmed result |
+| --- | --- |
+| [Core 46021919965](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46021919965) | Native amd64/arm64 compiled Collector privacy, three signals, WAL/replay and 25 Kubernetes lifecycle checks per architecture. |
+| [SDK 46029749134](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46029749134) | Complete patched Java source assembly, executed `unitTests` task, strict repository preflight and final-JAR payload oracle; five SDK/Operator images built/scanned; native HTTP injection/delivery in both architectures. Node20 is an explicit EOL exception, not the default. |
+| [Real SDK privacy 46033921509](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46033921509) | Native amd64 **and** arm64: Java17/21, Node22 and Python3.14 glibc. Actual H2/PostgreSQL/SQLite and Redis clients, real exceptions, raw positive controls, post-Collector selective masking and fresh captures after actual CLI rollback. |
+| [ZIP/hybrid 46033926214](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46033926214) | Native amd64: exact approved-node affinity/UID, SDK Node22 vs SDK-less Go/Beyla, real RED histogram, 4 SDK / 3 Beyla server spans and zero crossovers. Rollback removed the worker and preserved Secrets/PVCs/apps; fresh SDK=4, Beyla=0 during a 15-second observation. |
+
+The exact eight image digests, distinct GitHub synthetic build revisions,
+fresh scan/Govulncheck manifests, original report hashes, public error types,
+diagnostic digests and teardown receipts are in [lab-candidate.json](lab-candidate.json).
+Core-only receipts are in [core-candidate.json](core-candidate.json).
+Both full OCI families were hashed/admitted in CI; they were **not** downloaded
+or run on the developer machine. No Auth, shared EO/EIP or customer was changed.
+
+### What the SDK evidence establishes
+
+Each requested trace has one automatic HTTP server span with GET, integer 502
+and ERROR, correlated with the business exception. SQL query shape and public
+SQL/Redis error types are preserved. Node pg supplies its public type/SQLSTATE
+in its official sanitized message, not an invented `exception.type` attribute.
+The post-Collector diagnostic digests match the raw controls and the fresh
+post-rollback captures for every case on both architectures.
+
+Real business exception objects are explicitly passed to `recordException` /
+`record_exception`, using only the external injected SDK provider/exporter.
+This proves preservation, not automatic capture of every handled application
+exception. Known private message/stack sentinels are absent after the Collector;
+the complete business frame sequence and useful message context are retained.
+Redis stacks remain masked; only the public type and finite error code survive.
+SQL statements are diagnostic normalized shapes, not a promise to export bind
+values or all original literals. Java payload readback measured 26,505,890 bytes
+per JAR, below the 128 MiB SDK-volume limit; this is **not** a RAM/CPU benchmark.
+
+Core three-signal tests and real CRI-log collection do not qualify application
+SDK logs/metrics. Those remain `NOT_PROVEN`, as do Node20 SQL/Redis/exceptions,
+other Python versions/musl/frameworks, other Redis clients and customer/backend
+acceptance. Beyla was tested only on this amd64 host: kernel
+`7.0.0-1020-azure`, BTF, containerd2.3.4 and Kind1.37/kindnet. NetworkPolicy
+enforcement, other CNI/kernel/architecture combinations, production scale/HA
+and kernel-probe/map purge after process exit remain unproven.
+
+## Historical failed real application runs
 
 All three runs used disposable hosted CI Kind clusters and actual injected
 Java 17/21 and Node 22 applications. Neither customers nor shared EO/EIP were
@@ -29,7 +87,7 @@ artifact API. No OCI archives or application runtimes were downloaded to the
 developer machine. Diagnostic logs are not evidence that application logs
 were exported and selectively sanitized by the Collector.
 
-## Correction under review
+## Correction and build history
 
 [PR #16](https://github.com/elven-observability/stack-observability-k8s/pull/16)
 adds the bounded synchronous Jedis4 terminal-error backport, strict SET/GET/
@@ -67,33 +125,33 @@ an actual resolution failure cannot be hidden behind an empty component list.
 Variant ambiguity is a hypothesis supported by the published BOM metadata,
 not a confirmed cause from that run. No Java SDK artifact was accepted.
 
-## Core milestone, not SDK acceptance
+## Separate core milestone
 
 [Core run 46021919965](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46021919965)
 completed successfully for source `9608700`: both-architecture image scans and
 Collector Govulncheck passed, followed by **native amd64 and arm64** actual-binary
 selective privacy, three-signal WAL/replay, finite Redis error-code preservation
 and **25 Kubernetes lifecycle checks per architecture**, including CLI rollback.
-Both owned Kind clusters were removed. The actual SDK boundary is not covered.
+Both owned Kind clusters were removed. The core job alone does not cover the
+SDK boundary; the separate native SDK privacy job above supplies that proof.
 
 Exact digests, independently verified small artifact ZIP/report hashes, and
 the distinct GitHub synthetic build revision are in `core-candidate.json`.
-This is not a signed/promoted image or a new combined SDK/Beyla kit. A newly
-built Beyla archive alone does not prove its runtime or its disjoint selectors.
+Core evidence alone is not a signed/promoted image or hybrid qualification.
+The new hybrid receipt above separately qualifies the exact LAB ZIP/images.
 
 ## Remaining gates
 
-1. Complete the pinned Java source build and its actual terminal-error unit
-   suite; scan all newly built images and validate both native architectures.
-2. Keep the qualified core digests fixed. Run real SDK raw positive controls,
-   post-Collector SQL/Redis/exceptions and rollback on both architectures with
-   these exact images; the core corpus results above do not satisfy this gate.
-3. Only then prepare the combined LAB candidate and record its exact source,
-   build revisions, eight OCI digests and artifact hashes. Requalify the hybrid
-   approved-node/disjoint-selector path for any changed payload.
-4. Release signing/promotion, final immutable bundle, installer approved-node
-   UID handling and a clean no-development ZIP installation remain separate
-   gates in `docs/release-candidate-review-20261127.md`.
+1. Build all eight final images from one approved release revision, sign,
+   promote and verify their anonymous registry/signature/predicate readback.
+   The qualified LAB core/SDK build revisions differ; do not relabel them as
+   a single promoted release or reuse immutable v1.0.1 tags/assets.
+2. Bind the new immutable distribution, defaults, locks and template adapter
+   to the real artifact hash. Preserve refusal of old/unknown bundles.
+3. Finish client-kit exact approved-node UID handling and acceptance of the
+   final ZIP in a clean directory, without any development flag/local file.
+4. EIP-owner integration and customer/backend acceptance remain separate.
+   Application SDK log/metric qualification needs its own measured gate.
 
-Python SDK exceptions, application log/metric privacy, other Redis client
-families and customer/backend acceptance are not established by these runs.
+See [the no-development release review](../../release-candidate-review-20261127.md).
+No published lock/default/artifact pin was changed to manufacture acceptance.

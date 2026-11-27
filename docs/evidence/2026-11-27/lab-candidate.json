@@ -1,0 +1,553 @@
+{
+  "schemaVersion": 1,
+  "qualification": "PASS_LAB_NOT_RELEASE",
+  "customerInstallable": false,
+  "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+  "sourcePr": 16,
+  "candidate": {
+    "id": 15215498124,
+    "name": "elven-lab-candidate",
+    "archiveSha256": "01ef3286ff4c1f3a201b8d567404393d1d8897c93b260f57e7f48fd08eead957",
+    "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+    "reports": {
+      "elven-lab-candidate-b79d3630a793.manifest.json": "360e674ea0a6e2564aac0f9f38016861b42068e55a2687ec5e5f40ab6025c2e2"
+    },
+    "candidateZip": {
+      "name": "elven-lab-candidate-b79d3630a793.zip",
+      "bytes": 272265,
+      "sha256": "442a5c3ee3023d4e324f686faf3f5086c2559ec225b4a097d58148fd58942817",
+      "memberCount": 87
+    }
+  },
+  "sourcePayloadSha256": "eed3f5e2fa39a1ecce029cca8e5b8a7d7cde6669ef32380ee28b956135b64b86",
+  "imageBuildRevisions": {
+    "core": "4fda9b188107e3d798966bfb96ea0a438e9ceff4",
+    "sdk": "fcbc1109891d8cd799c1fd1a2bec6cc105442cdc"
+  },
+  "imageBuildBranchRevisions": {
+    "core": "96087007775361378951af56551ef601b3e557f9",
+    "sdk": "30e90242fb25cfe655a2df9d81d1f273cf7f34f0"
+  },
+  "images": {
+    "alloy": "docker.io/elvenobservability/elven-profiler:1.0.1-dev@sha256:1d8816e8fb51ac6862fb16fbe16ba09c0c8a30074cbfef197b3078eb95269b53",
+    "beyla": "docker.io/elvenobservability/elven-ebpf:1.0.1-dev@sha256:7afcc5cc0644aa7b70d8b447bd175151292b26aa19fae7628e2cc1a152219923",
+    "collector": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:1a97f84a449ca8ca535c1e2e4e01f5823bb0d75aca5366ad25fe123ee175e0bf",
+    "java": "docker.io/elvenobservability/elven-auto-java:1.0.1-dev@sha256:89f25f54bb64f2dc336019c95ce2baefbd598b09bc3620c06f2e89f015ddc32c",
+    "nodejs": "docker.io/elvenobservability/elven-auto-nodejs:1.0.1-dev@sha256:3ce1d879eebff6d6eb7ab0f4be1b622a4bae150993310b3addb27aaba4604eac",
+    "nodejs20": "docker.io/elvenobservability/elven-auto-nodejs20:1.0.1-dev@sha256:5fd00a8a7e85140828f793502cc1e2791f0ee79e7752274776ff19e8ff2dabd5",
+    "operator": "docker.io/elvenobservability/elven-instrumentation-operator:1.0.1-dev@sha256:c864acf8cff3ad4956fc663cd3150e85bd73c910c09b64fcb2159b05a0ec5d07",
+    "python": "docker.io/elvenobservability/elven-auto-python:1.0.1-dev@sha256:52c7a87445b61742192057bf1ad17f065d05ba4e130ba83edb9cd1cd632cc18f"
+  },
+  "workflowRuns": {
+    "core": 46021919965,
+    "sdk": 46029749134,
+    "sdkPrivacy": 46033921509,
+    "hybridCandidate": 46033926214
+  },
+  "freshSecurityEvidence": {
+    "id": 15216006982,
+    "name": "elven-sdk-privacy-security",
+    "archiveSha256": "5fbb05e61d5e64ec33c0f869953856139098d9ace79fa9fd5ce6214d0704d9e0",
+    "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+    "reports": {
+      "images/release.json": "58b513c1a205297f2d3bed7f190370341b3b4ef6057b4a9cef43d10802ee0f28",
+      "instrumentation/instrumentation-release.json": "6f9c16a42c782b4917adf43ca0f800c76f24980d38f04eabaaa6b4a78797fe7c"
+    }
+  },
+  "coreNativeRuntimeEvidence": "core-candidate.json",
+  "sdkBasicNativeRuntime": {
+    "amd64": {
+      "evidence": {
+        "id": 15215720915,
+        "name": "elven-instrumentation-runtime-evidence",
+        "archiveSha256": "df343806ad7b3ea4e20f331ea5247c5bafd86a0d6950800d0f7b6550228f78ec",
+        "sourceRevision": "30e90242fb25cfe655a2df9d81d1f273cf7f34f0",
+        "reports": {
+          "instrumentation-kind-d2a3e24a87/report.json": "059a2961aead99537b6ee43d2b7736dd61ef83c496957b753c4aa74115abe43b",
+          "instrumentation-validation-20261127T162253/report.json": "d2b808b488a31234298fa770c175b926e83e83b81fa94e3876f6dc21eedcefe1"
+        }
+      },
+      "httpServerClientCases": [
+        "java17",
+        "java21",
+        "node22",
+        "node20-explicit-eol-exception"
+      ],
+      "javaJdbcCases": [
+        "java17",
+        "java21"
+      ],
+      "ownedClusterRemoved": true
+    },
+    "arm64": {
+      "evidence": {
+        "id": 15214744272,
+        "name": "elven-instrumentation-native-arm-evidence",
+        "archiveSha256": "dd3e9a3d7d329c60316cef83ab95d82ccd69fe8d2eb2414e59a35df61ca4e375",
+        "sourceRevision": "30e90242fb25cfe655a2df9d81d1f273cf7f34f0",
+        "reports": {
+          "instrumentation-kind-48de2ac6e9/report.json": "bf6c2f08f73c00c1e41ce8ab1f848679570294415394997118b2c5b40ceea3a2"
+        }
+      },
+      "httpServerClientCases": [
+        "java17",
+        "java21",
+        "node22",
+        "node20-explicit-eol-exception"
+      ],
+      "javaJdbcCases": [
+        "java17",
+        "java21"
+      ],
+      "ownedClusterRemoved": true
+    }
+  },
+  "realSdkPrivacy": {
+    "amd64": {
+      "evidence": {
+        "id": 15216161519,
+        "name": "elven-sdk-privacy-evidence",
+        "archiveSha256": "758454170c7d5f8cc99535b31d7e6de6d8d3eac17ea9155b215ea1b81f34becc",
+        "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+        "reports": {
+          "sdk-privacy-instrumentation-kind-fbc5f458f6/report.json": "9bbd6eaab58a19eff62582ab870ed1d8848e6f3cc4441125fdff86c8553de817",
+          "sdk-privacy-instrumentation-kind-9d7daa0f34/report.json": "a9a0f79caa87f5105b8867613716dab746702509b1a4b57181fc15e7981746bb"
+        }
+      },
+      "rawPositiveControl": "PASS",
+      "postCollector": "PASS",
+      "exactRawPostDiagnosticComparison": "PASS",
+      "freshCaptureAfterRollback": "PASS",
+      "identitiesPreserved": true,
+      "ownedClustersRemoved": true,
+      "actualJavaPayloadBytes": {
+        "java17": 26505890,
+        "java21": 26505890
+      },
+      "cases": {
+        "java17": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 5,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c",
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f",
+            "a2be1e12d1b9ebc9b9792bc139fc77de90dce823e5122c62d342f72a0f1a2814"
+          ],
+          "redisExceptionClassDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c"
+          ],
+          "sqlExceptionClassDigests": [
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f"
+          ],
+          "sqlExceptionPublicTypes": [
+            "org.h2.jdbc.JdbcSQLDataException"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.clients.jedis.exceptions.JedisDataException"
+          ],
+          "expectedApiExceptionType": "java.lang.IllegalStateException",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "io.opentelemetry.java-http-server",
+            "io.opentelemetry.jdbc",
+            "io.opentelemetry.jedis-4.0"
+          ]
+        },
+        "java21": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 5,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c",
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f",
+            "f46a829c157808066f1cbf8b7b31384a55d69d2dc7400dab07b87383db1a4ab7"
+          ],
+          "redisExceptionClassDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c"
+          ],
+          "sqlExceptionClassDigests": [
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f"
+          ],
+          "sqlExceptionPublicTypes": [
+            "org.h2.jdbc.JdbcSQLDataException"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.clients.jedis.exceptions.JedisDataException"
+          ],
+          "expectedApiExceptionType": "java.lang.IllegalStateException",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "io.opentelemetry.java-http-server",
+            "io.opentelemetry.jdbc",
+            "io.opentelemetry.jedis-4.0"
+          ]
+        },
+        "node22": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 4,
+          "redisClientSpans": 4,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "439ee6db7bd77f3fadcd2583bae5cf8a1b88b30913e5e56e7ced42d0997f5a80",
+            "8a72c56e9959a8bec7b90acda40503414cc31d5f3d1e565909241165ff92bdc4",
+            "af78a9a4fb2e6cd41319a074b9358d8a62357879188c7e5fb719795002f85e3d"
+          ],
+          "redisExceptionClassDigests": [
+            "8a72c56e9959a8bec7b90acda40503414cc31d5f3d1e565909241165ff92bdc4"
+          ],
+          "sqlExceptionClassDigests": [
+            "af78a9a4fb2e6cd41319a074b9358d8a62357879188c7e5fb719795002f85e3d"
+          ],
+          "sqlExceptionPublicTypes": [
+            "error"
+          ],
+          "redisExceptionPublicTypes": [
+            "Error"
+          ],
+          "expectedApiExceptionType": "Error",
+          "sqlExceptionTypeOrigin": "official_pg_sanitized_exception_message",
+          "sqlExceptionSqlStates": [
+            "22012"
+          ],
+          "realSdkScopes": [
+            "@opentelemetry/instrumentation-dns",
+            "@opentelemetry/instrumentation-http",
+            "@opentelemetry/instrumentation-net",
+            "@opentelemetry/instrumentation-pg",
+            "@opentelemetry/instrumentation-redis",
+            "elven.sdk.privacy.fixture"
+          ]
+        },
+        "python314": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 3,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "08743465886d90fa27d7d0ccf048629350db50936cc7baaef932010dbadd6e91",
+            "bca4e2ece1bc4d7d08c86e500675bc5f369b2ab77656e4cd15adbc8f9d7be65f",
+            "dbf3e22bd0f4fb0b641af73e456cd2386d7d850425bdc083ef0fb3456722f7c7"
+          ],
+          "redisExceptionClassDigests": [
+            "dbf3e22bd0f4fb0b641af73e456cd2386d7d850425bdc083ef0fb3456722f7c7"
+          ],
+          "sqlExceptionClassDigests": [
+            "08743465886d90fa27d7d0ccf048629350db50936cc7baaef932010dbadd6e91"
+          ],
+          "sqlExceptionPublicTypes": [
+            "sqlite3.OperationalError"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.exceptions.ResponseError"
+          ],
+          "expectedApiExceptionType": "ValueError",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "opentelemetry.instrumentation.flask",
+            "opentelemetry.instrumentation.redis",
+            "opentelemetry.instrumentation.sqlite3"
+          ]
+        }
+      },
+      "businessExceptionCapture": {
+        "businessExceptions": "Real thrown/caught exception objects explicitly recorded through recordException/record_exception APIs",
+        "providerAndExporter": "External injected SDK only; no application-bundled SDK/provider/exporter",
+        "automaticCapture": [
+          "HTTP server",
+          "SQL client",
+          "Redis client"
+        ],
+        "allHandledBusinessExceptionsAutomaticallyCaptured": false
+      }
+    },
+    "arm64": {
+      "evidence": {
+        "id": 15217720009,
+        "name": "elven-sdk-privacy-evidence-arm64",
+        "archiveSha256": "3739a7fdaae88da09f3e3dda97d5dab55820730366c03139275f3b277bcf0de7",
+        "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+        "reports": {
+          "sdk-privacy-instrumentation-kind-36b026dd2a/report.json": "984e4e52644a22cca437bb2e117b35ba470ab67de8c81c1762dac174168da488",
+          "sdk-privacy-instrumentation-kind-8923eb3cf3/report.json": "d257d16d87f4eae39745760c890f1673ac1ac142168ec9e666b053acc6ba4327"
+        }
+      },
+      "rawPositiveControl": "PASS",
+      "postCollector": "PASS",
+      "exactRawPostDiagnosticComparison": "PASS",
+      "freshCaptureAfterRollback": "PASS",
+      "identitiesPreserved": true,
+      "ownedClustersRemoved": true,
+      "actualJavaPayloadBytes": {
+        "java17": 26505890,
+        "java21": 26505890
+      },
+      "cases": {
+        "java17": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 5,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c",
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f",
+            "a2be1e12d1b9ebc9b9792bc139fc77de90dce823e5122c62d342f72a0f1a2814"
+          ],
+          "redisExceptionClassDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c"
+          ],
+          "sqlExceptionClassDigests": [
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f"
+          ],
+          "sqlExceptionPublicTypes": [
+            "org.h2.jdbc.JdbcSQLDataException"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.clients.jedis.exceptions.JedisDataException"
+          ],
+          "expectedApiExceptionType": "java.lang.IllegalStateException",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "io.opentelemetry.java-http-server",
+            "io.opentelemetry.jdbc",
+            "io.opentelemetry.jedis-4.0"
+          ]
+        },
+        "java21": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 5,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c",
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f",
+            "f46a829c157808066f1cbf8b7b31384a55d69d2dc7400dab07b87383db1a4ab7"
+          ],
+          "redisExceptionClassDigests": [
+            "67a92d3e8864d63dfb552523c83a01ed717276810fac1dc0af2299c46d000a7c"
+          ],
+          "sqlExceptionClassDigests": [
+            "9e20f80a8ba1686b34fdeb4e2dd53a456c3334874442a088804af05a0fff210f"
+          ],
+          "sqlExceptionPublicTypes": [
+            "org.h2.jdbc.JdbcSQLDataException"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.clients.jedis.exceptions.JedisDataException"
+          ],
+          "expectedApiExceptionType": "java.lang.IllegalStateException",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "io.opentelemetry.java-http-server",
+            "io.opentelemetry.jdbc",
+            "io.opentelemetry.jedis-4.0"
+          ]
+        },
+        "node22": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 4,
+          "redisClientSpans": 4,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "439ee6db7bd77f3fadcd2583bae5cf8a1b88b30913e5e56e7ced42d0997f5a80",
+            "8a72c56e9959a8bec7b90acda40503414cc31d5f3d1e565909241165ff92bdc4",
+            "af78a9a4fb2e6cd41319a074b9358d8a62357879188c7e5fb719795002f85e3d"
+          ],
+          "redisExceptionClassDigests": [
+            "8a72c56e9959a8bec7b90acda40503414cc31d5f3d1e565909241165ff92bdc4"
+          ],
+          "sqlExceptionClassDigests": [
+            "af78a9a4fb2e6cd41319a074b9358d8a62357879188c7e5fb719795002f85e3d"
+          ],
+          "sqlExceptionPublicTypes": [
+            "error"
+          ],
+          "redisExceptionPublicTypes": [
+            "Error"
+          ],
+          "expectedApiExceptionType": "Error",
+          "sqlExceptionTypeOrigin": "official_pg_sanitized_exception_message",
+          "sqlExceptionSqlStates": [
+            "22012"
+          ],
+          "realSdkScopes": [
+            "@opentelemetry/instrumentation-dns",
+            "@opentelemetry/instrumentation-http",
+            "@opentelemetry/instrumentation-net",
+            "@opentelemetry/instrumentation-pg",
+            "@opentelemetry/instrumentation-redis",
+            "elven.sdk.privacy.fixture"
+          ]
+        },
+        "python314": {
+          "httpServerSpans": 1,
+          "sqlClientSpans": 3,
+          "redisClientSpans": 3,
+          "exceptionSpans": 1,
+          "selectiveMasking": true,
+          "selectiveDiagnosticDigests": [
+            "08743465886d90fa27d7d0ccf048629350db50936cc7baaef932010dbadd6e91",
+            "bca4e2ece1bc4d7d08c86e500675bc5f369b2ab77656e4cd15adbc8f9d7be65f",
+            "dbf3e22bd0f4fb0b641af73e456cd2386d7d850425bdc083ef0fb3456722f7c7"
+          ],
+          "redisExceptionClassDigests": [
+            "dbf3e22bd0f4fb0b641af73e456cd2386d7d850425bdc083ef0fb3456722f7c7"
+          ],
+          "sqlExceptionClassDigests": [
+            "08743465886d90fa27d7d0ccf048629350db50936cc7baaef932010dbadd6e91"
+          ],
+          "sqlExceptionPublicTypes": [
+            "sqlite3.OperationalError"
+          ],
+          "redisExceptionPublicTypes": [
+            "redis.exceptions.ResponseError"
+          ],
+          "expectedApiExceptionType": "ValueError",
+          "sqlExceptionTypeOrigin": "exception.type",
+          "sqlExceptionSqlStates": [],
+          "realSdkScopes": [
+            "elven.sdk.privacy.fixture",
+            "opentelemetry.instrumentation.flask",
+            "opentelemetry.instrumentation.redis",
+            "opentelemetry.instrumentation.sqlite3"
+          ]
+        }
+      },
+      "businessExceptionCapture": {
+        "businessExceptions": "Real thrown/caught exception objects explicitly recorded through recordException/record_exception APIs",
+        "providerAndExporter": "External injected SDK only; no application-bundled SDK/provider/exporter",
+        "automaticCapture": [
+          "HTTP server",
+          "SQL client",
+          "Redis client"
+        ],
+        "allHandledBusinessExceptionsAutomaticallyCaptured": false
+      }
+    }
+  },
+  "hybrid": {
+    "evidence": {
+      "id": 15215483236,
+      "name": "elven-lab-candidate-evidence",
+      "archiveSha256": "de26f532dbe6d50dff3b920dee1db9c67b66208ae14140df40a9cfb66f557751",
+      "sourceRevision": "b79d3630a79393ad718d751b536a26a6347be72f",
+      "reports": {
+        "kind-be01770420/report.json": "5016d660eb1c1f9ba32c2ed917c112bcd014ed019b89208ceb2e1ae464bc0116"
+      }
+    },
+    "runtimePlatform": {
+      "source": "kubectl version.serverVersion.platform",
+      "reported": "linux/amd64",
+      "tested": "linux/amd64"
+    },
+    "sdkBpfDisjoint": {
+      "sdk_server": 4,
+      "bpf_server": 3,
+      "bpf_on_sdk": 0,
+      "sdk_on_bpf": 0,
+      "unknown_selected_scope": 0,
+      "scopes": [
+        "@opentelemetry/instrumentation-http",
+        "go.opentelemetry.io/obi"
+      ]
+    },
+    "host": {
+      "node": "elven-dist-be01770420-control-plane",
+      "uid": "a89f7822-e6ae-49c4-9ae2-b3e99e08e1d4",
+      "btfPresent": true,
+      "cniDaemonSets": [
+        {
+          "name": "kindnet",
+          "images": [
+            "docker.io/kindest/kindnetd:v20260820-69b56db7"
+          ]
+        },
+        {
+          "name": "kube-proxy",
+          "images": [
+            "registry.k8s.io/kube-proxy:v1.37.0"
+          ]
+        }
+      ],
+      "networkPolicyEnforcement": "NOT_PROVEN"
+    },
+    "kernel": "7.0.0-1020-azure",
+    "containerRuntime": "containerd://2.3.4",
+    "hostAccessApproved": true,
+    "beylaSecurity": {
+      "allowPrivilegeEscalation": false,
+      "appArmorProfile": {
+        "type": "Unconfined"
+      },
+      "capabilities": {
+        "add": [
+          "BPF",
+          "PERFMON",
+          "SYS_PTRACE",
+          "DAC_READ_SEARCH",
+          "CHECKPOINT_RESTORE",
+          "NET_RAW"
+        ],
+        "drop": [
+          "ALL"
+        ]
+      },
+      "privileged": false,
+      "readOnlyRootFilesystem": true,
+      "runAsGroup": 10001,
+      "runAsNonRoot": false,
+      "runAsUser": 0,
+      "seccompProfile": {
+        "type": "Unconfined"
+      }
+    },
+    "rollback": {
+      "secretPvcUidsPreserved": true,
+      "applicationPodUidsPreserved": true,
+      "beylaWorkerPodsRemaining": 0,
+      "freshSdkSpans": 4,
+      "freshBeylaSpans": 0,
+      "boundedObservationSeconds": 15,
+      "kernelProbePurge": "NOT_PROVEN"
+    },
+    "ownedClusterRemoved": true
+  },
+  "releaseGatesRemaining": [
+    "Eight final images built from one approved release revision, signed, promoted and anonymously verified",
+    "New immutable distribution/defaults/locks/template adapter artifact; retain refusal of old or unknown bundles",
+    "Client kit exact approved-node UID selection and clean no-development ZIP acceptance",
+    "EIP owner integration and customer/backend acceptance"
+  ],
+  "notProven": [
+    "Application SDK log/metric delivery or privacy; trace tests do not qualify those signals",
+    "Automatic capture of every handled business exception; this fixture explicitly records real exception objects through the API",
+    "Node20 SQL/Redis/exception privacy (legacy HTTP only)",
+    "Other Python versions, musl, frameworks or clients",
+    "NetworkPolicy enforcement and other CNI/kernel/eBPF architecture combinations",
+    "Kernel probe/map purge after Beyla process exit",
+    "Production scale/HA, universal PII detection or all SQL dialects",
+    "New image signatures, registry availability or customer-installable release"
+  ],
+  "productionBootstrap": "UNCHANGED_IMMUTABLE_V1_0_1",
+  "publicationStatus": "NOT_PUBLISHED_NOT_PROMOTED_UNSIGNED_LAB",
+  "verificationNote": "Small artifact ZIPs and JSON member hashes independently recomputed; full OCI archives remain in CI and were not downloaded to the developer machine"
+}
