@@ -233,6 +233,10 @@ class JavaSourceBuildTests(unittest.TestCase):
         for key, old, new in (
                 ("restletRepositoryInit", "if (path in [", "if (true || path in ["),
                 ("restletPreflightSettings", "mavenCentral()", "mavenLocal()"),
+                ("restletPreflightBuild", "attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))", ""),
+                ("restletPreflightBuild", "attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))", "attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_API))"),
+                ("restletPreflightBuild", "attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category, Category.LIBRARY))", ""),
+                ("restletPreflightBuild", "def jars = project.configurations.probe.resolve()", "def jars = []"),
                 ("restletPreflightBuild", "assert project.repositories.isEmpty()", "assert true"),
                 ("restletPreflightBuild", "assert resolved == expected", "assert true"),
                 ("restletPreflightBuild", "assert java.nio.file.Files.mismatch(artifact.file.toPath(), original.toPath()) == -1L", "assert true")):
@@ -245,6 +249,18 @@ class JavaSourceBuildTests(unittest.TestCase):
                 self.validate()
             path.write_bytes(raw)
             self.build[key]["sha256"] = old_hash
+
+    def test_preflight_cannot_read_lenient_ids_before_forcing_resolution(self):
+        key = "restletPreflightBuild"
+        path = self.root / self.build[key]["path"]
+        original = path.read_text()
+        strict = "def jars = project.configurations.probe.resolve()"
+        changed = original.replace(strict, "").replace("def expected =", strict + "\n            def expected =")
+        self.assertNotEqual(original, changed)
+        path.write_text(changed)
+        self.build[key]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ValueError, "strict resolution before"):
+            self.validate()
 
     def test_recipe_cannot_claim_unmodified_or_skip_reviewed_patch_and_transfer(self):
         for old, new in (("Elven patched Java agent", "unmodified pinned upstream payload"),

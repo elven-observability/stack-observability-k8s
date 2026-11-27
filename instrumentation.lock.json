@@ -79,7 +79,7 @@
         },
         "restletPreflightBuild": {
           "path": "images/autoinstrumentation/java/restlet-preflight.build.gradle",
-          "sha256": "f9bff3d1a3638feb685681aa6f8bd9650e3636f6e0f058ce828db88b26f8450a"
+          "sha256": "6a65a01259808ae742c2ae9ffcae2a6160bef2e3e5a93ef04ef42fe608adabe0"
         },
         "patches": [
           {

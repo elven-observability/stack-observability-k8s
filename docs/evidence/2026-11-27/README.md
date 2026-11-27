@@ -59,6 +59,14 @@ recipe regression, not an accepted Java build or a new dependency outage.
 The correction must preserve resolution outside the Restlet projects and prove
 Central/local-repository coexistence before the expensive assembly task.
 
+[SDK build 46028871872](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46028871872)
+stopped in the new six-second repository preflight: the BOM component was absent
+from the lenient resolution result. The next preflight uses explicit JVM usage
+attributes and strict resolution before inspecting component identities, so
+an actual resolution failure cannot be hidden behind an empty component list.
+Variant ambiguity is a hypothesis supported by the published BOM metadata,
+not a confirmed cause from that run. No Java SDK artifact was accepted.
+
 ## Core milestone, not SDK acceptance
 
 [Core run 46021919965](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46021919965)

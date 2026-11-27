@@ -102,6 +102,10 @@ def validate_java_restlet_build(build, lines):
     preflight = "\n".join(line for line in helpers["restletPreflightBuild"].splitlines()
                            if not line.lstrip().startswith("//"))
     if (settings != expected_settings or not all(fragment in preflight for fragment in (
+            "import org.gradle.api.attributes.Usage", "import org.gradle.api.attributes.Category",
+            "attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))",
+            "attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category, Category.LIBRARY))",
+            "def jars = project.configurations.probe.resolve()",
             "def centralBom = 'io.opentelemetry:opentelemetry-bom:1.67.0'",
             "'org.restlet:org.restlet:1.1.5'", "'com.noelios.restlet:com.noelios.restlet:1.1.5'",
             "'org.restlet.jse:org.restlet:2.0.2'", "mavenCentral()", "mavenLocal()",
@@ -112,6 +116,11 @@ def validate_java_restlet_build(build, lines):
             "tasks.register('verifyRepositoryBoundaries')",
             "dependsOn(':central-check:verifyResolution')"))):
         raise ValueError("Java repository preflight must prove exact local Restlet coordinates and unchanged settings Central resolution")
+    strict_resolution = "def jars = project.configurations.probe.resolve()"
+    component_ids = "def resolved = project.configurations.probe.incoming.resolutionResult.allComponents"
+    if (preflight.count(strict_resolution) != 1 or component_ids not in preflight
+            or preflight.index(strict_resolution) > preflight.index(component_ids)):
+        raise ValueError("Java repository preflight must force strict resolution before reading lenient component identities")
     compiler = helpers["restletBuildScript"]
     compiler_lines = [line.strip() for line in compiler.replace("\\\n", " ").splitlines()
                       if line.strip() and not line.lstrip().startswith("#")]

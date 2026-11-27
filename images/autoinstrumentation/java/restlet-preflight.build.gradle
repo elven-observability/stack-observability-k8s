@@ -1,4 +1,7 @@
 // Small resolution-only gate. No Java/Kotlin plugin, compilation or SDK traces.
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.Usage
+
 def restletProjects = [
     ':instrumentation:restlet:restlet-1.1:javaagent',
     ':instrumentation:restlet:restlet-2.0:javaagent'
@@ -25,6 +28,10 @@ configure(subprojects.findAll { it.path in restletProjects || it.path == ':centr
         probe {
             canBeConsumed = false
             canBeResolved = true
+            attributes {
+                attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))
+                attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category, Category.LIBRARY))
+            }
         }
     }
     dependencies {
@@ -42,12 +49,14 @@ configure(subprojects.findAll { it.path in restletProjects || it.path == ':centr
                 // A broad init script would hide settings Central here.
                 assert project.repositories.isEmpty(): 'Unrelated project repositories were changed'
             }
+            // ResolutionResult is lenient. Force strict artifact resolution
+            // first so fetch/variant failures retain their actual diagnostics.
+            def jars = project.configurations.probe.resolve()
             def resolved = project.configurations.probe.incoming.resolutionResult.allComponents
                 .findAll { it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
                 .collect { it.moduleVersion.toString() }.toSet()
             def expected = ([centralBom] + (isRestlet ? localCoordinates : [])).toSet()
             assert resolved == expected: "Unexpected component identities: ${resolved}"
-            def jars = project.configurations.probe.files
             assert jars.size() == (isRestlet ? 3 : 0)
             def artifacts = project.configurations.probe.resolvedConfiguration.resolvedArtifacts
             assert artifacts.size() == (isRestlet ? 3 : 0)
