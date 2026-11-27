@@ -1,6 +1,30 @@
 # Cadeia de fornecimento da auto-instrumentação opt-in
 
-Este módulo possui lock, imagens, assinatura e promoção próprios. Não altera o conjunto de três imagens da coleta principal. O Operator Elven é um admission webhook Go sem CRDs, acesso à API Kubernetes ou SDK Kubernetes; não é apresentado como o binário do OpenTelemetry Operator. Os SDKs são payloads oficiais OpenTelemetry preservados em wrappers Elven.
+Este módulo possui lock, imagens, assinatura e promoção próprios. Não altera o conjunto de três imagens da coleta principal. O Operator Elven é um admission webhook Go sem CRDs, acesso à API Kubernetes ou SDK Kubernetes; não é apresentado como o binário do OpenTelemetry Operator. Node/Python preservam os payloads oficiais em wrappers Elven. A receita Java candidata descrita abaixo reconstrói a fonte oficial com um backport explícito; não deve ser descrita como payload sem modificações.
+
+## Candidato Java retido — 27/11/2026
+
+O ensaio real `46013176213` confirmou execução SQL/Redis/exception nos apps,
+mas **falhou**: o SDK Java não marcou `WRONGTYPE` como erro do span Redis. A
+receita candidata aplica um backport mínimo da propagação de exceção terminal
+do Jedis4 ao span **já existente**, sem criar outro span. Referência upstream:
+[PR #20792](https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/20792).
+A release v2.34.0 consultada também não contém essa correção; trocar somente
+a versão não resolveria a lacuna observada.
+
+`images.java.sourceBuild` registra o commit oficial, builder, wrapper e SHA do
+patch. O build confere os pins, aplica o patch e exige testes puros de contexto,
+erro terminal/transporte, compatibilidade e ausência de novos spans; os testes
+reais de Redis/SDK/Collector permanecem obrigatórios no CI isolado. O JAR é
+construído no builder nativo e copiado à base upstream imutável, preservando
+entrypoint/utilitário de cópia/licenças. O builder não entra na imagem final.
+
+**Isso não publica/promove uma imagem.** Os registros de distribuição v1.0.1
+continuam históricos e não descrevem o novo JAR. Compilação, scans, footprint,
+runtime nativo, verificação criptográfica e promoção dos novos digests precisam
+de recibos próprios. O backport é limitado ao caminho síncrono Jedis4; não
+qualifica pipelines/transações/cluster ou todas as bibliotecas Redis. O quadro
+e os tamanhos de 03/11 abaixo são históricos, não medidas do candidato novo.
 
 ## Pins verificados em 03/11/2026
 

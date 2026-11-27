@@ -64,7 +64,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         exceptions = [s for _, s in spans if s.get("name") == "elven.privacy.exception"]
         if not servers or not sql or not redis or not exceptions:
             raise AssertionError("Missing real HTTP/SQL/Redis/exception SDK capture: " + case)
-        for name, client_spans in (("SQL", sql), ("Redis", redis)):
+        for name, client_spans in (("SQL", sql),):
             if not any(span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR") for span in client_spans):
                 raise AssertionError("Real " + name + " client error status missing: " + case)
         statements = [attributes(s.get("attributes", [])).get(key, "") for s in sql for key in ("db.statement", "db.query.text")]
@@ -76,11 +76,20 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             values = attributes(span.get("attributes", []))
             operation = values.get("db.operation.name", values.get("db.operation"))
             if operation is None:
-                match = re.fullmatch(r"(?:redis\s+)?(SET|GET)(?:\s+.*)?", span.get("name", ""), re.I)
+                match = re.fullmatch(r"(?:redis\s+)?(SET|GET|HGET)(?:\s+.*)?", span.get("name", ""), re.I)
                 operation = match.group(1) if match else ""
             operations.append(str(operation).upper())
-        if not {"SET", "GET"}.issubset(operations):
+        if not {"SET", "GET", "HGET"}.issubset(operations):
             raise AssertionError("Real Redis SET/GET operations were lost: " + case)
+        for operation in ("SET", "GET", "HGET"):
+            if operations.count(operation) != 1:
+                raise AssertionError("Real Redis command was duplicated or lost: " + case + "/" + operation)
+            span = redis[operations.index(operation)]
+            error = span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR")
+            if error != (operation == "HGET"):
+                raise AssertionError("Actual Redis command/error status incorrect: " + case + "/" + operation)
+            if operation == "HGET" and "WRONGTYPE" not in json.dumps(span):
+                raise AssertionError("Useful Redis server error context was lost: " + case)
         diagnostics = set()
         for exception in exceptions:
             if not any(server.get("trace_id") == exception.get("trace_id") and server.get("span_id") == exception.get("parent_span_id") for server in servers):
@@ -203,6 +212,12 @@ class PrivacyLab(SDK.InstrumentationLab):
             if init["image"] != self.images[runtime]["reference"] or status["state"]["terminated"]["exitCode"] != 0:
                 raise AssertionError("Exact injected SDK/init execution was not observed")
             self.check("actual SDK injection " + case, image=init["image"], initExitCode=0)
+            if runtime == "java":
+                size = int(self.kube("exec", "pod/" + case, "-n", self.app_namespace,
+                                     "-c", "app", "--", "stat", "-c", "%s", "/elven-auto/javaagent.jar").stdout.strip())
+                if not 0 < size < 128 * 1024**2:
+                    raise AssertionError("The actual Java JAR exceeds the scoped SDK volume budget")
+                self.report.setdefault("actualJavaPayloadBytes", {})[case] = size
         self.exercise()
 
     def delivery(self):
@@ -218,6 +233,8 @@ class PrivacyLab(SDK.InstrumentationLab):
                                                   for case, spans in self.service_spans().items() if case in CASES}
                 return False
         self.wait_for(arrived, "actual SDK SQL Redis exceptions and selective privacy", timeout=150)
+        self.report.pop("captureFailure", None)
+        self.report.pop("scope_inventory", None)
         self.report["capture"] = result
         if self.combined:
             if not all(item["tenant"] == "synthetic-tenant" and item["authorization_valid"] for item in self.state()["accepted"]):

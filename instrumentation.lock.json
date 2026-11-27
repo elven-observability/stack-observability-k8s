@@ -38,6 +38,19 @@
       "payloadPaths": [
         "/javaagent.jar"
       ],
+      "sourceBuild": {
+        "repository": "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git",
+        "revision": "d9045e02e0711837d54f0fd058cd55f77742506d",
+        "buildImage": "gradle:9.8.2-jdk21@sha256:85f8f572045bfb31874d66d7d8a2bd0c17d8cb9ad34b6a4d02f5d552b4b92c04",
+        "gradleVersion": "9.8.2",
+        "wrapperDistributionSha256": "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607",
+        "patches": [
+          {
+            "path": "images/autoinstrumentation/java/jedis4-terminal-error.patch",
+            "sha256": "25dc0866daf97461bb4110d38d36225d8f336b90d1c4c1a9a00b949006b54be0"
+          }
+        ]
+      },
       "stability": "stable-release-not-all-integrations-GA",
       "upstream": {
         "digest": "sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452",

@@ -46,7 +46,15 @@ class SDKSupplyChainTests(unittest.TestCase):
             self.assertIn("FROM ${UPSTREAM_IMAGE}", recipe)
             self.assertIn(SDK.source_ref(image), recipe)
             self.assertIn("images/licenses/APACHE-2.0.txt", recipe)
-            self.assertNotRegex(recipe, r"(?m)^\s*(RUN|ENTRYPOINT|CMD)\b")
+            if name == "java":
+                self.assertIn("sourceBuild", image)
+                self.assertNotIn("unmodified", recipe)
+                # Validated source backport replaces only the Java agent JAR;
+                # the immutable upstream runtime copy/entrypoint stays intact.
+                self.assertIn("COPY --from=", recipe)
+                self.assertNotRegex(recipe, r"(?m)^\s*(ENTRYPOINT|CMD)\b")
+            else:
+                self.assertNotRegex(recipe, r"(?m)^\s*(RUN|ENTRYPOINT|CMD)\b")
             self.assertNotIn(":latest", recipe)
             ignore = (ROOT / (image["dockerfile"] + ".dockerignore")).read_text()
             self.assertTrue(ignore.startswith("**\n"))

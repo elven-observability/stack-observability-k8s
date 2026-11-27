@@ -41,6 +41,64 @@ def source_ref(image):
     return f"{source['repository']}:{source['tag']}@{source['digest']}"
 
 
+def validate_java_source_build(image, recipe):
+    """Bind the patched agent to its immutable source, builder and local patch bytes."""
+    build = image.get("sourceBuild")
+    repository = "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git"
+    if not isinstance(build, dict) or build.get("repository") != repository:
+        raise ValueError("Java requires the official immutable source-build provenance")
+    revision, builder = build.get("revision", ""), build.get("buildImage", "")
+    if (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
+            or not isinstance(builder, str) or not re.fullmatch(r"gradle:[0-9]+\.[0-9]+\.[0-9]+-jdk21@sha256:[0-9a-f]{64}", builder)):
+        raise ValueError("Java source revision and Gradle builder must be immutable")
+    lines = [line.strip() for line in recipe.replace("\\\n", " ").splitlines()
+             if line.strip() and not line.lstrip().startswith("#")]
+    if (f"FROM --platform=$BUILDPLATFORM {builder} AS builder" not in lines
+            or f"ADD --keep-git-dir=true {repository}#{revision} /src" not in lines
+            or f"ARG UPSTREAM_IMAGE={source_ref(image)}" not in lines
+            or "FROM ${UPSTREAM_IMAGE}" not in lines
+            or image["upstream"].get("sourceVersion") != "2.33.1"
+            or "unmodified" in recipe.lower()):
+        raise ValueError("Java source/build/base recipe or modified-payload labeling differs from lock")
+    patches = build.get("patches")
+    if not isinstance(patches, list) or len(patches) != 1 or not isinstance(patches[0], dict):
+        raise ValueError("Java requires exactly one reviewed local terminal-error patch")
+    patch = patches[0]
+    relative, checksum = patch.get("path"), patch.get("sha256", "")
+    if (not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts
+            or not isinstance(checksum, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", checksum)):
+        raise ValueError("Java patch identity must include its exact path and SHA256")
+    folder = ROOT / "images/autoinstrumentation/java"
+    path = ROOT / relative
+    if (path.parent != folder or path.suffix != ".patch" or path.is_symlink()
+            or any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(ROOT))
+            or not path.is_file() or path.resolve().parent != folder.resolve()
+            or OCI.sha256(path) != checksum):
+        raise ValueError("Java patch must be a confined regular non-symlink file matching its SHA256")
+    destination = "/tmp/" + path.name
+    run_lines = [line for line in lines if line.startswith("RUN ")]
+    commands = " ".join(run_lines)
+
+    def invokes(command):
+        return any(re.search(r"(?:\bRUN\s+|&&\s*|;\s*)" + re.escape(command)
+                             + r"(?=\s*(?:&&|;|$))", line) is not None for line in run_lines)
+
+    if (f"COPY {relative} {destination}" not in lines
+            or not invokes(f"git apply --check {destination}")
+            or not invokes(f"git apply {destination}")
+            or "./gradlew" not in commands or ":javaagent:assemble" not in commands
+            or "COPY --from=builder /src/javaagent/build/libs/opentelemetry-javaagent.jar /javaagent.jar" not in lines):
+        raise ValueError("Java patch/application/build/payload transfer differs from source-build provenance")
+    version, wrapper_sha = build.get("gradleVersion", ""), build.get("wrapperDistributionSha256", "")
+    if (not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)
+            or not builder.startswith(f"gradle:{version}-jdk21@")
+            or not isinstance(wrapper_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", wrapper_sha)
+            or not invokes(f"grep -Fx 'distributionUrl=https\\://services.gradle.org/distributions/gradle-{version}-bin.zip' gradle/wrapper/gradle-wrapper.properties")
+            or not invokes(f"grep -Fx 'distributionSha256Sum={wrapper_sha}' gradle/wrapper/gradle-wrapper.properties")):
+        raise ValueError("Java Gradle wrapper version/checksum differs from the pinned build provenance")
+
+
 def read_lock(path=ROOT / "instrumentation.lock.json"):
     lock = json.loads(path.read_text())
     if lock.get("schemaVersion") != 1 or set(lock.get("images", {})) != set(REPOSITORIES):
@@ -59,6 +117,8 @@ def read_lock(path=ROOT / "instrumentation.lock.json"):
         elif (not OCI.DIGEST.fullmatch(image["upstream"]["digest"])
               or image["upstream"]["tag"] == "latest" or source_ref(image) not in recipe):
             raise ValueError(f"{name}: immutable upstream SDK pin differs from recipe")
+        if name == "java":
+            validate_java_source_build(image, recipe)
         published = image["distribution"]
         if published.get("status") not in ("not-published", "verified"):
             raise ValueError(f"{name}: unrecognized SDK publication state")

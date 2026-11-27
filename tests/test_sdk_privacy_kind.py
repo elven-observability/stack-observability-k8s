@@ -31,9 +31,12 @@ def corpus(sanitized):
                        ("io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg",
                         {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"})}),
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
-                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "name": "SET"}),
+                        {"kind": 3, "trace_id": "trace", "name": "SET"}),
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
-                        {"kind": 3, "trace_id": "trace", "name": "GET"}), ("fixture-api", exception)]
+                        {"kind": 3, "trace_id": "trace", "name": "GET"}),
+                       ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
+                        {"kind": 3, "trace_id": "trace", "name": "HGET", "status": {"code": 2, "message": "WRONGTYPE Operation against wrong kind of value"}}),
+                       ("fixture-api", exception)]
     return result
 
 
@@ -96,6 +99,21 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         data["java17"][1][1]["attributes"] = attrs({"db.query.text": "SELECT [REDACTED]"})
         with self.assertRaisesRegex(AssertionError, "SQL query shape"):
             H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_redis_error_is_the_real_hget_reply_not_an_unrelated_error_or_duplicate(self):
+        for mutation in ("missing_status", "unrelated_error", "lost_context", "duplicate"):
+            data = corpus(True)
+            if mutation == "missing_status":
+                data["java17"][4][1]["status"] = {}
+            elif mutation == "unrelated_error":
+                data["java17"][4][1]["status"] = {}
+                data["java17"].insert(0, ("io.opentelemetry.jedis-4.0", {"kind": 3, "trace_id": "trace", "name": "AUTH", "status": {"code": 2}}))
+            elif mutation == "lost_context":
+                data["java17"][4][1]["status"] = {"code": 2}
+            else:
+                data["java17"].append(data["java17"][4])
+            with self.subTest(mutation=mutation), self.assertRaises(AssertionError):
+                H.check_capture(data, PRIVATE, sanitized=True)
 
 
 if __name__ == "__main__":
