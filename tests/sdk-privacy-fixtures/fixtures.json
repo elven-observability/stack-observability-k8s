@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-11-27",
+  "purpose": "Synthetic real-client application fixtures, not a customer dependency or production recommendation",
+  "images": {
+    "java17": "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516",
+    "java21": "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69",
+    "node22": "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
+  },
+  "dbImages": {
+    "redis": "docker.io/library/redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78",
+    "postgres": "docker.io/library/postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a"
+  },
+  "javaDependencies": {
+    "commons-pool2": {
+      "bytes": 150048,
+      "file": "commons-pool2.jar",
+      "sha256": "6d3bd18df8410f3e31b031aca582cc109342358a62a2759ebd0c4cdf30d06f8b",
+      "url": "https://repo.maven.apache.org/maven2/org/apache/commons/commons-pool2/2.12.0/commons-pool2-2.12.0.jar",
+      "version": "2.12.0"
+    },
+    "gson": {
+      "bytes": 298435,
+      "file": "gson.jar",
+      "sha256": "57928d6e5a6edeb2abd3770a8f95ba44dce45f3b23b7a9dc2b309c581552a78b",
+      "url": "https://repo.maven.apache.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.jar",
+      "version": "2.11.0"
+    },
+    "jedis": {
+      "bytes": 980084,
+      "file": "jedis.jar",
+      "sha256": "dd4fbda2c103f319ab495adb2bc1906139840746cfd4c66b27710d1af98382d4",
+      "url": "https://repo.maven.apache.org/maven2/redis/clients/jedis/5.2.0/jedis-5.2.0.jar",
+      "version": "5.2.0"
+    },
+    "json": {
+      "bytes": 78332,
+      "file": "json.jar",
+      "sha256": "3cf6cd6892e32e2b4c1c39e0f52f5248a2f5b37646fdfbb79a66b46b618414ed",
+      "url": "https://repo.maven.apache.org/maven2/org/json/json/20240303/json-20240303.jar",
+      "version": "20240303"
+    },
+    "opentelemetry-api": {
+      "bytes": 181171,
+      "file": "opentelemetry-api.jar",
+      "sha256": "921398d19e2723a356a4e86442daa8e7cb3d8edd84e97e44f5e34807e9b46c2a",
+      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-api/1.68.0/opentelemetry-api-1.68.0.jar",
+      "version": "1.68.0"
+    },
+    "opentelemetry-context": {
+      "bytes": 51644,
+      "file": "opentelemetry-context.jar",
+      "sha256": "9ca2a322fbe6736c610086e2fecec8d292daca6fd755bd5670f751bb373c2b70",
+      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-context/1.68.0/opentelemetry-context-1.68.0.jar",
+      "version": "1.68.0"
+    },
+    "slf4j-api": {
+      "bytes": 41125,
+      "file": "slf4j-api.jar",
+      "sha256": "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0",
+      "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/1.7.36/slf4j-api-1.7.36.jar",
+      "version": "1.7.36"
+    },
+    "h2": {
+      "file": "h2.jar",
+      "version": "2.5.252",
+      "url": "https://repo.maven.apache.org/maven2/com/h2database/h2/2.5.252/h2-2.5.252.jar",
+      "sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+    }
+  },
+  "privacy": {
+    "email": "sdk.synthetic.customer@example.invalid",
+    "exceptionSecret": "ELVEN_SDK_PRIVATE_PASSWORD",
+    "redisValue": "sdk.synthetic.value@example.invalid password=ELVEN_SDK_PRIVATE_PASSWORD",
+    "forbidden": [
+      "sdk.synthetic.customer@example.invalid",
+      "sdk.synthetic.value@example.invalid",
+      "ELVEN_SDK_PRIVATE_PASSWORD"
+    ]
+  },
+  "sources": {
+    "baseImages": "../instrumentation-fixtures/fixtures.json",
+    "javaApi": "https://github.com/open-telemetry/opentelemetry-java",
+    "jedis": "https://repo.maven.apache.org/maven2/redis/clients/jedis/5.2.0/jedis-5.2.0.pom",
+    "javaInstrumentation": "https://github.com/open-telemetry/opentelemetry-java-instrumentation/blob/main/docs/supported-libraries.md",
+    "nodeClient": "https://registry.npmjs.org/@redis%2fclient/1.6.1",
+    "nodeInstrumentation": "https://github.com/open-telemetry/opentelemetry-js-contrib/tree/main/packages/instrumentation-redis",
+    "postgresClient": "https://registry.npmjs.org/pg/8.23.1",
+    "nodeApi": "https://registry.npmjs.org/@opentelemetry%2fapi/1.9.0",
+    "redisImage": "https://github.com/docker-library/official-images/blob/master/library/redis",
+    "postgresImage": "https://github.com/docker-library/official-images/blob/master/library/postgres"
+  },
+  "compatibility": {
+    "jedis": "5.2.0 test fixture, inside Java instrumentation Jedis2.0+ support; not a claim of latest client",
+    "nodeRedis": "@redis/client1.6.1 is the Redis4.7 client family supported by the pinned redis instrumentation; no upgrade to newly published6.x solely for latest",
+    "api": "Java1.x stable API and JS1.9.0 API only; providers/exporters come exclusively from injected images",
+    "databaseSecurity": "Ephemeral synthetic lab only; no persistence, production credentials or production compatibility claim"
+  },
+  "provenance": {
+    "javaHashes": "SHA-256 observed by bounded HTTPS streaming from Maven Central on2026-11-27; no local binary persisted/executed",
+    "nodeIntegrity": "Official npm registry metadata; complete transitive package-lock.json SHA-512 integrity; npm ci only in disposable CI Docker build",
+    "dbDigests": "Docker Hub registry immutable multi-platform index headers; no image layers downloaded"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "elven-real-sdk-privacy-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Synthetic application clients and OpenTelemetry API only; no SDK or exporter",
+  "dependencies": {
+    "@opentelemetry/api": "1.9.0",
+    "@redis/client": "1.6.1",
+    "pg": "8.23.1"
+  }
+}
