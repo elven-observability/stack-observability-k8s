@@ -1,0 +1,11 @@
+# Application framework/clients only; telemetry comes from the external SDK.
+FROM docker.io/library/python:3.14-slim-bookworm@sha256:e60ad028afdcdd14772a3d46decf0eaf616720f9102aeb4397a2045ff6718c3d
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /fixture
+COPY requirements-python.lock /fixture/requirements-python.lock
+RUN python -m pip --isolated --disable-pip-version-check install --no-cache-dir --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r /fixture/requirements-python.lock
+RUN python -c 'import importlib.metadata as m, sys, platform, sqlite3, flask, redis; assert sys.version_info[:3] == (3, 14, 10); assert platform.libc_ver()[0] == "glibc"; assert m.version("Flask") == "3.1.2"; assert m.version("redis") == "6.4.0"; assert not any(d.metadata.get("Name", "").lower().startswith("opentelemetry") for d in m.distributions())'
+COPY --chown=10001:10001 main.py /fixture/main.py
+USER 10001:10001
+EXPOSE 8080
+ENTRYPOINT ["python", "/fixture/main.py"]

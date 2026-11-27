@@ -33,7 +33,18 @@ def module(name, file):
 SDK = module("sdk_privacy_injection_lab", "scripts/test-instrumentation-kind.py")
 HYBRID = module("sdk_privacy_archives", "scripts/test-hybrid-candidate.py")
 CORE = SDK.CORE
-CASES = ("java17", "java21", "node22")
+CASE_RUNTIMES = {"java17": "java", "java21": "java", "node22": "nodejs", "python314": "python"}
+CASES = tuple(CASE_RUNTIMES)
+CAPTURE_PROFILES = {
+    "java": {"sql": "io.opentelemetry.jdbc", "http": "io.opentelemetry.java-http-server",
+             "redis": {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"},
+             "exception": "java.lang.IllegalStateException"},
+    "nodejs": {"sql": "@opentelemetry/instrumentation-pg", "http": "@opentelemetry/instrumentation-http",
+               "redis": {"@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"},
+               "exception": "Error"},
+    "python": {"sql": "opentelemetry.instrumentation.sqlite3", "http": "opentelemetry.instrumentation.flask",
+               "redis": {"opentelemetry.instrumentation.redis"}, "exception": "ValueError"},
+}
 
 
 def attributes(items):
@@ -51,13 +62,9 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             raise AssertionError("Missing SDK spans: " + case)
         if sanitized and any(value in json.dumps(spans) for value in private["forbidden"]):
             raise AssertionError("Known private sentinel crossed the actual Collector: " + case)
-        java = case.startswith("java")
-        sql_scope = "io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg"
-        # Pinned Java agent v2.33.1 JedisSingletons.java for Jedis 4+:
-        # INSTRUMENTATION_NAME = "io.opentelemetry.jedis-4.0".
-        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"} if java else {
-            "@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"}
-        server_scope = "io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http"
+        runtime = CASE_RUNTIMES[case]
+        profile = CAPTURE_PROFILES[runtime]
+        sql_scope, server_scope, redis_scopes = profile["sql"], profile["http"], profile["redis"]
         servers = [s for scope, s in spans if scope == server_scope and s.get("kind") in (2, "SPAN_KIND_SERVER")]
         sql = [s for scope, s in spans if scope == sql_scope and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
         redis = [s for scope, s in spans if scope in redis_scopes and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
@@ -109,6 +116,8 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                             or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:[.$][A-Za-z_$][A-Za-z0-9_$]*)*", kind)
                             or any(value in kind for value in private["forbidden"])):
                         raise AssertionError("Real Redis HGET exception class is missing, masked or non-public: " + case)
+                    if runtime == "python" and kind != "redis.exceptions.ResponseError":
+                        raise AssertionError("Actual Python Redis HGET ResponseError type was altered: " + case)
                     digest = hashlib.sha256(json.dumps(["redis-client", "HGET", kind]).encode()).hexdigest()
                     diagnostics.add(digest)
                     redis_diagnostics.add(digest)
@@ -125,7 +134,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                 raise AssertionError("Real recordException event missing: " + case)
             for event in events:
                 kind, message, stack = (event.get("exception." + name, "") for name in ("type", "message", "stacktrace"))
-                if kind != ("java.lang.IllegalStateException" if java else "Error"):
+                if kind != profile["exception"]:
                     raise AssertionError("Exception type was altered: " + case)
                 if "checkout failed" not in message or "retry=false" not in message or "exercise" not in stack:
                     raise AssertionError("Useful exception message/frames were removed: " + case)
@@ -135,7 +144,18 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                 elif not all(value in message and value in stack for value in (private["email"], private["exceptionSecret"])):
                     raise AssertionError("RAW SDK positive control did not contain known exception sentinels: " + case)
                 expected_message = message.replace(private["email"], "[REDACTED]").replace(private["exceptionSecret"], "[REDACTED]")
-                frames = stack.splitlines()[1:]
+                # Python SDK 1.45.2 record_exception uses traceback.format_exception:
+                # header + frames + trailing type/message, unlike Java/Node's
+                # leading type/message. Preserve every Python line and normalize
+                # only the two known private control values across the full stack.
+                expected_stack = stack
+                if runtime == "python":
+                    expected_stack = expected_stack.replace(private["email"], "[REDACTED]").replace(private["exceptionSecret"], "[REDACTED]")
+                    frames = expected_stack.splitlines()
+                    if not frames or frames[0] != "Traceback (most recent call last):" or not frames[-1].startswith("ValueError: "):
+                        raise AssertionError("Python traceback header or terminal exception context was lost: " + case)
+                else:
+                    frames = stack.splitlines()[1:]
                 if len(frames) < 2 or not any("fetchPrice" in line for line in frames) or not any("exercise" in line for line in frames):
                     raise AssertionError("Required real exception application frames were lost: " + case)
                 # Only a digest leaves the raw phase. Comparison across identical
@@ -160,6 +180,11 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.pins = json.loads((FIXTURES / "fixtures.json").read_text())
         self.report.update(test="real SDK SQL Redis exceptions privacy", completed=False,
                            input_origin="actual_sdk_injected_application_execution", customer_acceptance=False)
+        self.report["runtime_cases"] = list(CASES)
+        self.report["not_proven"] = [item for item in self.report["not_proven"]
+                                    if item != "Python SDK application compatibility"] + [
+            "Python compatibility outside synthetic Python3.14 glibc Flask/sqlite3/redis",
+            "Python application logs and metrics (not qualified by trace capture)"]
         self.report["runtime_coverage"] = {case: {} for case in CASES}
         self.request_traces = {case: set() for case in CASES}
 
@@ -208,7 +233,14 @@ class PrivacyLab(SDK.InstrumentationLab):
         obj["spec"]["containers"][0]["env"] = [{"name": key, "value": value} for key, value in {
             "REDIS_HOST": "redis", "REDIS_PORT": "6379", "PGHOST": "postgres", "PGPORT": "5432",
             "PGDATABASE": "synthetic", "PGUSER": "synthetic", "PGPASSWORD": "synthetic-db-password"}.items()]
+        if runtime == "python":
+            obj["metadata"].setdefault("annotations", {})["elven.observability/python-platform"] = "glibc"
         return obj
+
+    def operator_values(self, endpoint):
+        settings = super().operator_values(endpoint)
+        settings["runtimes"]["python"] = True
+        return settings
 
     def exercise(self):
         for case in CASES:
@@ -225,7 +257,7 @@ class PrivacyLab(SDK.InstrumentationLab):
 
     def applications(self):
         for case in CASES:
-            runtime = "java" if case.startswith("java") else "nodejs"
+            runtime = CASE_RUNTIMES[case]
             self.create(self.app(case, case, runtime))
             self.kube("wait", "--for=condition=Ready", "pod/" + case, "-n", self.app_namespace, "--timeout=240s", timeout=260)
             pod = json.loads(self.kube("get", "pod/" + case, "-n", self.app_namespace, "-o", "json").stdout)
@@ -234,6 +266,14 @@ class PrivacyLab(SDK.InstrumentationLab):
             if init["image"] != self.images[runtime]["reference"] or status["state"]["terminated"]["exitCode"] != 0:
                 raise AssertionError("Exact injected SDK/init execution was not observed")
             self.check("actual SDK injection " + case, image=init["image"], initExitCode=0)
+            if runtime == "python":
+                app = next(c for c in pod["spec"]["containers"] if c["name"] == "app")
+                env = {entry["name"]: entry.get("value") for entry in app.get("env", [])}
+                if (init.get("command") != ["cp", "-R", "/autoinstrumentation/.", "/elven-auto/"]
+                        or env.get("PYTHONPATH") != "/elven-auto/opentelemetry/instrumentation/auto_instrumentation:/elven-auto"
+                        or not any(m.get("mountPath") == "/elven-auto" and m.get("readOnly") is True for m in app.get("volumeMounts", []))):
+                    raise AssertionError("Actual Python glibc payload/loader/read-only mount injection was not observed")
+                self.check("actual Python3.14 glibc loader and SDK mount readback", sdkImage=init["image"])
             if runtime == "java":
                 size = int(self.kube("exec", "pod/" + case, "-n", self.app_namespace,
                                      "-c", "app", "--", "stat", "-c", "%s", "/elven-auto/javaagent.jar").stdout.strip())
@@ -258,6 +298,11 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.report.pop("captureFailure", None)
         self.report.pop("scope_inventory", None)
         self.report["capture"] = result
+        for case in CASES:
+            self.report["runtime_coverage"][case] = {
+                "http_server": "PASS", "sql_query_shape_and_error": "PASS", "exceptions": "PASS",
+                "redis_commands_and_error": "PASS", "selective_privacy": "PASS" if self.combined else "RAW_POSITIVE_CONTROL",
+                "application_logs": "NOT_PROVEN", "application_metrics": "NOT_PROVEN"}
         if self.combined:
             if not all(item["tenant"] == "synthetic-tenant" and item["authorization_valid"] for item in self.state()["accepted"]):
                 raise AssertionError("Authenticated synthetic tenant export failed")
@@ -297,6 +342,8 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.exercise()
         self.delivery()
         self.report["rollback"] = {"identitiesPreserved": True, "freshActualSdkCaptureAfterRollback": self.report["capture"]}
+        for case in CASES:
+            self.report["runtime_coverage"][case]["rollback"] = "PASS"
 
     def run(self):
         self.boot()

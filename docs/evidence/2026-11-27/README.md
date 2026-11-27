@@ -50,6 +50,15 @@ failed resolving the upstream Restlet 1.1.5 repository
 An unrelated dependency-resolution failure must not be hidden by excluding
 instrumentations, disabling verification or declaring the patch tested.
 
+[SDK build 46026043759](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46026043759)
+successfully rebuilt the three compile-only Restlet coordinates from official
+sources, then failed during Gradle configuration. The first repository init
+script created project repositories globally, causing Gradle to ignore the
+Central repository in settings and fail resolving ordinary BOMs. This is a
+recipe regression, not an accepted Java build or a new dependency outage.
+The correction must preserve resolution outside the Restlet projects and prove
+Central/local-repository coexistence before the expensive assembly task.
+
 ## Core milestone, not SDK acceptance
 
 [Core run 46021919965](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46021919965)
@@ -68,9 +77,9 @@ built Beyla archive alone does not prove its runtime or its disjoint selectors.
 
 1. Complete the pinned Java source build and its actual terminal-error unit
    suite; scan all newly built images and validate both native architectures.
-2. Run the new compiled Collector corpus, authenticated export, WAL/replay and
-   lifecycle gates. Run real SDK raw positive controls, post-Collector SQL/
-   Redis/exceptions and rollback on both architectures with these exact images.
+2. Keep the qualified core digests fixed. Run real SDK raw positive controls,
+   post-Collector SQL/Redis/exceptions and rollback on both architectures with
+   these exact images; the core corpus results above do not satisfy this gate.
 3. Only then prepare the combined LAB candidate and record its exact source,
    build revisions, eight OCI digests and artifact hashes. Requalify the hybrid
    approved-node/disjoint-selector path for any changed payload.

@@ -82,6 +82,48 @@ def node_lock(directory):
     return hashlib.sha256((directory / "package-lock.json").read_bytes()).hexdigest()
 
 
+def python_lock(directory, lock):
+    # Complete mandatory closure for Linux CPython3.14, without optional extras.
+    graph = {"flask": {"blinker": "1.9.0", "click": "8.3.1", "itsdangerous": "2.2.0", "jinja2": "3.1.6", "markupsafe": "3.0.3", "werkzeug": "3.1.5"},
+             "jinja2": {"markupsafe": "3.0.3"}, "werkzeug": {"markupsafe": "3.0.3"},
+             "redis": {}, "blinker": {}, "click": {}, "itsdangerous": {}, "markupsafe": {}}
+    dependencies = lock["pythonDependencies"]
+    if set(dependencies) != set(graph):
+        raise ValueError("Complete application-only Python closure required; no SDK/provider/exporter")
+    runtime = lock["pythonRuntime"]
+    if (runtime["case"] != "python314" or runtime["version"] != "3.14.10" or runtime["libc"] != "glibc"
+            or runtime["baseImage"] != lock["images"]["python314"]
+            or not re.fullmatch(r"docker.io/library/python:3\.14-slim-bookworm@sha256:[0-9a-f]{64}", runtime["baseImage"])):
+        raise ValueError("Python fixture must retain its exact declared CPython3.14 glibc base")
+    expected = []
+    for name, metadata in sorted(dependencies.items()):
+        if metadata.get("dependsOn", {}) != graph[name] or not re.fullmatch(r"\d+\.\d+\.\d+", metadata["version"]):
+            raise ValueError("Python dependency graph/version changed: " + name)
+        for child, version in graph[name].items():
+            if dependencies[child]["version"] != version:
+                raise ValueError("Python transitive version mismatch: " + child)
+        wheels = metadata["wheels"]
+        if not wheels or len({item["sha256"] for item in wheels}) != len(wheels):
+            raise ValueError("Unique immutable Python wheels required")
+        for item in wheels:
+            if (Path(item["file"]).name != item["file"] or not item["file"].endswith(".whl")
+                    or not item["url"].startswith("https://files.pythonhosted.org/")
+                    or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])):
+                raise ValueError("Unpinned or non-official Python wheel")
+        if name == "markupsafe":
+            if not all(any("cp314-cp314-" in item["file"] and "manylinux" in item["file"] and arch in item["file"] for item in wheels)
+                       for arch in ("x86_64", "aarch64")):
+                raise ValueError("Both CPython3.14 glibc MarkupSafe architectures required")
+        elif any(not item["file"].endswith("-py3-none-any.whl") for item in wheels):
+            raise ValueError("Only pure Python wheels allowed outside MarkupSafe")
+        expected.append(name + "==" + metadata["version"] + " " + " ".join("--hash=sha256:" + item["sha256"] for item in wheels))
+    requirements = directory / "requirements-python.lock"
+    actual = [line for line in requirements.read_text().splitlines() if line and not line.startswith("#")]
+    if actual != expected:
+        raise ValueError("Python requirements differ from their complete pinned wheel closure")
+    return hashlib.sha256(requirements.read_bytes()).hexdigest()
+
+
 def prepare(directory):
     directory = directory.resolve()
     if directory != SOURCE:
@@ -89,6 +131,7 @@ def prepare(directory):
     lock = json.loads((directory / "fixtures.json").read_text())
     java_count = java_lock(lock)
     npm_sha = node_lock(directory)
+    python_sha = python_lock(directory, lock)
     observed, total = {}, 0
     for name, dependency in lock["javaDependencies"].items():
         filename, url, expected = dependency["file"], dependency["url"], dependency["sha256"]
@@ -119,6 +162,7 @@ def prepare(directory):
         observed[name] = actual
     return {"schemaVersion": 1, "evidence_boundary": "dependency_preparation_only_not_runtime_acceptance",
             "javaSha256": observed, "nodePackageLockSha256": npm_sha,
+            "pythonRequirementsSha256": python_sha, "pythonDependencyCount": len(lock["pythonDependencies"]),
             "javaDependencyCount": java_count, "missingJavaDependencies": [],
             "downloadBytes": total, "sdkBundled": False}
 
