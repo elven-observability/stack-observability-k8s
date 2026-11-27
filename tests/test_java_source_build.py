@@ -28,6 +28,7 @@ class JavaSourceBuildTests(unittest.TestCase):
             "revision": "a" * 40,
             "buildImage": SDK.JAVA_BUILD_IMAGE, "javaVersion": 25,
             "auxiliaryJdk17Image": SDK.JAVA_AUXILIARY_JDK17_IMAGE,
+            "auxiliaryJdk21Image": SDK.JAVA_AUXILIARY_JDK21_IMAGE,
             "gradleVersion": "9.8.2", "wrapperDistributionSha256": "d" * 64,
             "patches": [{"path": self.relative, "sha256": hashlib.sha256(self.patch.read_bytes()).hexdigest()}],
         }
@@ -37,14 +38,16 @@ class JavaSourceBuildTests(unittest.TestCase):
         self.recipe = "\n".join((
             f"ARG UPSTREAM_IMAGE={SDK.source_ref(self.image)}",
             f"FROM --platform=$BUILDPLATFORM {SDK.JAVA_AUXILIARY_JDK17_IMAGE} AS build-jdk17",
+            f"FROM --platform=$BUILDPLATFORM {SDK.JAVA_AUXILIARY_JDK21_IMAGE} AS build-jdk21",
             f"FROM --platform=$BUILDPLATFORM {self.build['buildImage']} AS builder",
             "COPY --from=build-jdk17 /opt/java/openjdk /opt/elven-toolchains/jdk17",
+            "COPY --from=build-jdk21 /opt/java/openjdk /opt/elven-toolchains/jdk21",
             f"ADD --keep-git-dir=true {self.build['repository']}#{self.build['revision']} /src",
             f"COPY {self.relative} /tmp/{self.patch.name}",
             f"RUN git apply --check /tmp/{self.patch.name} && git apply /tmp/{self.patch.name} && "
             + "\\" + "\n ./gradlew --no-daemon --no-parallel -Pkotlin.compiler.execution.strategy=in-process "
             + "-Porg.gradle.java.installations.auto-download=false -Porg.gradle.java.installations.auto-detect=false "
-            + '"-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17" :javaagent:assemble',
+            + '"-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" :javaagent:assemble',
             "RUN grep -Fx 'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip' gradle/wrapper/gradle-wrapper.properties"
             + " && grep -Fx 'distributionSha256Sum=" + "d" * 64 + "' gradle/wrapper/gradle-wrapper.properties",
             "FROM ${UPSTREAM_IMAGE}",
@@ -85,6 +88,9 @@ class JavaSourceBuildTests(unittest.TestCase):
             lambda image: image["sourceBuild"].pop("auxiliaryJdk17Image"),
             lambda image: image["sourceBuild"].update(auxiliaryJdk17Image="docker.io/library/eclipse-temurin:17-jdk-jammy"),
             lambda image: image["sourceBuild"].update(auxiliaryJdk17Image=SDK.JAVA_AUXILIARY_JDK17_IMAGE.replace("8133", "a133")),
+            lambda image: image["sourceBuild"].pop("auxiliaryJdk21Image"),
+            lambda image: image["sourceBuild"].update(auxiliaryJdk21Image="docker.io/library/eclipse-temurin:21-jdk-jammy"),
+            lambda image: image["sourceBuild"].update(auxiliaryJdk21Image=SDK.JAVA_AUXILIARY_JDK21_IMAGE.replace("4b1a", "ab1a")),
             lambda image: image["sourceBuild"].update(buildImage=SDK.JAVA_BUILD_IMAGE.replace("e46e", "a46e")),
             lambda image: image["sourceBuild"].update(gradleVersion="9.8.1"),
             lambda image: image["sourceBuild"].update(wrapperDistributionSha256="e" * 64),
@@ -134,6 +140,9 @@ class JavaSourceBuildTests(unittest.TestCase):
                          (" AS build-jdk17", " AS unused-jdk17"),
                          ("COPY --from=build-jdk17", "# COPY --from=build-jdk17"),
                          ("COPY --from=build-jdk17 /opt/java/openjdk /opt/elven-toolchains/jdk17", "COPY --from=build-jdk17 /opt/java/openjdk /opt/other-jdk17"),
+                         (" AS build-jdk21", " AS unused-jdk21"),
+                         ("COPY --from=build-jdk21", "# COPY --from=build-jdk21"),
+                         ("COPY --from=build-jdk21 /opt/java/openjdk /opt/elven-toolchains/jdk21", "COPY --from=build-jdk21 /opt/java/openjdk /opt/other-jdk21"),
                          ("--no-parallel", "--parallel"),
                          ("-Pkotlin.compiler.execution.strategy=in-process", "-Pkotlin.compiler.execution.strategy=daemon"),
                          ("-Porg.gradle.java.installations.auto-download=false", "-Porg.gradle.java.installations.auto-download=true"),
@@ -141,6 +150,7 @@ class JavaSourceBuildTests(unittest.TestCase):
                          ("-Porg.gradle.java.installations.auto-detect=false", ""),
                          ("-Porg.gradle.java.installations.paths=$JAVA_HOME", "-Porg.gradle.java.installations.paths=/downloaded/jdk"),
                          ("$JAVA_HOME,/opt/elven-toolchains/jdk17", "$JAVA_HOME"),
+                         (",/opt/elven-toolchains/jdk21", ""),
                          ("ADD --keep-git-dir=true", "# ADD --keep-git-dir=true")):
             with self.subTest(old=old), self.assertRaises(ValueError):
                 self.validate(recipe=self.recipe.replace(old, new))

@@ -20,10 +20,11 @@ Java17/21 real Redis WRONGTYPE ERROR capture remains a separate CI acceptance ga
 The build runs Gradle 9.8.2 on the pinned official Gradle JDK25 image, matching
 the upstream repository's default Java25 compiler/toolchain. Java toolchain
 auto-detection and auto-download are disabled. Only the pinned Java25 JAVA_HOME
-and /opt/elven-toolchains/jdk17 are eligible: the latter is copied from the
-immutable official Eclipse Temurin17 fixture image because the upstream
-gradle-plugins included build explicitly requests Java17. Neither builder JDK
-is copied into the runtime payload image; this auxiliary toolchain does not
+and /opt/elven-toolchains/jdk17 and /opt/elven-toolchains/jdk21 are eligible.
+The auxiliary toolchains are copied from immutable official Eclipse Temurin
+fixture images: upstream gradle-plugins explicitly requests Java17 and the
+Grails instrumentation build pins Java21. None of these builder JDKs
+is copied into the runtime payload image; auxiliary toolchains do not
 change the Java17/21 client compatibility claim or its required tests.
 Elven branding does not imply upstream endorsement or transfer of third-party ownership.
 Dependencies retain their respective licenses; inspect the inherited notices and SPDX SBOM.

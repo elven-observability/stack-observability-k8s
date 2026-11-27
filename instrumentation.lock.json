@@ -44,6 +44,7 @@
         "buildImage": "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898",
         "javaVersion": 25,
         "auxiliaryJdk17Image": "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516",
+        "auxiliaryJdk21Image": "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69",
         "gradleVersion": "9.8.2",
         "wrapperDistributionSha256": "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607",
         "patches": [

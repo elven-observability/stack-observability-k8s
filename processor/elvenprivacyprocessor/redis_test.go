@@ -37,6 +37,153 @@ func TestRedisOperationNeverReturnsOperandsOrScripts(t *testing.T) {
 	}
 }
 
+func TestRedisFiniteErrorMarkersNeverReturnOperands(t *testing.T) {
+	for _, code := range []string{"WRONGTYPE", "NOAUTH", "WRONGPASS", "NOPERM", "OOM", "READONLY", "MISCONF", "BUSY", "NOSCRIPT", "LOADING", "CLUSTERDOWN", "CROSSSLOT", "TRYAGAIN", "MOVED", "ASK", "EXECABORT", "ERR"} {
+		for _, input := range []string{code, code + " OPERAND_PRIVATE password=VALUE_PRIVATE", code + "\tOPERAND_PRIVATE"} {
+			got := redisDiagnosticValue("exception.message", input)
+			if want := "[REDACTED:redis:" + code + "]"; got != want {
+				t.Fatalf("finite category %s lost: %q", code, got)
+			}
+			if redisDiagnosticValue("exception.message", got) != got || !isMarker(got) {
+				t.Fatal("exact finite marker must survive the second privacy boundary")
+			}
+			if redisDiagnosticValue("exception.stacktrace", input) != mask || redisDiagnosticValue("exception.stacktrace", got) != mask {
+				t.Fatal("Redis stacks must remain fully masked, even with a known code")
+			}
+			noPrivate(t, got, "OPERAND_PRIVATE", "VALUE_PRIVATE")
+		}
+	}
+}
+
+func TestRedisDiagnosticsUnknownEncodedSpoofedOversizedAndInvalidFailClosed(t *testing.T) {
+	for _, input := range []string{"", "unknown OPERAND_PRIVATE", "wrongtype OPERAND_PRIVATE", " WRONGTYPE OPERAND_PRIVATE",
+		"WRONGTYPE_PRIVATE", "WRONGTYPE:OPERAND_PRIVATE", "%57RONGTYPE OPERAND_PRIVATE", `\u0057RONGTYPE OPERAND_PRIVATE`,
+		"WRONGTYPE\u00a0OPERAND_PRIVATE", "WRONGTYPE\x00OPERAND_PRIVATE", "WRONGTYPE " + string([]byte{0xff}),
+		"WRONGTYPE " + strings.Repeat("x", 262144), "[REDACTED:redis:UNKNOWN]", "[REDACTED:redis:WRONGTYPE]PRIVATE",
+		"[REDACTED:redis:WRONGTYPE] PRIVATE", "[REDACTED:redis:WRONGTYPE] PRIVATE]", "[REDACTED:redis:]"} {
+		if got := redisDiagnosticValue("status.description", input); got != mask {
+			t.Fatalf("unsafe diagnostic was not fully masked: %q", got)
+		}
+	}
+	if isMarker("[REDACTED:redis:WRONGTYPE]PRIVATE") || isMarker("[REDACTED:redis:UNKNOWN]") {
+		t.Fatal("only exact finite generated markers may bypass text parsing")
+	}
+}
+
+func TestRedisFiniteErrorsThroughRealPdataHandlersKeepNoOperandsAndAreIdempotent(t *testing.T) {
+	const private = "REDIS_ERROR_OPERAND_PRIVATE"
+	const marker = "[REDACTED:redis:WRONGTYPE]"
+	traces := ptrace.NewTraces()
+	spans := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	span := spans.AppendEmpty()
+	span.SetName("HGET " + private)
+	span.SetTraceID(pcommon.TraceID{1, 2, 3})
+	span.SetSpanID(pcommon.SpanID{4, 5, 6})
+	span.SetParentSpanID(pcommon.SpanID{7, 8, 9})
+	span.SetKind(ptrace.SpanKindClient)
+	span.Status().SetCode(ptrace.StatusCodeError)
+	span.Status().SetMessage("WRONGTYPE " + private)
+	span.Attributes().PutStr("db.system.name", "redis")
+	span.Attributes().PutStr("status.description", "WRONGTYPE "+private)
+	span.Attributes().PutStr("exception.message", "WRONGTYPE "+private)
+	span.Attributes().PutStr("exception.stacktrace", "WRONGTYPE "+private+"\n at PRIVATEFRAME")
+	event := span.Events().AppendEmpty()
+	event.SetName("exception")
+	event.Attributes().PutStr("exception.type", "redis.clients.jedis.exceptions.JedisDataException")
+	event.Attributes().PutStr("exception.message", "WRONGTYPE "+private)
+	event.Attributes().PutStr("exception.stacktrace", "WRONGTYPE "+private+"\n at PRIVATEFRAME")
+	// A non-Redis API error must keep its real operational message and frames.
+	http := spans.AppendEmpty()
+	http.SetName("GET /exercise")
+	httpEvent := http.Events().AppendEmpty()
+	httpEvent.SetName("exception")
+	httpEvent.Attributes().PutStr("exception.message", "checkout failed for sdk.synthetic.customer@example.invalid retry=false")
+	httpEvent.Attributes().PutStr("exception.stacktrace", "Error: sdk.synthetic.customer@example.invalid\n at exercise (/app/main.js:42:9)")
+	logs := plog.NewLogs()
+	record := logs.ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	record.Attributes().PutStr("db.system", "redis")
+	record.Attributes().PutStr("exception.message", "WRONGTYPE "+private)
+	record.Attributes().PutStr("status.description", "WRONGTYPE "+private)
+	record.Attributes().PutEmptyMap("exception.stacktrace").PutStr("key", private)
+	record.Body().SetStr(`{"db.system":"redis","exception.message":"WRONGTYPE REDIS_ERROR_OPERAND_PRIVATE","status.description":"WRONGTYPE REDIS_ERROR_OPERAND_PRIVATE","exception.stacktrace":"WRONGTYPE REDIS_ERROR_OPERAND_PRIVATE"}`)
+	p := testProcessor()
+	if _, err := p.processTraces(context.Background(), traces); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.processLogs(context.Background(), logs); err != nil {
+		t.Fatal(err)
+	}
+	firstTraces, _ := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
+	firstLogs, _ := (&plog.ProtoMarshaler{}).MarshalLogs(logs)
+	noPrivate(t, string(firstTraces)+string(firstLogs), private, "PRIVATEFRAME", "sdk.synthetic.customer@example.invalid")
+	if span.Name() != "HGET" || span.Status().Code() != ptrace.StatusCodeError || span.Status().Message() != marker || span.Kind() != ptrace.SpanKindClient || span.TraceID() != (pcommon.TraceID{1, 2, 3}) || span.SpanID() != (pcommon.SpanID{4, 5, 6}) || span.ParentSpanID() != (pcommon.SpanID{7, 8, 9}) {
+		t.Fatal("finite Redis category, operation or correlation changed")
+	}
+	for _, attrs := range []pcommon.Map{span.Attributes(), event.Attributes(), record.Attributes()} {
+		if value, _ := attrs.Get("exception.message"); value.Str() != marker {
+			t.Fatal("finite Redis error category lost")
+		}
+		if value, _ := attrs.Get("exception.stacktrace"); value.Str() != mask {
+			t.Fatal("Redis stack or non-string diagnostic was not completely masked")
+		}
+	}
+	if value, _ := event.Attributes().Get("exception.type"); value.Str() != "redis.clients.jedis.exceptions.JedisDataException" {
+		t.Fatal("Redis exception type lost")
+	}
+	if !strings.Contains(record.Body().Str(), marker) {
+		t.Fatal("structured Redis log lost its finite error category")
+	}
+	if value, _ := httpEvent.Attributes().Get("exception.message"); value.Str() != "checkout failed for [REDACTED] retry=false" {
+		t.Fatal("generic non-Redis API exception lost selective privacy")
+	}
+	if value, _ := httpEvent.Attributes().Get("exception.stacktrace"); !strings.Contains(value.Str(), "at exercise (/app/main.js:42:9)") {
+		t.Fatal("non-Redis frames must remain useful")
+	}
+	p.processTraces(context.Background(), traces)
+	p.processLogs(context.Background(), logs)
+	secondTraces, _ := (&ptrace.ProtoMarshaler{}).MarshalTraces(traces)
+	secondLogs, _ := (&plog.ProtoMarshaler{}).MarshalLogs(logs)
+	if string(firstTraces) != string(secondTraces) || string(firstLogs) != string(secondLogs) {
+		t.Fatal("finite Redis category must be idempotent over node and gateway boundaries")
+	}
+}
+
+func TestRedisDiagnosticCategoryHonorsSizeDepthPrimitiveBudgetAndType(t *testing.T) {
+	p := testProcessor()
+	p.config.MaxStringBytes = 256
+	attrs := pcommon.NewMap()
+	attrs.PutStr("db.system", "redis")
+	attrs.PutStr("exception.message", "WRONGTYPE "+strings.Repeat("x", 256))
+	attrs.PutInt("status.description", 42)
+	p.cleanMap(attrs)
+	for _, key := range []string{"exception.message", "status.description"} {
+		if value, _ := attrs.Get(key); value.Str() != mask {
+			t.Fatal("oversized/non-string Redis diagnostic must fail closed")
+		}
+	}
+	input := pcommon.NewMap()
+	input.PutStr("db.system", "redis")
+	input.PutStr("exception.message", "WRONGTYPE PRIVATE")
+	output := pcommon.NewMap()
+	s := p.sanitizer()
+	s.remaining = 0
+	s.mapInto(input, output, 0)
+	if value, _ := output.Get("exception.message"); value.Str() != "[REDACTED:limit]" {
+		t.Fatal("Redis category bypassed primitive budget")
+	}
+	s = p.sanitizer()
+	output = pcommon.NewMap()
+	s.mapInto(input, output, s.config.MaxDepth)
+	if value, _ := output.Get("exception.message"); value.Str() != "[REDACTED:limit]" {
+		t.Fatal("Redis category bypassed map depth")
+	}
+	s = p.sanitizer()
+	raw := s.native(map[string]any{"db.system": "redis", "exception.message": "WRONGTYPE PRIVATE"}, s.config.MaxDepth, "").(map[string]any)
+	if raw["exception.message"] != "[REDACTED:limit]" {
+		t.Fatal("Redis category bypassed native depth")
+	}
+}
+
 func TestRedisOTLPSpansRetainOperationsExceptionsAndCorrelation(t *testing.T) {
 	data := ptrace.NewTraces()
 	spans := data.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()

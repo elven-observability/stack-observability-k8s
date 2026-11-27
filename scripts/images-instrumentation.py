@@ -37,6 +37,7 @@ REPOSITORIES = {
 VERSION = re.compile(r"v?1\.[0-9]+\.[0-9]+(?:-dev|-rc\.[0-9]+)?\Z")
 JAVA_BUILD_IMAGE = "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898"
 JAVA_AUXILIARY_JDK17_IMAGE = "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516"
+JAVA_AUXILIARY_JDK21_IMAGE = "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69"
 
 
 def source_ref(image):
@@ -53,8 +54,8 @@ def validate_java_source_build(image, recipe):
     revision, builder = build.get("revision", ""), build.get("buildImage", "")
     if (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
             or builder != JAVA_BUILD_IMAGE or type(build.get("javaVersion")) is not int
-            or build["javaVersion"] != 25 or build.get("auxiliaryJdk17Image") != JAVA_AUXILIARY_JDK17_IMAGE):
-        raise ValueError("Java source revision and the approved Gradle/JDK25 plus auxiliary JDK17 builders must be immutable")
+            or build["javaVersion"] != 25):
+        raise ValueError("Java source revision and the approved Gradle/JDK25 builder must be immutable")
     lines = [line.strip() for line in recipe.replace("\\\n", " ").splitlines()
              if line.strip() and not line.lstrip().startswith("#")]
     if (f"FROM --platform=$BUILDPLATFORM {builder} AS builder" not in lines
@@ -64,13 +65,15 @@ def validate_java_source_build(image, recipe):
             or image["upstream"].get("sourceVersion") != "2.33.1"
             or "unmodified" in recipe.lower()):
         raise ValueError("Java source/build/base recipe or modified-payload labeling differs from lock")
-    auxiliary_stage = f"FROM --platform=$BUILDPLATFORM {JAVA_AUXILIARY_JDK17_IMAGE} AS build-jdk17"
-    auxiliary_copy = "COPY --from=build-jdk17 /opt/java/openjdk /opt/elven-toolchains/jdk17"
-    if (auxiliary_stage not in lines or auxiliary_copy not in lines
-            or not (lines.index(auxiliary_stage)
-                    < lines.index(f"FROM --platform=$BUILDPLATFORM {builder} AS builder")
-                    < lines.index(auxiliary_copy) < lines.index("FROM ${UPSTREAM_IMAGE}"))):
-        raise ValueError("Java included-build JDK17 must be copied from its pinned build-only stage")
+    for java_version, auxiliary_image in ((17, JAVA_AUXILIARY_JDK17_IMAGE), (21, JAVA_AUXILIARY_JDK21_IMAGE)):
+        auxiliary_stage = f"FROM --platform=$BUILDPLATFORM {auxiliary_image} AS build-jdk{java_version}"
+        auxiliary_copy = f"COPY --from=build-jdk{java_version} /opt/java/openjdk /opt/elven-toolchains/jdk{java_version}"
+        if (build.get(f"auxiliaryJdk{java_version}Image") != auxiliary_image
+                or auxiliary_stage not in lines or auxiliary_copy not in lines
+                or not (lines.index(auxiliary_stage)
+                        < lines.index(f"FROM --platform=$BUILDPLATFORM {builder} AS builder")
+                        < lines.index(auxiliary_copy) < lines.index("FROM ${UPSTREAM_IMAGE}"))):
+            raise ValueError(f"Java auxiliary JDK{java_version} must be copied from its exact pinned build-only stage")
     patches = build.get("patches")
     if not isinstance(patches, list) or len(patches) != 1 or not isinstance(patches[0], dict):
         raise ValueError("Java requires exactly one reviewed local terminal-error patch")
@@ -111,7 +114,7 @@ def validate_java_source_build(image, recipe):
     required_flags = {"--no-parallel", "-Pkotlin.compiler.execution.strategy=in-process",
                       "-Porg.gradle.java.installations.auto-download=false",
                       "-Porg.gradle.java.installations.auto-detect=false",
-                      "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17"}
+                      "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21"}
     assemblies = []
     for line in run_lines:
         lexer = shlex.shlex(line.removeprefix("RUN "), posix=True, punctuation_chars=";&|")

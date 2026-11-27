@@ -2,10 +2,12 @@
 # Build-only JDK/Gradle/git tools never enter the runtime payload image.
 ARG UPSTREAM_IMAGE=ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1-2@sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452
 FROM --platform=$BUILDPLATFORM docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516 AS build-jdk17
+FROM --platform=$BUILDPLATFORM docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69 AS build-jdk21
 
 FROM --platform=$BUILDPLATFORM gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898 AS builder
 USER root
 COPY --from=build-jdk17 /opt/java/openjdk /opt/elven-toolchains/jdk17
+COPY --from=build-jdk21 /opt/java/openjdk /opt/elven-toolchains/jdk21
 ADD --keep-git-dir=true https://github.com/open-telemetry/opentelemetry-java-instrumentation.git#d9045e02e0711837d54f0fd058cd55f77742506d /src
 WORKDIR /src
 COPY images/autoinstrumentation/java/jedis4-terminal-error.patch /tmp/jedis4-terminal-error.patch
@@ -18,18 +20,19 @@ RUN test "$(git rev-parse HEAD)" = d9045e02e0711837d54f0fd058cd55f77742506d \
 RUN java -XshowSettings:properties -version 2>&1 | grep -E '^[[:space:]]*java.specification.version = 25$'
 RUN javac -version 2>&1 | grep -E '^javac 25([.]|$)'
 RUN /opt/elven-toolchains/jdk17/bin/javac -version 2>&1 | grep -E '^javac 17([.]|$)'
+RUN /opt/elven-toolchains/jdk21/bin/javac -version 2>&1 | grep -E '^javac 21([.]|$)'
 RUN grep -Fx 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.8.2-bin.zip' gradle/wrapper/gradle-wrapper.properties \
     && grep -Fx 'distributionSha256Sum=21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607' gradle/wrapper/gradle-wrapper.properties \
     && ./gradlew --no-daemon --no-parallel --max-workers=2 \
        -Pkotlin.compiler.execution.strategy=in-process \
        -Porg.gradle.java.installations.auto-download=false \
        -Porg.gradle.java.installations.auto-detect=false \
-       "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17" \
+       "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" \
        --version | grep -Fx 'Gradle 9.8.2'
 # This pure mocked unit suite has no Redis/Docker/Testcontainers dependency.
 # Real SDK/Redis ERROR acceptance remains a separate disposable hosted CI gate.
 # Upstream compilation defaults to Java25. Use only the JDK from the pinned
-# builder plus the pinned JDK17 required by the upstream gradle-plugins build,
+# builder plus the pinned JDK17 for gradle-plugins and JDK21 for Grails,
 # never an implicit Foojay download or another detected installation.
 # Keep Kotlin in-process instead of allowing a second inherited 3GiB heap.
 RUN attempt=1; while true; do \
@@ -38,7 +41,7 @@ RUN attempt=1; while true; do \
     -Pkotlin.compiler.execution.strategy=in-process \
     -Porg.gradle.java.installations.auto-download=false \
     -Porg.gradle.java.installations.auto-detect=false \
-    "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17" \
+    "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" \
     -Potel.stable=true -PremoveJarVersionNumbers=true \
     :instrumentation:jedis:jedis-common-1.4:javaagent:unitTests :javaagent:assemble \
     > /tmp/elven-gradle-build.log 2>&1; then \
