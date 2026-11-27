@@ -50,6 +50,20 @@ failed resolving the upstream Restlet 1.1.5 repository
 An unrelated dependency-resolution failure must not be hidden by excluding
 instrumentations, disabling verification or declaring the patch tested.
 
+## Core milestone, not SDK acceptance
+
+[Core run 46021919965](https://github.com/elven-observability/stack-observability-k8s/actions/runs/46021919965)
+completed successfully for source `9608700`: both-architecture image scans and
+Collector Govulncheck passed, followed by **native amd64 and arm64** actual-binary
+selective privacy, three-signal WAL/replay, finite Redis error-code preservation
+and **25 Kubernetes lifecycle checks per architecture**, including CLI rollback.
+Both owned Kind clusters were removed. The actual SDK boundary is not covered.
+
+Exact digests, independently verified small artifact ZIP/report hashes, and
+the distinct GitHub synthetic build revision are in `core-candidate.json`.
+This is not a signed/promoted image or a new combined SDK/Beyla kit. A newly
+built Beyla archive alone does not prove its runtime or its disjoint selectors.
+
 ## Remaining gates
 
 1. Complete the pinned Java source build and its actual terminal-error unit

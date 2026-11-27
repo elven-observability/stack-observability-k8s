@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "qualification": "LAB_CORE_NATIVE_AMD64_ARM64_NOT_CUSTOMER_ACCEPTANCE",
+  "customerInstallable": false,
+  "publicationStatus": "not-published",
+  "signed": false,
+  "sourceRevision": "96087007775361378951af56551ef601b3e557f9",
+  "buildRevision": "4fda9b188107e3d798966bfb96ea0a438e9ceff4",
+  "buildRevisionMeaning": "GitHub PR merge revision recorded by the clean CI build; not the branch-head SHA",
+  "workflowRun": 46021919965,
+  "artifacts": {
+    "oci": {
+      "id": 15210829407,
+      "zipSha256": "4a3af64979b2cf3228f90cfddd45c3f957c667e9e888cd292e2ecf52ed2e2928",
+      "bytes": 583812740
+    },
+    "security": {
+      "id": 15212525262,
+      "zipSha256": "218f3acf24baa5e896d717d13fbe2c8173146d942f60497fb1905fc6c6284a31",
+      "releaseJsonSha256": "c60205b114471cc602e4e562cefcd8b326683bafb4243b6189d9b770d2a062f6"
+    },
+    "arm64Runtime": {
+      "id": 15211029649,
+      "zipSha256": "9e7ccb41418dbe402c5f46385e52d6a16b980045a7b3298393c456ef9d61f7c2",
+      "reports": {
+        "kind-dc154f96c3/report.json": "fd19b0428e7a72dada6f543158677ff22dbc1eb3a17997131e548ef166a485a6",
+        "privacy-7dc6ac23453d/report.json": "a06f753dae1b954e883e6be8fa807397ff131fd70ed8ecaa9926c50fac6d423d",
+        "validation-20261127T153526/report.json": "f88c6a3fa7def9868246943628d01f767944ed1c231171f0e43131de283126d9"
+      }
+    },
+    "amd64Runtime": {
+      "id": 15210679884,
+      "zipSha256": "3fa1bf642ddf2ccc71c8356212b89fc1f644dff4ed34c4cc167e245ef4238d0e",
+      "reports": {
+        "kind-66fe1cd30a/report.json": "5d2707b456a2a578341d5f06f281c5397ba1d8029154ff7b1ce0750963f45604",
+        "privacy-d429385f319b/report.json": "3d7c76ea9f90bc66cf177ea84510fb7b5bc8e14f32550c2344bc678cc436bfc2",
+        "validation-20261127T152857/report.json": "e5b854d8b7eb1b34356cf0e76bc5c7b9550e313705f0575e8c16f086f3a5fdb2"
+      }
+    }
+  },
+  "images": {
+    "collector": "docker.io/elvenobservability/elven-collector:1.0.1-dev@sha256:1a97f84a449ca8ca535c1e2e4e01f5823bb0d75aca5366ad25fe123ee175e0bf",
+    "beyla": "docker.io/elvenobservability/elven-ebpf:1.0.1-dev@sha256:7afcc5cc0644aa7b70d8b447bd175151292b26aa19fae7628e2cc1a152219923",
+    "profiler": "docker.io/elvenobservability/elven-profiler:1.0.1-dev@sha256:1d8816e8fb51ac6862fb16fbe16ba09c0c8a30074cbfef197b3078eb95269b53"
+  },
+  "gates": {
+    "cleanBuild": true,
+    "trivyZeroHighCriticalBothArchitectures": true,
+    "collectorGovulncheckBothArchitectures": true,
+    "nativeAmd64ConfigurationAndHttps": true,
+    "nativeAmd64SelectivePrivacyAndThreeSignalWalReplay": true,
+    "nativeAmd64RedisFiniteErrorCodeWithoutOperands": true,
+    "nativeAmd64LifecycleChecks": 25,
+    "nativeAmd64OwnedClusterRemoved": true,
+    "nativeArm64ConfigurationAndHttps": true,
+    "nativeArm64SelectivePrivacyAndThreeSignalWalReplay": true,
+    "nativeArm64RedisFiniteErrorCodeWithoutOperands": true,
+    "nativeArm64LifecycleChecks": 25,
+    "nativeArm64OwnedClusterRemoved": true,
+    "realSdkRedisSqlExceptionsAfterCollector": "NOT_PROVEN",
+    "newSdkBeylaHybridAndRollback": "NOT_PROVEN",
+    "customerBackendAcceptance": "NOT_PROVEN",
+    "releaseSigningPromotionAndNoDevKit": "HOLD"
+  },
+  "limits": [
+    "Images are CI OCI archives, not a promise of registry availability",
+    "The language-shaped exception corpus is synthetic OTLP, not real SDK execution",
+    "No universal PII, Redis-client, SQL-dialect, kernel/CNI or production-scale claim",
+    "No Auth, shared EO/EIP or customer access"
+  ]
+}
