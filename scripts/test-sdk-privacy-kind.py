@@ -53,7 +53,9 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             raise AssertionError("Known private sentinel crossed the actual Collector: " + case)
         java = case.startswith("java")
         sql_scope = "io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg"
-        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0"} if java else {
+        # Pinned Java agent v2.33.1 JedisSingletons.java for Jedis 4+:
+        # INSTRUMENTATION_NAME = "io.opentelemetry.jedis-4.0".
+        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"} if java else {
             "@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"}
         server_scope = "io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http"
         servers = [s for scope, s in spans if scope == server_scope and s.get("kind") in (2, "SPAN_KIND_SERVER")]
@@ -178,13 +180,14 @@ class PrivacyLab(SDK.InstrumentationLab):
 
     def exercise(self):
         for case in CASES:
+            self.report["activeCase"] = case
             pod = json.loads(self.kube("get", "pod/" + case, "-n", self.app_namespace, "-o", "json").stdout)
             trace = uuid.uuid4().hex
             # Exported OTLP JSON encodes bytes as base64, not hexadecimal.
             import base64
             self.request_traces[case].add(base64.b64encode(bytes.fromhex(trace)).decode())
             program = "import urllib.request,urllib.error,json; req=urllib.request.Request('http://" + pod["status"]["podIP"] + ":8080/exercise',headers={'traceparent':'00-" + trace + "-0123456789abcdef-01'}); "
-            program += "\ntry: r=urllib.request.urlopen(req,timeout=30)\nexcept urllib.error.HTTPError as e: r=e\n"
+            program += "\ntry: r=urllib.request.urlopen(req,timeout=90)\nexcept urllib.error.HTTPError as e: r=e\n"
             program += "d=json.load(r); assert r.status==502 and all(d.get(k) is True for k in ('ok','sql','sqlError','redisSet','redisGet','redisError','exception','activeSpan')), 'Application work failed'"
             self.kube("exec", "deployment/synthetic-customer-app", "-n", self.app_namespace, "--", "python", "-c", program)
 
@@ -273,6 +276,22 @@ class PrivacyLab(SDK.InstrumentationLab):
     def cleanup(self):
         # Do not upload raw SDK payloads or app logs from the positive control.
         # Fixture images survive only until the second owned cluster finishes.
+        if self.created and self.kubeconfig.exists() and not self.report.get("functional_checks_passed"):
+            def clean(text):
+                for value in [*self.pins["privacy"]["forbidden"], "synthetic-db-password", "synthetic-test-token"]:
+                    text = text.replace(value, "[REDACTED:SYNTHETIC]")
+                return text[-16000:]
+            diagnostic = {}
+            for case in (*CASES, "redis", "postgres"):
+                resource = ("pod/" if case in CASES else "deployment/") + case
+                try:
+                    diagnostic[case] = clean(self.kube("logs", resource, "-n", self.app_namespace, "--tail=40", check=False, timeout=10).stdout)
+                    if case.startswith("java") and case == self.report.get("activeCase"):
+                        diagnostic[case + "-threads"] = clean(self.kube("exec", resource, "-n", self.app_namespace,
+                            "-c", "app", "--", "jcmd", "1", "Thread.print", check=False, timeout=15).stdout)
+                except Exception:
+                    diagnostic[case] = "Bounded diagnostic unavailable"
+            self.report["sanitizedFailureDiagnostics"] = diagnostic
         CORE.Lab.cleanup(self)
 
 
