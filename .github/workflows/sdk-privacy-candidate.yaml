@@ -1,0 +1,182 @@
+name: Qualify isolated Elven SDK privacy candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_run:
+        description: "Same-input core OCI artifact run; scans are refreshed, never bypassed"
+        required: true
+        type: string
+      sdk_run:
+        description: "Same-input SDK OCI artifact run; scans are refreshed, never bypassed"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  KUBECONFIG: /dev/null
+  PYTHONDONTWRITEBYTECODE: "1"
+
+concurrency:
+  group: elven-sdk-privacy-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-oci-release
+          path: artifacts/images
+          run-id: ${{ inputs.core_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-instrumentation-oci
+          path: artifacts/instrumentation
+          run-id: ${{ inputs.sdk_run }}
+          github-token: ${{ github.token }}
+      - name: Admit unchanged exact OCI bytes before refreshing security evidence
+        run: |
+          python - <<'PY'
+          import hashlib, importlib.util, json, pathlib, re, stat
+          ROOT = pathlib.Path.cwd().resolve()
+
+          def module(name, filename):
+              spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / filename)
+              value = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(value)
+              return value
+
+          def regular(folder, name):
+              if not isinstance(name, str) or pathlib.Path(name).name != name or name in ("", ".", ".."):
+                  raise ValueError("Unsafe candidate evidence filename")
+              path = folder / name
+              if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+                  raise ValueError("Candidate evidence must be a regular non-symlink file")
+              return path
+
+          def digest(path):
+              with path.open("rb") as source:
+                  return hashlib.file_digest(source, "sha256").hexdigest()
+
+          def admit_family(folder, manifest, lock, expected_inputs):
+              # Old scan dates/status are deliberately NOT admission here.
+              # No workload runs until new scans and the normal freshness gate pass.
+              if manifest.get("dirtySource") is not False or not isinstance(manifest.get("revision"), str) or not re.fullmatch(r"[0-9a-f]{40}", manifest["revision"]):
+                  raise ValueError("A clean full image-build revision is required")
+              if set(manifest.get("images", {})) != set(lock["images"]):
+                  raise ValueError("A complete candidate image family is required")
+              for name, image in manifest["images"].items():
+                  repository = lock["images"][name]["distribution"]["repository"]
+                  if (not re.fullmatch(re.escape(repository) + r":v?1\.[0-9]+\.[0-9]+(?:-dev|-rc\.[0-9]+)?", image.get("tag", ""))
+                          or not re.fullmatch(r"sha256:[0-9a-f]{64}", image.get("digest", ""))
+                          or image["digest"] in lock.get("runtimeBlocks", {})):
+                      raise ValueError("Unexpected or blocked candidate image identity")
+                  if type(image.get("platforms")) is not list or len(image["platforms"]) != 2 or set(image["platforms"]) != {"linux/amd64", "linux/arm64"}:
+                      raise ValueError("Exact amd64 and arm64 OCI inputs are required")
+                  if image.get("inputsSha256") != expected_inputs(name, lock["images"][name]):
+                      raise ValueError("Image build inputs changed; a new build is required")
+                  for field in ("archive", "metadata"):
+                      expected = image.get(field + "Sha256", "")
+                      if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected) or digest(regular(folder, image[field])) != expected:
+                          raise ValueError("Candidate archive/build metadata checksum mismatch")
+
+          def main():
+              core = module("sdk_privacy_core", "images-release.py")
+              sdk = module("sdk_privacy_sdk", "images-instrumentation.py")
+              core_lock, sdk_lock = core.lock_data(), sdk.read_lock()
+              if (core_lock["tools"]["trivy"] != sdk_lock["tools"]["trivy"]
+                      or core_lock["tools"]["trivyLinuxAmd64"] != sdk_lock["tools"]["trivyLinuxAmd64"]):
+                  raise ValueError("Core and SDK must share the exact pinned Trivy release binary")
+              for filename, lock, inputs in (
+                  ("artifacts/images/release.json", core_lock, lambda n, i: {str(p.relative_to(ROOT)): core.sha256(p) for p in core.build_input_files(i)}),
+                  ("artifacts/instrumentation/instrumentation-release.json", sdk_lock, lambda n, i: {str(p.relative_to(ROOT)): core.sha256(p) for p in sdk.input_files(n, i)}),
+              ):
+                  path = ROOT / filename
+                  folder = path.parent.resolve()
+                  manifest = json.loads(regular(folder, path.name).read_text())
+                  admit_family(folder, manifest, lock, inputs)
+              print("Exact clean core/SDK OCI inputs admitted for rescan only; no runtime acceptance granted")
+
+          if __name__ == "__main__":
+              main()
+          PY
+      - name: Install the checksum-pinned scanner and test tooling on hosted CI only
+        run: |
+          python scripts/images-install-trivy.py --lock versions.lock.json
+          python -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - name: Refresh all core and SDK scans without rebuilding or publishing
+        run: |
+          python scripts/images-release.py scan --evidence-dir artifacts/images
+          python scripts/images-instrumentation.py scan --evidence-dir artifacts/instrumentation
+      - name: Load the exact scanned Collector OCI index for both binary audits
+        run: |
+          python - <<'PY'
+          import importlib.util, json, pathlib, subprocess
+          spec = importlib.util.spec_from_file_location("candidate_guard", "scripts/qualify-candidate-artifacts.py")
+          guard = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(guard)
+          folder = pathlib.Path("artifacts/images").resolve()
+          manifest = json.loads(guard.regular(folder, "release.json").read_text())
+          image = manifest["images"]["collector"]
+          archive = guard.regular(folder, image["archive"])
+          if guard.digest(archive) != image["archiveSha256"]:
+              raise ValueError("Collector archive changed after scan")
+          # Do not select only the host platform: Govulncheck copies both
+          # binaries from this unchanged OCI index without executing ARM code.
+          subprocess.run(["docker", "load", "--input", str(archive)], check=True)
+          PY
+      - name: Refresh both exact Collector binary vulnerable-symbol reports
+        run: python scripts/images-release.py govulncheck --evidence-dir artifacts/images
+      - name: Require normal fresh scans and all input/report/SBOM/Govulncheck bindings
+        run: >-
+          python scripts/qualify-candidate-artifacts.py
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+      - name: Real SDK exceptions, SQL and Redis after the actual Collector and rollback
+        run: >-
+          python scripts/test-sdk-privacy-kind.py
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+          --development-images
+      - name: Preserve only sanitized SDK privacy laboratory receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: elven-sdk-privacy-evidence
+          include-hidden-files: true
+          path: .artifacts/sdk-privacy-*/report.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve bounded security evidence without OCI payloads
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: elven-sdk-privacy-security
+          path: |
+            artifacts/images/release.json
+            artifacts/images/*.vulnerabilities.json
+            artifacts/images/*.spdx.json
+            artifacts/images/*.govulncheck.json
+            artifacts/instrumentation/instrumentation-release.json
+            artifacts/instrumentation/*.vulnerabilities.json
+            artifacts/instrumentation/*.spdx.json
+          if-no-files-found: warn
+          retention-days: 30
