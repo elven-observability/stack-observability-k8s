@@ -59,6 +59,16 @@ class JavaSourceBuildTests(unittest.TestCase):
     def test_exact_immutable_modified_agent_contract_is_accepted(self):
         self.validate()
 
+    def test_bounded_network_retry_preserves_every_gradle_policy(self):
+        self.validate(recipe=self.recipe.replace(
+            " ./gradlew --no-daemon", " if ./gradlew --no-daemon"))
+        recipe = (ROOT / "images/autoinstrumentation/java/Dockerfile").read_text()
+        self.assertIn('"$attempt" -ge 3', recipe)
+        self.assertIn('Received status code (429|5[0-9][0-9])', recipe)
+        self.assertIn('There were failing tests', recipe)
+        self.assertIn('exit "$result"', recipe)
+        self.assertNotIn("|| true", recipe)
+
     def test_source_revision_builder_and_omitted_provenance_fail_closed(self):
         edits = (
             lambda image: image.pop("sourceBuild"),

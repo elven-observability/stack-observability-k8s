@@ -27,7 +27,8 @@ RUN grep -Fx 'distributionUrl=https\://services.gradle.org/distributions/gradle-
 # Upstream compilation defaults to Java25. Use only the JDK from the pinned
 # builder, never an implicit Foojay download or another detected installation.
 # Keep Kotlin in-process instead of allowing a second inherited 3GiB heap.
-RUN ./gradlew --no-daemon --no-parallel --max-workers=2 \
+RUN attempt=1; while true; do \
+    if ./gradlew --no-daemon --no-parallel --max-workers=2 \
     '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m' \
     -Pkotlin.compiler.execution.strategy=in-process \
     -Porg.gradle.java.installations.auto-download=false \
@@ -35,7 +36,18 @@ RUN ./gradlew --no-daemon --no-parallel --max-workers=2 \
     "-Porg.gradle.java.installations.paths=$JAVA_HOME" \
     -Potel.stable=true -PremoveJarVersionNumbers=true \
     :instrumentation:jedis:jedis-common-1.4:javaagent:unitTests :javaagent:assemble \
-    && test -s /src/javaagent/build/libs/opentelemetry-javaagent.jar
+    > /tmp/elven-gradle-build.log 2>&1; then \
+      cat /tmp/elven-gradle-build.log; break; \
+    else \
+      result=$?; cat /tmp/elven-gradle-build.log; \
+      if [ "$attempt" -ge 3 ] \
+        || ! grep -Eq 'Received status code (429|5[0-9][0-9])' /tmp/elven-gradle-build.log \
+        || grep -Eiq 'Compilation error|Compilation failed|There were failing tests|[0-9]+ tests completed, [1-9][0-9]* failed' /tmp/elven-gradle-build.log; then \
+        exit "$result"; \
+      fi; \
+      attempt=$((attempt + 1)); sleep $((attempt * 10)); \
+    fi; \
+    done && test -s /src/javaagent/build/libs/opentelemetry-javaagent.jar
 
 # Preserve the upstream copy utility, entrypoint, user and dependency notices.
 FROM ${UPSTREAM_IMAGE}

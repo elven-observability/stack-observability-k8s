@@ -117,6 +117,10 @@ def validate_java_source_build(image, recipe):
                 current.append(token)
         shell_commands.append(current)
         for args in shell_commands:
+            # A bounded network retry may execute Gradle as an `if` condition.
+            # Strip only actual shell control words, never echo/printf text.
+            while args and args[0] in ("do", "if", "then"):
+                args = args[1:]
             if not args or args[0] != "./gradlew":
                 continue
             if not required_flags <= set(args):
