@@ -21,7 +21,7 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 85
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,7 +42,7 @@ jobs:
       - name: Install checksum-pinned Trivy release without a mutable installer
         run: python3 scripts/images-install-trivy.py --lock instrumentation.lock.json
       - name: Build independent Operator and four SDK images, including pinned Go unit tests
-        timeout-minutes: 30
+        timeout-minutes: 55
         env:
           RELEASE_REF: ${{ github.ref }}
         run: |

@@ -67,9 +67,16 @@ actual pdata handlers followed by OTLP protobuf serialization and decoding.
 These tests are evidence for the processor's data boundary, not proof that a
 particular SDK exports the fields or that a compiled Collector/queue/backend
 has executed this source. In explicitly identified Redis contexts, exception
-messages, stack traces and status descriptions remain fully masked intentionally
-(including structured log maps): arbitrary Redis keys/scripts can resemble paths
-or frame names, so a frame-pattern allowlist cannot prove those values safe.
+messages/status descriptions retain only an exact leading ASCII error category
+from a finite Redis protocol allowlist, as e.g. `[REDACTED:redis:WRONGTYPE]`.
+Unknown categories, non-string values, encoded prefixes and malformed inputs
+remain fully masked. No following key/value/script/address/message is retained.
+Redis stack traces remain fully masked even if they start with a known code:
+arbitrary Redis keys/scripts can resemble paths or frame names, so a frame-pattern
+allowlist cannot prove those values safe. Only an exact generated finite marker
+is idempotent; private suffixes appended to markers fail closed. Configured
+size/depth/primitive limits still apply. This source change requires a rebuilt,
+tested and signed/promoted Collector; old published images are unchanged.
 
 This is **not universal PII detection or anonymization**. Free-form personal names,
 novel field names, secrets without recognizable syntax, application-specific

@@ -169,6 +169,7 @@ jobs:
           path: .artifacts/sdk-privacy-*/report.json
           if-no-files-found: error
           retention-days: 30
+
       - name: Preserve bounded security evidence without OCI payloads
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -183,4 +184,62 @@ jobs:
             artifacts/instrumentation/*.vulnerabilities.json
             artifacts/instrumentation/*.spdx.json
           if-no-files-found: warn
+          retention-days: 30
+
+  native-arm:
+    needs: lab
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.14"
+      - uses: docker/setup-docker-action@7ec28a010822b4626af4874f9448a4b05ac6f3e5
+        with:
+          version: v29.9.2
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-oci-release
+          path: artifacts/images
+          run-id: ${{ inputs.core_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-instrumentation-oci
+          path: artifacts/instrumentation
+          run-id: ${{ inputs.sdk_run }}
+          github-token: ${{ github.token }}
+      - name: Reuse this run's fresh dual-architecture reports, never ARM-specific replacements
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: elven-sdk-privacy-security
+          path: artifacts
+      - name: Verify native platform and install pinned runtime test tooling
+        run: |
+          test "$(docker info --format '{{.Architecture}}')" = aarch64
+          python -m pip install --requirement requirements-test.txt
+          bash scripts/images-install-ci-tools.sh
+      - name: Admit unchanged OCI inputs and recent reports before native execution
+        run: >-
+          python scripts/qualify-candidate-artifacts.py
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+      - name: Native ARM real SDK SQL Redis exceptions privacy and rollback
+        run: >-
+          python scripts/test-sdk-privacy-kind.py
+          --core-manifest artifacts/images/release.json
+          --sdk-manifest artifacts/instrumentation/instrumentation-release.json
+          --development-images
+      - name: Preserve only sanitized native ARM receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: elven-sdk-privacy-evidence-arm64
+          include-hidden-files: true
+          path: .artifacts/sdk-privacy-*/report.json
+          if-no-files-found: error
           retention-days: 30

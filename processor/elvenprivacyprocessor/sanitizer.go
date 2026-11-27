@@ -26,7 +26,7 @@ func isMarker(v string) bool {
 	case mask, "[REDACTED:limit]", "[REDACTED:json]", "[REDACTED:sql]", "[REDACTED:bytes]", "[REDACTED:encoding]", "[REDACTED:redis]":
 		return true
 	default:
-		return false
+		return isRedisDiagnosticMarker(v)
 	}
 }
 
@@ -201,7 +201,16 @@ func (s *sanitizer) mapInto(input, output pcommon.Map, depth int) {
 			// itself a sensitive section, including its associated value.
 			output.PutStr(cleanKey, mask)
 		} else if redis && redisDiagnostic(key) {
-			output.PutStr(cleanKey, mask)
+			if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
+				output.PutStr(cleanKey, "[REDACTED:limit]")
+			} else {
+				s.remaining--
+				clean := mask
+				if value.Type() == pcommon.ValueTypeStr && len(value.Str()) <= s.config.MaxStringBytes {
+					clean = redisDiagnosticValue(key, value.Str())
+				}
+				output.PutStr(cleanKey, clean)
+			}
 		} else if redis && redisField(key) && !isSensitiveKey(key) {
 			if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
 				output.PutStr(cleanKey, "[REDACTED:limit]")
@@ -351,7 +360,16 @@ func (s *sanitizer) native(input any, depth int, key string) any {
 			if redactedKey {
 				out[cleanKey] = mask
 			} else if redis && redisDiagnostic(k) {
-				out[cleanKey] = mask
+				if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
+					out[cleanKey] = "[REDACTED:limit]"
+				} else {
+					s.remaining--
+					clean := mask
+					if raw, ok := v.(string); ok && len(raw) <= s.config.MaxStringBytes {
+						clean = redisDiagnosticValue(k, raw)
+					}
+					out[cleanKey] = clean
+				}
 			} else if redis && redisField(k) && !isSensitiveKey(k) {
 				if depth+1 > s.config.MaxDepth || s.remaining <= 0 {
 					out[cleanKey] = "[REDACTED:limit]"

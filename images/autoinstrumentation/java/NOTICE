@@ -5,6 +5,44 @@ Upstream auto-instrumentation image and all inherited dependency notices are pre
 Official image: ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:2.33.1-2@sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452
 Official source/release: https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/tag/v2.33.1
 Packaging source: https://github.com/elven-observability/stack-observability-k8s
-SDK payload paths are not changed by this wrapper: /javaagent.jar.
+The /javaagent.jar payload is rebuilt from official v2.33.1 source commit
+d9045e02e0711837d54f0fd058cd55f77742506d with the Elven-reviewed
+jedis4-terminal-error.patch. This is a PATCHED artifact, not an unchanged
+upstream agent. The original copy utility, image entrypoint and notices remain.
+The patch propagates a synchronous Jedis4 method's actual terminal Throwable
+to the existing client span and preserves the earlier send-command Throwable
+when no terminal Throwable exists. It creates no additional spans. The common
+no-argument method remains available for unmodified older Jedis callers.
+Upstream reference: https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/20792
+This narrow backport is not the full upstream pipeline/transaction/cluster fix.
+Build-only tests use a mock Instrumenter and are not runtime telemetry evidence.
+Java17/21 real Redis WRONGTYPE ERROR capture remains a separate CI acceptance gate.
+The build runs Gradle 9.8.2 on the pinned official Gradle JDK25 image, matching
+the upstream repository's default Java25 compiler/toolchain. Java toolchain
+auto-detection and auto-download are disabled. Only the pinned Java25 JAVA_HOME
+and /opt/elven-toolchains/jdk17 and /opt/elven-toolchains/jdk21 are eligible.
+The auxiliary toolchains are copied from immutable official Eclipse Temurin
+fixture images: upstream gradle-plugins explicitly requests Java17 and the
+Grails instrumentation build pins Java21. None of these builder JDKs
+is copied into the runtime payload image; auxiliary toolchains do not
+change the Java17/21 client compatibility claim or its required tests.
+The original Restlet Maven endpoint is unavailable. Build-only Restlet1.1.5
+and Restlet2.0.2 compile signatures are rebuilt from the official historical
+source subtrees pinned in sourceBuild.restletSources, using Java17 --release8.
+These are explicitly SOURCE_REBUILD_NOT_UPSTREAM_MAVEN_BINARY, not downloaded
+historical Maven publications, and are never runtime customer dependencies.
+Only the three exact original coordinates/versions use the isolated local
+Maven repository on only the six upstream Restlet projects, which already
+declare their own Central/Restlet/local repositories. No repository is added
+to unrelated projects or settings. A small resolution-only preflight confirms
+the three source-rebuilt coordinates and the official OpenTelemetry1.67.0 BOM
+coexist, while an unrelated project retains settings-level Central. No
+instrumentation or dependency version is removed/changed.
+The official source trees include OSGi4.0 core under its original license;
+its exact SHA256 is verified and its license accompanies the build-only jars.
+A fail-closed final-JAR check requires both Restlet instrumentations and rejects
+Restlet implementation classes or nested dependency jars (including renamed
+archives). Restlet and OSGi library jars and builder sources are not copied to
+the runtime image. Their original notices remain in the build inputs.
 Elven branding does not imply upstream endorsement or transfer of third-party ownership.
 Dependencies retain their respective licenses; inspect the inherited notices and SPDX SBOM.

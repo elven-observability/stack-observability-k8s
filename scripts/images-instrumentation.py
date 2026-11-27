@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -34,11 +35,237 @@ REPOSITORIES = {
     "python": "docker.io/elvenobservability/elven-auto-python",
 }
 VERSION = re.compile(r"v?1\.[0-9]+\.[0-9]+(?:-dev|-rc\.[0-9]+)?\Z")
+JAVA_BUILD_IMAGE = "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898"
+JAVA_AUXILIARY_JDK17_IMAGE = "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516"
+JAVA_AUXILIARY_JDK21_IMAGE = "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69"
+JAVA_RESTLET_SOURCES = [
+    {"repository": "https://github.com/restlet/restlet-framework-java.git",
+     "revision": "93fab9888a9eded2c527e9eee8da46a30c403889", "subdirectory": "1.1.5", "version": "1.1.5"},
+    {"repository": "https://github.com/restlet/restlet-framework-java.git",
+     "revision": "aec544eb2622f1959e9c905d435077dd7fec4092", "subdirectory": "2.0.2", "version": "2.0.2"},
+]
+
+
+def java_build_helper(build, key, filename):
+    """Return only a reviewed build helper whose exact regular bytes are locked."""
+    entry = build.get(key)
+    relative = "images/autoinstrumentation/java/" + filename
+    if (not isinstance(entry, dict) or entry.get("path") != relative
+            or not isinstance(entry.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])):
+        raise ValueError(f"Java {key} must identify its exact confined helper and SHA256")
+    path = ROOT / relative
+    if (path.is_symlink() or any(p.is_symlink() for p in path.parents if p.is_relative_to(ROOT))
+            or not path.is_file() or OCI.sha256(path) != entry["sha256"]):
+        raise ValueError(f"Java {key} helper bytes changed or are not a regular non-symlink file")
+    return path
+
+
+def validate_java_restlet_build(build, lines):
+    if build.get("restletSources") != JAVA_RESTLET_SOURCES:
+        raise ValueError("Java Restlet compile-only sources must use both exact official historical revisions")
+    for source in JAVA_RESTLET_SOURCES:
+        instruction = (f"ADD {source['repository']}#{source['revision']}:{source['subdirectory']} "
+                       f"/opt/elven-restlet-sources/{source['version']}")
+        if instruction not in lines:
+            raise ValueError("Java Restlet source ADD differs from its locked revision/subdirectory")
+    helpers = {}
+    for key, filename, destination in (
+            ("restletBuildScript", "build-restlet-compile-only.sh", "/tmp/build-restlet-compile-only.sh"),
+            ("restletRepositoryInit", "restlet-compile-only.init.gradle", "/tmp/restlet-compile-only.init.gradle"),
+            ("restletPayloadCheck", "verify-restlet-payload.sh", "/tmp/verify-restlet-payload.sh"),
+            ("restletPreflightSettings", "restlet-preflight.settings.gradle", "/opt/elven-restlet-preflight/settings.gradle"),
+            ("restletPreflightBuild", "restlet-preflight.build.gradle", "/opt/elven-restlet-preflight/build.gradle")):
+        path = java_build_helper(build, key, filename)
+        helpers[key] = path.read_text()
+        if f"COPY {path.relative_to(ROOT)} {destination}" not in lines:
+            raise ValueError("Java Restlet helper COPY differs from its locked local source")
+    init = re.sub(r"\s+", " ", "\n".join(line for line in helpers["restletRepositoryInit"].splitlines()
+                                           if not line.lstrip().startswith("//"))).strip()
+    project_paths = ", ".join(f"':instrumentation:restlet:restlet-{version}:{module}'"
+                              for version in ("1.1", "2.0") for module in ("javaagent", "library", "testing"))
+    expected_init = (f"allprojects {{ if (path in [ {project_paths} ]) {{ repositories {{ exclusiveContent {{ forRepository {{ maven {{ "
+                     "name = 'elvenRestletSourceRebuild' url = uri('/opt/elven-restlet-maven') } } filter { "
+                     "includeVersion('org.restlet', 'org.restlet', '1.1.5') "
+                     "includeVersion('com.noelios.restlet', 'com.noelios.restlet', '1.1.5') "
+                     "includeVersion('org.restlet.jse', 'org.restlet', '2.0.2') } } } } }")
+    if init != expected_init:
+        raise ValueError("Java compile-only local repository must resolve only the three original exact coordinates on the six original Restlet projects")
+    settings = re.sub(r"\s+", " ", "\n".join(line for line in helpers["restletPreflightSettings"].splitlines()
+                                               if not line.lstrip().startswith("//"))).strip()
+    expected_settings = ("rootProject.name = 'elven-restlet-repository-preflight' "
+                         "dependencyResolutionManagement { repositories { mavenCentral() mavenLocal() } } "
+                         "include(':instrumentation:restlet:restlet-1.1:javaagent') "
+                         "include(':instrumentation:restlet:restlet-2.0:javaagent') include(':central-check') "
+                         "[ 'instrumentation/restlet/restlet-1.1/javaagent', "
+                         "'instrumentation/restlet/restlet-2.0/javaagent', 'central-check' ].each { relativePath -> "
+                         "def directory = file(relativePath) assert directory.mkdirs() || directory.isDirectory() }")
+    preflight = "\n".join(line for line in helpers["restletPreflightBuild"].splitlines()
+                           if not line.lstrip().startswith("//"))
+    if (settings != expected_settings or not all(fragment in preflight for fragment in (
+            "import org.gradle.api.attributes.Usage", "import org.gradle.api.attributes.Category",
+            "attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))",
+            "attribute(Category.CATEGORY_ATTRIBUTE, project.objects.named(Category, Category.LIBRARY))",
+            "def jars = project.configurations.probe.resolve()",
+            "def centralBom = 'io.opentelemetry:opentelemetry-bom:1.67.0'",
+            "'org.restlet:org.restlet:1.1.5'", "'com.noelios.restlet:com.noelios.restlet:1.1.5'",
+            "'org.restlet.jse:org.restlet:2.0.2'", "mavenCentral()", "mavenLocal()",
+            "uri('https://maven.restlet.talend.com/')",
+            "assert project.repositories.isEmpty()", "assert resolved == expected", "assert jars.size() == (isRestlet ? 3 : 0)",
+            "assert artifacts.size() == (isRestlet ? 3 : 0)", "file('/opt/elven-restlet-maven/' + id.group.replace('.', '/') +",
+            "assert original.isFile()", "assert java.nio.file.Files.mismatch(artifact.file.toPath(), original.toPath()) == -1L",
+            "tasks.register('verifyRepositoryBoundaries')",
+            "dependsOn(':central-check:verifyResolution')"))):
+        raise ValueError("Java repository preflight must prove exact local Restlet coordinates and unchanged settings Central resolution")
+    strict_resolution = "def jars = project.configurations.probe.resolve()"
+    component_ids = "def resolved = project.configurations.probe.incoming.resolutionResult.allComponents"
+    if (preflight.count(strict_resolution) != 1 or component_ids not in preflight
+            or preflight.index(strict_resolution) > preflight.index(component_ids)):
+        raise ValueError("Java repository preflight must force strict resolution before reading lenient component identities")
+    compiler = helpers["restletBuildScript"]
+    compiler_lines = [line.strip() for line in compiler.replace("\\\n", " ").splitlines()
+                      if line.strip() and not line.lstrip().startswith("#")]
+    if ('jdk=/opt/elven-toolchains/jdk17' not in compiler_lines
+            or not any(line.startswith('"$jdk/bin/javac" -J-Xmx512m --release 8 -proc:none ') for line in compiler_lines)
+            or 'repo=/opt/elven-restlet-maven' not in compiler_lines):
+        raise ValueError("Java Restlet build-only APIs require the pinned JDK17 compiler with --release 8")
+    allowed_runtime_copies = {
+        "COPY --from=builder /src/javaagent/build/libs/opentelemetry-javaagent.jar /javaagent.jar",
+        "COPY images/licenses/APACHE-2.0.txt images/autoinstrumentation/java/NOTICE /usr/share/licenses/elven-auto-java/",
+    }
+    for line in lines[lines.index("FROM ${UPSTREAM_IMAGE}") + 1:]:
+        if line.startswith(("RUN ", "ADD ", "FROM ")) or (line.startswith("COPY ") and line not in allowed_runtime_copies):
+            raise ValueError("Java runtime stage may copy only the agent and license notices, never build-only APIs/tools")
+    run_lines = [line for line in lines if line.startswith("RUN ")]
+    if (not any(re.search(r"(?:\bRUN\s+|&&\s*)sh /tmp/build-restlet-compile-only\.sh(?=\s*(?:&&|;|$))", line) for line in run_lines)
+            or not any(re.search(r"(?:\bRUN\s+|&&\s*)sh /tmp/verify-restlet-payload\.sh /src/javaagent/build/libs/opentelemetry-javaagent\.jar(?=\s*(?:&&|;|$))", line) for line in run_lines)):
+        raise ValueError("Java Restlet build-only compilation and final payload isolation oracle are required")
+    instructions = "\n".join(lines)
+    if not (instructions.index("sh /tmp/build-restlet-compile-only.sh")
+            < instructions.index("verifyRepositoryBoundaries")
+            < instructions.index(":javaagent:assemble")
+            < instructions.index("sh /tmp/verify-restlet-payload.sh /src/javaagent/build/libs/opentelemetry-javaagent.jar")
+            < instructions.index("FROM ${UPSTREAM_IMAGE}")):
+        raise ValueError("Java Restlet payload isolation must check the newly assembled agent before runtime transfer")
 
 
 def source_ref(image):
     source = image["upstream"]
     return f"{source['repository']}:{source['tag']}@{source['digest']}"
+
+
+def validate_java_source_build(image, recipe):
+    """Bind the patched agent to its immutable source, builder and local patch bytes."""
+    build = image.get("sourceBuild")
+    repository = "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git"
+    if not isinstance(build, dict) or build.get("repository") != repository:
+        raise ValueError("Java requires the official immutable source-build provenance")
+    revision, builder = build.get("revision", ""), build.get("buildImage", "")
+    if (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
+            or builder != JAVA_BUILD_IMAGE or type(build.get("javaVersion")) is not int
+            or build["javaVersion"] != 25):
+        raise ValueError("Java source revision and the approved Gradle/JDK25 builder must be immutable")
+    lines = [line.strip() for line in recipe.replace("\\\n", " ").splitlines()
+             if line.strip() and not line.lstrip().startswith("#")]
+    if (f"FROM --platform=$BUILDPLATFORM {builder} AS builder" not in lines
+            or f"ADD --keep-git-dir=true {repository}#{revision} /src" not in lines
+            or f"ARG UPSTREAM_IMAGE={source_ref(image)}" not in lines
+            or "FROM ${UPSTREAM_IMAGE}" not in lines
+            or image["upstream"].get("sourceVersion") != "2.33.1"
+            or "unmodified" in recipe.lower()):
+        raise ValueError("Java source/build/base recipe or modified-payload labeling differs from lock")
+    for java_version, auxiliary_image in ((17, JAVA_AUXILIARY_JDK17_IMAGE), (21, JAVA_AUXILIARY_JDK21_IMAGE)):
+        auxiliary_stage = f"FROM --platform=$BUILDPLATFORM {auxiliary_image} AS build-jdk{java_version}"
+        auxiliary_copy = f"COPY --from=build-jdk{java_version} /opt/java/openjdk /opt/elven-toolchains/jdk{java_version}"
+        if (build.get(f"auxiliaryJdk{java_version}Image") != auxiliary_image
+                or auxiliary_stage not in lines or auxiliary_copy not in lines
+                or not (lines.index(auxiliary_stage)
+                        < lines.index(f"FROM --platform=$BUILDPLATFORM {builder} AS builder")
+                        < lines.index(auxiliary_copy) < lines.index("FROM ${UPSTREAM_IMAGE}"))):
+            raise ValueError(f"Java auxiliary JDK{java_version} must be copied from its exact pinned build-only stage")
+    patches = build.get("patches")
+    if not isinstance(patches, list) or len(patches) != 1 or not isinstance(patches[0], dict):
+        raise ValueError("Java requires exactly one reviewed local terminal-error patch")
+    patch = patches[0]
+    relative, checksum = patch.get("path"), patch.get("sha256", "")
+    if (not isinstance(relative, str) or Path(relative).is_absolute() or ".." in Path(relative).parts
+            or not isinstance(checksum, str)
+            or not re.fullmatch(r"[0-9a-f]{64}", checksum)):
+        raise ValueError("Java patch identity must include its exact path and SHA256")
+    folder = ROOT / "images/autoinstrumentation/java"
+    path = ROOT / relative
+    if (path.parent != folder or path.suffix != ".patch" or path.is_symlink()
+            or any(parent.is_symlink() for parent in path.parents if parent.is_relative_to(ROOT))
+            or not path.is_file() or path.resolve().parent != folder.resolve()
+            or OCI.sha256(path) != checksum):
+        raise ValueError("Java patch must be a confined regular non-symlink file matching its SHA256")
+    destination = "/tmp/" + path.name
+    run_lines = [line for line in lines if line.startswith("RUN ")]
+    commands = " ".join(run_lines)
+
+    def invokes(command):
+        return any(re.search(r"(?:\bRUN\s+|&&\s*|;\s*)" + re.escape(command)
+                             + r"(?=\s*(?:&&|;|$))", line) is not None for line in run_lines)
+
+    if (f"COPY {relative} {destination}" not in lines
+            or not invokes(f"git apply --check {destination}")
+            or not invokes(f"git apply {destination}")
+            or "./gradlew" not in commands or ":javaagent:assemble" not in commands
+            or "COPY --from=builder /src/javaagent/build/libs/opentelemetry-javaagent.jar /javaagent.jar" not in lines):
+        raise ValueError("Java patch/application/build/payload transfer differs from source-build provenance")
+    version, wrapper_sha = build.get("gradleVersion", ""), build.get("wrapperDistributionSha256", "")
+    if (version != "9.8.2"
+            or not builder.startswith(f"gradle:{version}-jdk25@")
+            or not isinstance(wrapper_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", wrapper_sha)
+            or not invokes(f"grep -Fx 'distributionUrl=https\\://services.gradle.org/distributions/gradle-{version}-bin.zip' gradle/wrapper/gradle-wrapper.properties")
+            or not invokes(f"grep -Fx 'distributionSha256Sum={wrapper_sha}' gradle/wrapper/gradle-wrapper.properties")):
+        raise ValueError("Java Gradle wrapper version/checksum differs from the pinned build provenance")
+    required_flags = {"--no-parallel", "-Pkotlin.compiler.execution.strategy=in-process",
+                      "-Porg.gradle.java.installations.auto-download=false",
+                      "-Porg.gradle.java.installations.auto-detect=false",
+                      "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21"}
+    assemblies, preflights = [], []
+    for line in run_lines:
+        lexer = shlex.shlex(line.removeprefix("RUN "), posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        shell_commands, current = [], []
+        for token in lexer:
+            if token and set(token) <= set(";&|"):
+                shell_commands.append(current)
+                current = []
+            else:
+                current.append(token)
+        shell_commands.append(current)
+        for args in shell_commands:
+            # A bounded network retry may execute Gradle as an `if` condition.
+            # Strip only actual shell control words, never echo/printf text.
+            while args and args[0] in ("do", "if", "then"):
+                args = args[1:]
+            if not args or args[0] != "./gradlew":
+                continue
+            if not required_flags <= set(args):
+                raise ValueError("Every Gradle invocation must confine toolchains to pinned JAVA_HOME")
+            if (args.count("--init-script") != 1
+                    or args.index("--init-script") + 1 >= len(args)
+                    or args[args.index("--init-script") + 1] != "/tmp/restlet-compile-only.init.gradle"
+                    or any(arg == "-I" or arg.startswith(("--init-script=", "-I/")) for arg in args)):
+                raise ValueError("Every Gradle invocation must use only the locked exclusive compile-only repository init")
+            for flag in args:
+                if ((flag.startswith(("-Porg.gradle.java.installations.", "-Pkotlin.compiler.execution.strategy="))
+                     and flag not in required_flags)
+                        or flag.startswith("-Dorg.gradle.java.installations.") or flag == "--parallel"):
+                    raise ValueError("Java compiler discovery/download or Kotlin process policy cannot be overridden")
+            if ":javaagent:assemble" in args:
+                assemblies.append(args)
+            if "verifyRepositoryBoundaries" in args:
+                if (":javaagent:assemble" in args or args.count("--project-dir") != 1 or args.index("--project-dir") + 1 >= len(args)
+                        or args[args.index("--project-dir") + 1] != "/opt/elven-restlet-preflight"):
+                    raise ValueError("Java repository preflight must run the locked tiny project through the pinned wrapper")
+                preflights.append(args)
+    if not assemblies or any(not required_flags <= set(args) for args in assemblies):
+        raise ValueError("Java assembly must use only pinned JAVA_HOME toolchains without download or parallel compiler heaps")
+    if len(preflights) != 1:
+        raise ValueError("Java requires one genuine pinned-wrapper repository-boundary preflight before assembly")
+    validate_java_restlet_build(build, lines)
 
 
 def read_lock(path=ROOT / "instrumentation.lock.json"):
@@ -59,6 +286,8 @@ def read_lock(path=ROOT / "instrumentation.lock.json"):
         elif (not OCI.DIGEST.fullmatch(image["upstream"]["digest"])
               or image["upstream"]["tag"] == "latest" or source_ref(image) not in recipe):
             raise ValueError(f"{name}: immutable upstream SDK pin differs from recipe")
+        if name == "java":
+            validate_java_source_build(image, recipe)
         published = image["distribution"]
         if published.get("status") not in ("not-published", "verified"):
             raise ValueError(f"{name}: unrecognized SDK publication state")
@@ -321,7 +550,8 @@ def main():
     args = parser.parse_args()
     lock = read_lock(args.lock)
     if args.command == "check":
-        print("Independent operator/SDK lock consistent; publication=" + lock["distribution"]["publicationStatus"])
+        print("Independent operator/SDK recipe check only; historical publication="
+              + lock["distribution"]["publicationStatus"] + "; runtime/release acceptance not implied")
     elif args.command == "verify":
         verify(args, lock)
     else:

@@ -24,7 +24,7 @@ HTTP port is 8080 (`PORT` may override). `/ready` returns 200 `{ready:true}`.
 {"ok":true,"sql":true,"sqlError":true,"redisSet":true,"redisGet":true,"redisError":true,"exception":true,"activeSpan":true,"runtime":"java17"}
 ```
 
-`runtime` is `java17`, `java21`, or `node22`. Infrastructure/assertion failure
+`runtime` is `java17`, `java21`, `node22`, or `python314`. Infrastructure/assertion failure
 returns 500 `{ok:false}`. Responses never contain the synthetic private values.
 The exception event and SDK status do contain known synthetic private values,
 so a RAW SDK sink can prove their presence before the real Collector boundary.
@@ -41,7 +41,8 @@ Configuration: `REDIS_HOST` (default `redis`), `REDIS_PORT` (6379), optional
 `REDIS_PASSWORD`; Node additionally reads `PGHOST`, `PGPORT`, `PGDATABASE`,
 `PGUSER`, `PGPASSWORD`. The CI harness supplies ephemeral synthetic credentials.
 No customer credential, cloud endpoint, SDK backend token or tenant enters these
-applications. No persistent database volume is required.
+applications. No persistent database volume is required. Python uses local
+in-memory SQLite and the same Redis settings, not the Node-only PG settings.
 
 `fixtures.json` records official Maven URLs with SHA-256, Docker Hub index
 digests and sources. `package-lock.json` pins the entire Node closure with npm
@@ -70,3 +71,35 @@ It never runs npm, Java, Docker or a compiler. `npm ci --ignore-scripts` and
 `javac` run solely inside the disposable CI Docker build. Preparation is not
 runtime acceptance. Only real injection, RAW positive controls and exports
 through the compiled Collector can qualify the intended privacy boundary.
+
+## Python 3.14 / glibc experiment
+
+`Dockerfile.python314` adds a real Flask application using `sqlite3`, Redis 6.4.0
+and only the OpenTelemetry API from the externally injected payload. No API/SDK,
+provider, exporter or auto-instrumentation package is installed in the app image.
+Case/response `runtime` is `python314`; Operator runtime is `python` and the
+explicit Python platform annotation must be `glibc`. HTTP contract/port and known
+synthetic private values are identical to the other fixtures. The pinned official
+base is CPython 3.14.10 on Debian Bookworm, for amd64 and arm64. These are explicit
+compatibility pins, not a claim of latest packages or an official CPython LTS.
+
+The app uses real cursor literal/bound SELECTs; SQLite `SELECT 1/0` returns NULL,
+so the negative uses missing `ELVEN_MISSING_FUNCTION()` and requires the actual
+`OperationalError`. Redis performs SET/GET and requires an actual HGET WRONGTYPE
+`redis.exceptions.ResponseError`. A thrown/caught `ValueError` is recorded by the
+injected SDK under the Flask HTTP server parent, including the complete Python
+traceback, `fetchPrice`/`exercise` frames and known private values. No OTLP request
+or trace/span ID is fabricated. A real standard-library application log is emitted
+within that context, but its delivery is not presumed by the traces-only oracle.
+
+`requirements-python.lock` contains the complete eight-package Linux/Python3.14
+mandatory closure, with nine official wheel hashes (both glibc architectures for
+MarkupSafe). Windows/old-Python markers and optional extras are not selected.
+Preparation only checks this lock; pip runs isolated, official-index-only,
+binary/hash-required and no-cache exclusively in the disposable CI Docker build.
+The build checks app dependency imports and rejects any locally installed OTel
+distribution. No Python app execution or package installation occurs on the Mac.
+Upstream injection is still beta: compatibility/readiness, real SDK events,
+selective privacy, retained frames/classes and rollback all require real CI
+receipts. This fixture does not by itself establish application logs/metrics,
+musl, other Python versions or customer acceptance.

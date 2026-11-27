@@ -1,6 +1,57 @@
 # Cadeia de fornecimento da auto-instrumentação opt-in
 
-Este módulo possui lock, imagens, assinatura e promoção próprios. Não altera o conjunto de três imagens da coleta principal. O Operator Elven é um admission webhook Go sem CRDs, acesso à API Kubernetes ou SDK Kubernetes; não é apresentado como o binário do OpenTelemetry Operator. Os SDKs são payloads oficiais OpenTelemetry preservados em wrappers Elven.
+Este módulo possui lock, imagens, assinatura e promoção próprios. Não altera o conjunto de três imagens da coleta principal. O Operator Elven é um admission webhook Go sem CRDs, acesso à API Kubernetes ou SDK Kubernetes; não é apresentado como o binário do OpenTelemetry Operator. Node/Python preservam os payloads oficiais em wrappers Elven. A receita Java candidata descrita abaixo reconstrói a fonte oficial com um backport explícito; não deve ser descrita como payload sem modificações.
+
+## Candidato Java retido — 27/11/2026
+
+O ensaio real `46013176213` confirmou execução SQL/Redis/exception nos apps,
+mas **falhou**: o SDK Java não marcou `WRONGTYPE` como erro do span Redis. A
+receita candidata aplica um backport mínimo da propagação de exceção terminal
+do Jedis4 ao span **já existente**, sem criar outro span. Referência upstream:
+[PR #20792](https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/20792).
+A release v2.34.0 consultada também não contém essa correção; trocar somente
+a versão não resolveria a lacuna observada.
+
+`images.java.sourceBuild` registra o commit oficial, builder, wrapper e SHA do
+patch. O build confere os pins, aplica o patch e exige testes puros de contexto,
+erro terminal/transporte, compatibilidade e ausência de novos spans; os testes
+reais de Redis/SDK/Collector permanecem obrigatórios no CI isolado. O JAR é
+construído no builder nativo e copiado à base upstream imutável, preservando
+entrypoint/utilitário de cópia/licenças. O builder não entra na imagem final.
+
+O CI `46021919983` parou antes de gerar o JAR: o repositório Maven histórico do
+Restlet não resolvia DNS. A receita candidata reconstrói somente as dependências
+**de compilação** Restlet 1.1.5 e 2.0.2 a partir dos commits oficiais
+[`93fab988…`](https://github.com/restlet/restlet-framework-java/tree/93fab9888a9eded2c527e9eee8da46a30c403889/1.1.5)
+e [`aec544eb…`](https://github.com/restlet/restlet-framework-java/tree/aec544eb2622f1959e9c905d435077dd7fec4092/2.0.2).
+Os commits, subdiretórios e helpers locais são vinculados por SHA no lock. As
+coordenadas/versões originais ficam restritas a um repositório local exclusivo;
+não se usa mirror de terceiros, HTTP, remoção da instrumentação ou troca da API
+Restlet. A compilação usa `--release 8` com JDK pinado, sem descoberta/download
+automático de toolchains.
+
+O init Gradle atua **somente nos seis projetos Restlet** que já declaravam
+repositórios no commit upstream. Injetar um repositório em todos os projetos
+ocultou o Maven Central de `settings` e fez o CI `46026043759` falhar ao resolver
+BOMs, depois de a reconstrução Restlet passar. A receita exige um preflight
+pequeno, no mesmo builder/wrapper/toolchains pinados: resolve as três coordenadas
+locais e o BOM OpenTelemetry 1.67.0 do Central; um projeto de controle deve
+continuar sem repositório próprio. O preflight ocorre antes da compilação grande
+e não substitui o build, os scans ou os ensaios nativos.
+
+Esses JARs não são dependências novas da aplicação nem devem ser empacotados no
+agente. O build exige uma inspeção do JAR final que rejeita classes da biblioteca
+Restlet e dependências Restlet aninhadas, preservando o código legítimo de
+instrumentação OpenTelemetry. Essa inspeção e os testes sintéticos são gates,
+não comprovam que o novo artefato já passou build/scans/runtime nativo ou foi
+publicado; os recibos das duas arquiteturas continuam necessários.
+
+**Isso não publica/promove uma imagem.** Os registros de distribuição v1.0.1
+continuam históricos e não descrevem o novo JAR. Compilação, scans, footprint,
+runtime nativo, verificação criptográfica e promoção dos novos digests precisam
+de recibos próprios. O backport é limitado ao caminho síncrono Jedis4; não
+qualifica pipelines/transações/cluster ou todas as bibliotecas Redis. O quadro
+e os tamanhos de 03/11 abaixo são históricos, não medidas do candidato novo.
 
 ## Pins verificados em 03/11/2026
 

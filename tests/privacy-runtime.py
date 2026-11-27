@@ -558,6 +558,8 @@ def redis_cases():
         "auth": ("AUTH " + private["user"] + " " + private["password"], "AUTH"),
         "explicit": ("HGET " + private["key"] + " " + private["field"], "HGET"),
         "resp": ("*2\r\n$3\r\nGET\r\n$64\r\n" + private["key"], "[REDACTED:redis]"),
+        "wrongtype": ("HGET " + private["key"] + " " + private["field"], "HGET"),
+        "wrongtype_json": ("HGET " + private["key"] + " " + private["field"], "HGET"),
     }
 
 
@@ -585,10 +587,11 @@ def redis_corpus(phase):
         trace_id, span_id = redis_identity(phase, case)
         tag = "redis-" + phase + "-" + case
         context = {"redis.command": command} if case == "explicit" else {"db.system.name": "redis"}
+        error = ("WRONGTYPE key " if case.startswith("wrongtype") else "missing ") + REDIS_PRIVATE["key"]
         diagnostic = {
-            "exception.type": "RedisError", "exception.message": "missing " + REDIS_PRIVATE["key"],
+            "exception.type": "RedisError", "exception.message": error,
             "exception.stacktrace": "RedisError: " + REDIS_PRIVATE["key"] + "\n at client.go:42",
-            "status.description": "missing " + REDIS_PRIVATE["key"],
+            "status.description": error,
         }
         values = {**context, **diagnostic, "privacy.test.case": tag, "db.query.text": command,
                   "db.operation.name": command, "db.redis.key": REDIS_PRIVATE["key"],
@@ -600,7 +603,7 @@ def redis_corpus(phase):
         span.parent_span_id = redis_identity(phase)[1]
         span.name, span.kind = command, 3
         span.start_time_unix_nano, span.end_time_unix_nano = now, now + 1_000_000
-        span.status.code, span.status.message = 2, "missing " + REDIS_PRIVATE["key"]
+        span.status.code, span.status.message = 2, error
         attributes(span.attributes, {**values, "elven.redis.trace.marker": "elven redis trace " + phase})
         event = span.events.add()
         event.name, event.time_unix_nano = "exception", now
@@ -642,6 +645,7 @@ def assert_redis_corpus(decoded, phase):
             raise AssertionError("Redis required attribute lost: " + name)
         return value
     for case, (_, operation) in redis_cases().items():
+        error_mask = "[REDACTED:redis:WRONGTYPE]" if case.startswith("wrongtype") else "[REDACTED]"
         tag = "redis-" + phase + "-" + case
         logs = [record for record in all_logs if case_of(record) == tag]
         spans = [span for span in all_spans if attr(span.attributes, "privacy.test.case") is not None
@@ -652,13 +656,14 @@ def assert_redis_corpus(decoded, phase):
         for span in spans:
             if (span.trace_id != trace_id or span.span_id != span_id or span.parent_span_id != redis_identity(phase)[1]
                     or span.name != operation or span.kind != 3 or span.status.code != 2
-                    or span.status.message != "[REDACTED]"):
+                    or span.status.message != error_mask):
                 raise AssertionError("Redis operation/error/correlation changed: " + tag)
             if not span.events or span.events[0].name != "exception":
                 raise AssertionError("Redis exception event lost: " + tag)
             for name in ("exception.message", "exception.stacktrace", "status.description"):
                 value = attr(span.events[0].attributes, name)
-                if value is None or value.string_value != "[REDACTED]":
+                expected = "[REDACTED]" if name == "exception.stacktrace" else error_mask
+                if value is None or value.string_value != expected:
                     raise AssertionError("Redis event diagnostic not conservatively masked: " + tag)
             if required_attr(span.events[0].attributes, "exception.type").string_value != "RedisError":
                 raise AssertionError("Redis exception type lost: " + tag)
@@ -673,12 +678,15 @@ def assert_redis_corpus(decoded, phase):
             for name in ("db.redis.key", "redis.values", "redis.script", "db.redis.command.args",
                          "exception.message", "exception.stacktrace", "status.description"):
                 value = attr(attrs, name)
-                if value is None or value.string_value != "[REDACTED]":
+                expected = error_mask if name in ("exception.message", "status.description") else "[REDACTED]"
+                if value is None or value.string_value != expected:
                     raise AssertionError("Redis sensitive field not masked: " + tag + "/" + name)
         for record in logs:
             if (record.severity_number != 17 or record.severity_text != "ERROR"
                     or "elven redis log " + phase + " cache operation failed status=503" not in str(record.body)):
                 raise AssertionError("Redis useful log body or severity lost: " + tag)
+            if case.startswith("wrongtype") and error_mask not in str(record.body):
+                raise AssertionError("Finite Redis error category lost from native/JSON log body")
     points = [point for message in decoded["metrics"] for resource in message.resource_metrics
               for scope in resource.scope_metrics for metric in scope.metrics
               if metric.name == "elven.redis.synthetic." + phase + ".duration" for point in metric.gauge.data_points]
@@ -689,12 +697,13 @@ def assert_redis_corpus(decoded, phase):
         raise AssertionError("Redis metric value/exemplar correlation lost")
     return {"cases": sorted(redis_cases()), "logs": len(all_logs), "spans": len(all_spans),
             "metric_points": len(points), "known_sensitive_values_absent": True,
-            "correlation_preserved": True, "useful_operation_error_and_log_preserved": True}
+            "correlation_preserved": True, "useful_operation_error_and_log_preserved": True,
+            "finite_error_code_preserved_without_operands": True}
 
 
 def assert_redis_wal(wal):
     required = ("elven redis log wal cache operation failed status=503", "elven redis trace wal",
-                "elven.redis.synthetic.wal.duration")
+                "elven.redis.synthetic.wal.duration", "[REDACTED:redis:WRONGTYPE]")
     if (not wal["files"] or wal["forbidden_matches"] or wal["redaction_markers"] < 1
             or any(wal.get("required_markers", {}).get(marker, 0) < 1 for marker in required)):
         raise AssertionError("Redis WAL lacks sanitized three-signal markers or contains a private sentinel")
@@ -748,7 +757,7 @@ def redis_runtime_checks(send, state, fixture_action, wait_for, selective):
     assert_redis_corpus(attempted, "wal")
     run("docker", "stop", "--time", "5", selective, timeout=20)
     markers = ["elven redis log wal cache operation failed status=503", "elven redis trace wal",
-               "elven.redis.synthetic.wal.duration"]
+               "elven.redis.synthetic.wal.duration", "[REDACTED:redis:WRONGTYPE]"]
     wal = fixture_action({"op": "wal", "forbidden": FORBIDDEN, "required_markers": markers})
     assert_redis_wal(wal)
     baseline = len(state()["accepted"])

@@ -1,0 +1,20 @@
+rootProject.name = 'elven-restlet-repository-preflight'
+// Match the pinned upstream default: PREFER_PROJECT, settings Central/local.
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        mavenLocal()
+    }
+}
+include(':instrumentation:restlet:restlet-1.1:javaagent')
+include(':instrumentation:restlet:restlet-2.0:javaagent')
+include(':central-check')
+// Gradle 9 requires included project directories to exist, even without code.
+[
+    'instrumentation/restlet/restlet-1.1/javaagent',
+    'instrumentation/restlet/restlet-2.0/javaagent',
+    'central-check'
+].each { relativePath ->
+    def directory = file(relativePath)
+    assert directory.mkdirs() || directory.isDirectory()
+}

@@ -33,11 +33,50 @@ def module(name, file):
 SDK = module("sdk_privacy_injection_lab", "scripts/test-instrumentation-kind.py")
 HYBRID = module("sdk_privacy_archives", "scripts/test-hybrid-candidate.py")
 CORE = SDK.CORE
-CASES = ("java17", "java21", "node22")
+CASE_RUNTIMES = {"java17": "java", "java21": "java", "node22": "nodejs", "python314": "python"}
+CASES = tuple(CASE_RUNTIMES)
+CAPTURE_PROFILES = {
+    "java": {"sql": "io.opentelemetry.jdbc", "http": "io.opentelemetry.java-http-server",
+             "redis": {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"},
+             "exception": "java.lang.IllegalStateException"},
+    "nodejs": {"sql": "@opentelemetry/instrumentation-pg", "http": "@opentelemetry/instrumentation-http",
+               "redis": {"@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"},
+               "exception": "Error"},
+    "python": {"sql": "opentelemetry.instrumentation.sqlite3", "http": "opentelemetry.instrumentation.flask",
+               "redis": {"opentelemetry.instrumentation.redis"}, "exception": "ValueError"},
+}
 
 
 def attributes(items):
-    return {item["key"]: next(iter(item["value"].values()), None) for item in items}
+    """Decode canonical ProtoJSON AnyValue without confusing union types."""
+    result = {}
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str):
+            raise AssertionError("Malformed OTLP attribute key")
+        key, value = item["key"], item.get("value")
+        if key in result or not isinstance(value, dict) or len(value) != 1:
+            raise AssertionError("Duplicate attribute or missing/ambiguous OTLP AnyValue union")
+        kind, raw = next(iter(value.items()))
+        if kind == "int_value":
+            # MessageToDict emits int64 as decimal strings. Never infer an
+            # integer from string_value or accept a double/bool as a status.
+            if (not isinstance(raw, str) or len(raw) > 20 or not re.fullmatch(r"-?(?:0|[1-9][0-9]*)", raw)
+                    or str(int(raw)) != raw or not -(2**63) <= int(raw) < 2**63):
+                raise AssertionError("OTLP int_value is not a canonical signed int64")
+            result[key] = int(raw)
+        elif kind in ("string_value", "bytes_value") and isinstance(raw, str):
+            result[key] = raw
+        elif kind == "bool_value" and type(raw) is bool:
+            result[key] = raw
+        elif kind == "double_value" and type(raw) in (int, float):
+            result[key] = float(raw)
+        elif kind == "double_value" and raw in ("NaN", "Infinity", "-Infinity"):
+            result[key] = raw
+        elif kind in ("array_value", "kvlist_value") and isinstance(raw, dict):
+            result[key] = raw
+        else:
+            raise AssertionError("Unknown or malformed OTLP AnyValue union")
+    return result
 
 
 def check_capture(service_spans, private, *, sanitized, required_traces=None):
@@ -51,22 +90,68 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             raise AssertionError("Missing SDK spans: " + case)
         if sanitized and any(value in json.dumps(spans) for value in private["forbidden"]):
             raise AssertionError("Known private sentinel crossed the actual Collector: " + case)
-        java = case.startswith("java")
-        sql_scope = "io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg"
-        # Pinned Java agent v2.33.1 JedisSingletons.java for Jedis 4+:
-        # INSTRUMENTATION_NAME = "io.opentelemetry.jedis-4.0".
-        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"} if java else {
-            "@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"}
-        server_scope = "io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http"
+        runtime = CASE_RUNTIMES[case]
+        profile = CAPTURE_PROFILES[runtime]
+        sql_scope, server_scope, redis_scopes = profile["sql"], profile["http"], profile["redis"]
         servers = [s for scope, s in spans if scope == server_scope and s.get("kind") in (2, "SPAN_KIND_SERVER")]
         sql = [s for scope, s in spans if scope == sql_scope and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
         redis = [s for scope, s in spans if scope in redis_scopes and s.get("kind") in (3, "SPAN_KIND_CLIENT")]
-        exceptions = [s for _, s in spans if s.get("name") == "elven.privacy.exception"]
+        exceptions = [s for scope, s in spans if scope == "elven.sdk.privacy.fixture" and s.get("name") == "elven.privacy.exception"]
         if not servers or not sql or not redis or not exceptions:
             raise AssertionError("Missing real HTTP/SQL/Redis/exception SDK capture: " + case)
-        for name, client_spans in (("SQL", sql), ("Redis", redis)):
-            if not any(span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR") for span in client_spans):
-                raise AssertionError("Real " + name + " client error status missing: " + case)
+        requested = required_traces[case] if required_traces is not None else {span.get("trace_id") for span in exceptions}
+        if not requested or any(not isinstance(trace_id, str) or not trace_id for trace_id in requested):
+            raise AssertionError("No required HTTP request trace identity: " + case)
+        for trace_id in requested:
+            matched = [span for span in servers if span.get("trace_id") == trace_id]
+            if len(matched) != 1:
+                raise AssertionError("Expected exactly one real HTTP server span per required request: " + case)
+            server = matched[0]
+            status = server.get("status", {}).get("code")
+            context = attributes(server.get("attributes", []))
+            codes = [context[key] for key in ("http.response.status_code", "http.status_code") if key in context]
+            methods = [context[key] for key in ("http.request.method", "http.method") if key in context]
+            if (not ((type(status) is int and status == 2) or status == "STATUS_CODE_ERROR")
+                    or not codes or any(type(code) is not int or code != 502 for code in codes)
+                    or not methods or any(method != "GET" or not isinstance(method, str) for method in methods)):
+                raise AssertionError("Real HTTP server must retain ERROR, integer 502 and GET: " + case)
+        sql_errors = [span for span in sql if span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR")]
+        if not sql_errors:
+            raise AssertionError("Real SQL client error status missing: " + case)
+        diagnostics, redis_diagnostics, sql_diagnostics, sql_states = set(), set(), set(), set()
+        sql_types, redis_types = set(), set()
+        for span in sql_errors:
+            events = [attributes(event.get("attributes", [])) for event in span.get("events", [])
+                      if event.get("name") == "exception"]
+            if not events:
+                raise AssertionError("Real SQL client exception event missing: " + case)
+            for event in events:
+                # Java JDBC Instrumenter.end(Throwable) and Python DBAPI's span
+                # context manager record standard exception.type. Pinned Node
+                # pg0.78.0 instead passes sanitizedErrorMessage(error), a STRING,
+                # to recordException: its event has only exception.message.
+                # Source fc3b13eb.../packages/instrumentation-pg/src/utils.ts:
+                #456-460 retains a public error.name in this exact safe format.
+                if runtime == "nodejs":
+                    message = event.get("exception.message")
+                    parsed = re.fullmatch(r"PostgreSQL error of type '([^']{1,256})' occurred \(code: ([0-9A-Z]{5}|UNKNOWN)\)",
+                                          message) if isinstance(message, str) else None
+                    kind = parsed.group(1) if parsed else None
+                    sql_state = parsed.group(2) if parsed else None
+                    origin = "official_pg_sanitized_exception_message"
+                else:
+                    kind, origin = event.get("exception.type"), "exception.type"
+                    sql_state = None
+                if (not isinstance(kind, str) or len(kind) > 256
+                        or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:[.$][A-Za-z_$][A-Za-z0-9_$]*)*", kind)
+                        or any(value in kind for value in private["forbidden"])):
+                    raise AssertionError("Real SQL client exception class is missing, masked or non-public: " + case)
+                digest = hashlib.sha256(json.dumps(["sql-client", origin, kind, sql_state]).encode()).hexdigest()
+                diagnostics.add(digest)
+                sql_diagnostics.add(digest)
+                sql_types.add(kind)
+                if sql_state is not None and sql_state != "UNKNOWN":
+                    sql_states.add(sql_state)
         statements = [attributes(s.get("attributes", [])).get(key, "") for s in sql for key in ("db.statement", "db.query.text")]
         if not any("SELECT" in value.upper() and "answer" in value.lower() and "customer_email" in value.lower()
                    for value in statements if isinstance(value, str)):
@@ -76,17 +161,50 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             values = attributes(span.get("attributes", []))
             operation = values.get("db.operation.name", values.get("db.operation"))
             if operation is None:
-                match = re.fullmatch(r"(?:redis\s+)?(SET|GET)(?:\s+.*)?", span.get("name", ""), re.I)
+                match = re.fullmatch(r"(?:redis\s+)?(SET|GET|HGET)(?:\s+.*)?", span.get("name", ""), re.I)
                 operation = match.group(1) if match else ""
             operations.append(str(operation).upper())
-        if not {"SET", "GET"}.issubset(operations):
+        if not {"SET", "GET", "HGET"}.issubset(operations):
             raise AssertionError("Real Redis SET/GET operations were lost: " + case)
-        diagnostics = set()
+        for operation in ("SET", "GET", "HGET"):
+            if operations.count(operation) != 1:
+                raise AssertionError("Real Redis command was duplicated or lost: " + case + "/" + operation)
+            span = redis[operations.index(operation)]
+            error = span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR")
+            if error != (operation == "HGET"):
+                raise AssertionError("Actual Redis command/error status incorrect: " + case + "/" + operation)
+            if operation == "HGET" and "WRONGTYPE" not in json.dumps(span):
+                raise AssertionError("Useful Redis server error context was lost: " + case)
+            if operation == "HGET":
+                # Pinned redis instrumentation v0.73.0 _endSpanWithResponse
+                # calls recordException(error) on a rejected command promise:
+                # github.com/open-telemetry/opentelemetry-js-contrib/blob/
+                # fc3b13eb41e9512fb0d769b431583f90b5ef8326/packages/
+                # instrumentation-redis/src/v4-v5/instrumentation.ts#L596-L599
+                # The Java Instrumenter.end(Throwable) records the same standard
+                # event by default. Status text alone does not prove error type.
+                events = [attributes(event.get("attributes", [])) for event in span.get("events", [])
+                          if event.get("name") == "exception"]
+                if not events:
+                    raise AssertionError("Real Redis HGET exception class event missing: " + case)
+                for event in events:
+                    kind = event.get("exception.type")
+                    if (not isinstance(kind, str) or len(kind) > 256
+                            or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:[.$][A-Za-z_$][A-Za-z0-9_$]*)*", kind)
+                            or any(value in kind for value in private["forbidden"])):
+                        raise AssertionError("Real Redis HGET exception class is missing, masked or non-public: " + case)
+                    if runtime == "python" and kind != "redis.exceptions.ResponseError":
+                        raise AssertionError("Actual Python Redis HGET ResponseError type was altered: " + case)
+                    digest = hashlib.sha256(json.dumps(["redis-client", "HGET", kind]).encode()).hexdigest()
+                    diagnostics.add(digest)
+                    redis_diagnostics.add(digest)
+                    redis_types.add(kind)
         for exception in exceptions:
             if not any(server.get("trace_id") == exception.get("trace_id") and server.get("span_id") == exception.get("parent_span_id") for server in servers):
                 raise AssertionError("SDK exception is not a child of the real HTTP server span: " + case)
             context = attributes(exception.get("attributes", []))
-            if context.get("http.route") != "/exercise" or context.get("http.request.method") != "GET" or context.get("http.response.status_code") != 502:
+            if (context.get("http.route") != "/exercise" or context.get("http.request.method") != "GET"
+                    or type(context.get("http.response.status_code")) is not int or context.get("http.response.status_code") != 502):
                 raise AssertionError("Exception HTTP diagnostic context was lost: " + case)
             if exception.get("status", {}).get("code") not in (2, "STATUS_CODE_ERROR"):
                 raise AssertionError("SDK error status was lost: " + case)
@@ -95,7 +213,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                 raise AssertionError("Real recordException event missing: " + case)
             for event in events:
                 kind, message, stack = (event.get("exception." + name, "") for name in ("type", "message", "stacktrace"))
-                if kind != ("java.lang.IllegalStateException" if java else "Error"):
+                if kind != profile["exception"]:
                     raise AssertionError("Exception type was altered: " + case)
                 if "checkout failed" not in message or "retry=false" not in message or "exercise" not in stack:
                     raise AssertionError("Useful exception message/frames were removed: " + case)
@@ -105,7 +223,18 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                 elif not all(value in message and value in stack for value in (private["email"], private["exceptionSecret"])):
                     raise AssertionError("RAW SDK positive control did not contain known exception sentinels: " + case)
                 expected_message = message.replace(private["email"], "[REDACTED]").replace(private["exceptionSecret"], "[REDACTED]")
-                frames = stack.splitlines()[1:]
+                # Python SDK 1.45.2 record_exception uses traceback.format_exception:
+                # header + frames + trailing type/message, unlike Java/Node's
+                # leading type/message. Preserve every Python line and normalize
+                # only the two known private control values across the full stack.
+                expected_stack = stack
+                if runtime == "python":
+                    expected_stack = expected_stack.replace(private["email"], "[REDACTED]").replace(private["exceptionSecret"], "[REDACTED]")
+                    frames = expected_stack.splitlines()
+                    if not frames or frames[0] != "Traceback (most recent call last):" or not frames[-1].startswith("ValueError: "):
+                        raise AssertionError("Python traceback header or terminal exception context was lost: " + case)
+                else:
+                    frames = stack.splitlines()[1:]
                 if len(frames) < 2 or not any("fetchPrice" in line for line in frames) or not any("exercise" in line for line in frames):
                     raise AssertionError("Required real exception application frames were lost: " + case)
                 # Only a digest leaves the raw phase. Comparison across identical
@@ -115,6 +244,13 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         summary[case] = {"httpServerSpans": len(servers), "sqlClientSpans": len(sql), "redisClientSpans": len(redis),
                          "exceptionSpans": len(exceptions), "selectiveMasking": sanitized,
                          "selectiveDiagnosticDigests": sorted(diagnostics),
+                         "redisExceptionClassDigests": sorted(redis_diagnostics),
+                         "sqlExceptionClassDigests": sorted(sql_diagnostics),
+                         "sqlExceptionPublicTypes": sorted(sql_types),
+                         "redisExceptionPublicTypes": sorted(redis_types),
+                         "expectedApiExceptionType": profile["exception"],
+                         "sqlExceptionTypeOrigin": "official_pg_sanitized_exception_message" if runtime == "nodejs" else "exception.type",
+                         "sqlExceptionSqlStates": sorted(sql_states),
                          "realSdkScopes": sorted({scope for scope, _ in spans})}
     return summary
 
@@ -129,6 +265,17 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.pins = json.loads((FIXTURES / "fixtures.json").read_text())
         self.report.update(test="real SDK SQL Redis exceptions privacy", completed=False,
                            input_origin="actual_sdk_injected_application_execution", customer_acceptance=False)
+        self.report["exception_capture_mode"] = {
+            "businessExceptions": "Real thrown/caught exception objects explicitly recorded through recordException/record_exception APIs",
+            "providerAndExporter": "External injected SDK only; no application-bundled SDK/provider/exporter",
+            "automaticCapture": ["HTTP server", "SQL client", "Redis client"],
+            "allHandledBusinessExceptionsAutomaticallyCaptured": False,
+        }
+        self.report["runtime_cases"] = list(CASES)
+        self.report["not_proven"] = [item for item in self.report["not_proven"]
+                                    if item != "Python SDK application compatibility"] + [
+            "Python compatibility outside synthetic Python3.14 glibc Flask/sqlite3/redis",
+            "Python application logs and metrics (not qualified by trace capture)"]
         self.report["runtime_coverage"] = {case: {} for case in CASES}
         self.request_traces = {case: set() for case in CASES}
 
@@ -177,7 +324,14 @@ class PrivacyLab(SDK.InstrumentationLab):
         obj["spec"]["containers"][0]["env"] = [{"name": key, "value": value} for key, value in {
             "REDIS_HOST": "redis", "REDIS_PORT": "6379", "PGHOST": "postgres", "PGPORT": "5432",
             "PGDATABASE": "synthetic", "PGUSER": "synthetic", "PGPASSWORD": "synthetic-db-password"}.items()]
+        if runtime == "python":
+            obj["metadata"].setdefault("annotations", {})["elven.observability/python-platform"] = "glibc"
         return obj
+
+    def operator_values(self, endpoint):
+        settings = super().operator_values(endpoint)
+        settings["runtimes"]["python"] = True
+        return settings
 
     def exercise(self):
         for case in CASES:
@@ -194,7 +348,7 @@ class PrivacyLab(SDK.InstrumentationLab):
 
     def applications(self):
         for case in CASES:
-            runtime = "java" if case.startswith("java") else "nodejs"
+            runtime = CASE_RUNTIMES[case]
             self.create(self.app(case, case, runtime))
             self.kube("wait", "--for=condition=Ready", "pod/" + case, "-n", self.app_namespace, "--timeout=240s", timeout=260)
             pod = json.loads(self.kube("get", "pod/" + case, "-n", self.app_namespace, "-o", "json").stdout)
@@ -203,6 +357,20 @@ class PrivacyLab(SDK.InstrumentationLab):
             if init["image"] != self.images[runtime]["reference"] or status["state"]["terminated"]["exitCode"] != 0:
                 raise AssertionError("Exact injected SDK/init execution was not observed")
             self.check("actual SDK injection " + case, image=init["image"], initExitCode=0)
+            if runtime == "python":
+                app = next(c for c in pod["spec"]["containers"] if c["name"] == "app")
+                env = {entry["name"]: entry.get("value") for entry in app.get("env", [])}
+                if (init.get("command") != ["cp", "-R", "/autoinstrumentation/.", "/elven-auto/"]
+                        or env.get("PYTHONPATH") != "/elven-auto/opentelemetry/instrumentation/auto_instrumentation:/elven-auto"
+                        or not any(m.get("mountPath") == "/elven-auto" and m.get("readOnly") is True for m in app.get("volumeMounts", []))):
+                    raise AssertionError("Actual Python glibc payload/loader/read-only mount injection was not observed")
+                self.check("actual Python3.14 glibc loader and SDK mount readback", sdkImage=init["image"])
+            if runtime == "java":
+                size = int(self.kube("exec", "pod/" + case, "-n", self.app_namespace,
+                                     "-c", "app", "--", "stat", "-c", "%s", "/elven-auto/javaagent.jar").stdout.strip())
+                if not 0 < size < 128 * 1024**2:
+                    raise AssertionError("The actual Java JAR exceeds the scoped SDK volume budget")
+                self.report.setdefault("actualJavaPayloadBytes", {})[case] = size
         self.exercise()
 
     def delivery(self):
@@ -218,7 +386,14 @@ class PrivacyLab(SDK.InstrumentationLab):
                                                   for case, spans in self.service_spans().items() if case in CASES}
                 return False
         self.wait_for(arrived, "actual SDK SQL Redis exceptions and selective privacy", timeout=150)
+        self.report.pop("captureFailure", None)
+        self.report.pop("scope_inventory", None)
         self.report["capture"] = result
+        for case in CASES:
+            self.report["runtime_coverage"][case] = {
+                "http_server": "PASS", "sql_query_shape_and_error": "PASS", "exceptions": "PASS",
+                "redis_commands_and_error": "PASS", "selective_privacy": "PASS" if self.combined else "RAW_POSITIVE_CONTROL",
+                "application_logs": "NOT_PROVEN", "application_metrics": "NOT_PROVEN"}
         if self.combined:
             if not all(item["tenant"] == "synthetic-tenant" and item["authorization_valid"] for item in self.state()["accepted"]):
                 raise AssertionError("Authenticated synthetic tenant export failed")
@@ -258,6 +433,8 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.exercise()
         self.delivery()
         self.report["rollback"] = {"identitiesPreserved": True, "freshActualSdkCaptureAfterRollback": self.report["capture"]}
+        for case in CASES:
+            self.report["runtime_coverage"][case]["rollback"] = "PASS"
 
     def run(self):
         self.boot()
@@ -321,8 +498,8 @@ def main():
                 observed = {case: lab.report["capture"][case]["selectiveDiagnosticDigests"] for case in CASES}
                 if combined:
                     if observed != raw_diagnostics:
-                        raise AssertionError("Post-Collector exception types, selective messages or full frames differ from the real RAW SDK control")
-                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
+                        raise AssertionError("Post-Collector SQL/Redis error classes or API exception types, selective messages or full frames differ from the real RAW SDK control")
+                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_SQL_REDIS_CLASS_API_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
                 else:
                     raw_diagnostics = observed
             except Exception as error:

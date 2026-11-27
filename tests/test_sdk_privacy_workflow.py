@@ -54,6 +54,24 @@ class SDKPrivacyWorkflowTests(unittest.TestCase):
             ("elven-instrumentation-oci", "artifacts/instrumentation", "${{ inputs.sdk_run }}")])
         self.assertTrue(all(s["github-token"] == "${{ github.token }}" for s in downloads))
 
+    def test_native_arm_reuses_exact_bytes_and_current_run_fresh_reports_before_runtime(self):
+        arm = self.doc["jobs"]["native-arm"]
+        self.assertEqual(arm["needs"], "lab")
+        self.assertEqual(arm["runs-on"], "ubuntu-24.04-arm")
+        self.assertEqual(arm["timeout-minutes"], 35)
+        steps = arm["steps"]
+        reports = next(i for i, s in enumerate(steps) if s.get("with", {}).get("name") == "elven-sdk-privacy-security")
+        self.assertEqual(steps[reports]["with"]["path"], "artifacts")
+        self.assertNotIn("run-id", steps[reports]["with"])
+        guard = next(i for i, s in enumerate(steps) if "scripts/qualify-candidate-artifacts.py" in s.get("run", ""))
+        runtime = next(i for i, s in enumerate(steps) if "scripts/test-sdk-privacy-kind.py" in s.get("run", ""))
+        self.assertLess(reports, guard)
+        self.assertLess(guard, runtime)
+        self.assertTrue(any("= aarch64" in s.get("run", "") for s in steps))
+        self.assertIn("--development-images", steps[runtime]["run"])
+        self.assertTrue(any(s.get("with", {}).get("name") == "elven-sdk-privacy-security" for s in self.steps))
+        self.assertTrue(any(s.get("with", {}).get("name") == "elven-sdk-privacy-evidence-arm64" for s in steps))
+
     def test_runtime_waits_for_rescan_load_govuln_and_unchanged_normal_freshness_gate(self):
         def position(fragment):
             return next(i for i, s in enumerate(self.steps) if fragment in s.get("run", ""))

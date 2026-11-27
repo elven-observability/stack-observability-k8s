@@ -64,15 +64,54 @@ func redisField(key string) bool {
 	return isSQLKey(key) || k == "dbquerysummary" || k == "dboperation" || k == "dboperationname" || k == "rediscommand" || k == "dbrediscommand"
 }
 
-func sanitizeRedisException(input pcommon.Map) {
+func sanitizeRedisException(input pcommon.Map, maxStringBytes int) {
 	// Redis errors can echo an unlabelled arbitrary key/script. Preserve the
 	// exception type, event identity and correlation, not the echoed operands.
 	input.Range(func(key string, value pcommon.Value) bool {
 		if redisDiagnostic(key) {
-			value.SetStr(mask)
+			clean := mask
+			if value.Type() == pcommon.ValueTypeStr && len(value.Str()) <= maxStringBytes {
+				clean = redisDiagnosticValue(key, value.Str())
+			}
+			value.SetStr(clean)
 		}
 		return true
 	})
+}
+
+// Redis protocol error categories are finite public tokens. Never decode an
+// encoded prefix or keep following operands, addresses, messages or frames.
+// https://redis.io/docs/latest/develop/reference/protocol-spec/#simple-errors
+func redisErrorMarker(code string) string {
+	switch code {
+	case "WRONGTYPE", "NOAUTH", "WRONGPASS", "NOPERM", "OOM", "READONLY", "MISCONF", "BUSY", "NOSCRIPT", "LOADING",
+		"CLUSTERDOWN", "CROSSSLOT", "TRYAGAIN", "MOVED", "ASK", "EXECABORT", "ERR":
+		return "[REDACTED:redis:" + code + "]"
+	default:
+		return mask
+	}
+}
+
+func isRedisDiagnosticMarker(input string) bool {
+	const prefix = "[REDACTED:redis:"
+	if !strings.HasPrefix(input, prefix) || !strings.HasSuffix(input, "]") {
+		return false
+	}
+	return redisErrorMarker(input[len(prefix):len(input)-1]) == input
+}
+
+func redisDiagnosticValue(key, input string) string {
+	if normalizedKey(key) == "exceptionstacktrace" || len(input) > 262144 || !utf8.ValidString(input) {
+		return mask
+	}
+	if isRedisDiagnosticMarker(input) {
+		return input // Only the exact finite generated marker is idempotent.
+	}
+	end := strings.IndexAny(input, " \t\r\n\v\f")
+	if end < 0 {
+		end = len(input)
+	}
+	return redisErrorMarker(input[:end])
 }
 
 func redisDiagnostic(key string) bool {

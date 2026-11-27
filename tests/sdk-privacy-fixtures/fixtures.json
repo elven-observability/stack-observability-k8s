@@ -5,7 +5,8 @@
   "images": {
     "java17": "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516",
     "java21": "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69",
-    "node22": "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da"
+    "node22": "docker.io/library/node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da",
+    "python314": "docker.io/library/python:3.14-slim-bookworm@sha256:e60ad028afdcdd14772a3d46decf0eaf616720f9102aeb4397a2045ff6718c3d"
   },
   "dbImages": {
     "redis": "docker.io/library/redis:8.4.0-bookworm@sha256:c22af04bb576503bf16b3e34a1fd2fd82de0f765afd866d2e380145e0af30d78",
@@ -84,6 +85,196 @@
       "version": "2.5.252",
       "url": "https://repo.maven.apache.org/maven2/com/h2database/h2/2.5.252/h2-2.5.252.jar",
       "sha256": "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20"
+    }
+  },
+  "pythonRuntime": {
+    "case": "python314",
+    "version": "3.14.10",
+    "libc": "glibc",
+    "baseImage": "docker.io/library/python:3.14-slim-bookworm@sha256:e60ad028afdcdd14772a3d46decf0eaf616720f9102aeb4397a2045ff6718c3d",
+    "platforms": [
+      "linux/amd64",
+      "linux/arm64"
+    ],
+    "instrumentationVersion": "0.66b2",
+    "sdkVersion": "1.45.2",
+    "stability": "beta",
+    "purpose": "Compatibility fixture, not a claim of latest packages or CPython LTS",
+    "inactiveDependencies": [
+      "colorama (Windows only)",
+      "importlib-metadata (Python<3.10)",
+      "async-timeout (Python<3.11.3)",
+      "optional extras (not selected)"
+    ],
+    "sources": {
+      "compatibility": "https://github.com/open-telemetry/opentelemetry-python-contrib/tree/v0.66b2",
+      "pythonLifecycle": "https://devguide.python.org/versions/",
+      "sdkException": "https://github.com/open-telemetry/opentelemetry-python/blob/v1.45.2/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py",
+      "baseDigest": "Docker Hub OCI index/config metadata observed2026-11-27; no layers downloaded"
+    }
+  },
+  "pythonDependencies": {
+    "blinker": {
+      "requiresDist": null,
+      "requiresPython": ">=3.9",
+      "source": "https://pypi.org/pypi/blinker/1.9.0/json",
+      "version": "1.9.0",
+      "wheels": [
+        {
+          "bytes": 8458,
+          "file": "blinker-1.9.0-py3-none-any.whl",
+          "sha256": "ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc",
+          "url": "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {}
+    },
+    "click": {
+      "requiresDist": [
+        "colorama; platform_system == \"Windows\""
+      ],
+      "requiresPython": ">=3.10",
+      "source": "https://pypi.org/pypi/click/8.3.1/json",
+      "version": "8.3.1",
+      "wheels": [
+        {
+          "bytes": 108274,
+          "file": "click-8.3.1-py3-none-any.whl",
+          "sha256": "981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6",
+          "url": "https://files.pythonhosted.org/packages/98/78/01c019cdb5d6498122777c1a43056ebb3ebfeef2076d9d026bfe15583b2b/click-8.3.1-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {}
+    },
+    "flask": {
+      "requiresDist": [
+        "blinker>=1.9.0",
+        "click>=8.1.3",
+        "importlib-metadata>=3.6.0; python_version < \"3.10\"",
+        "itsdangerous>=2.2.0",
+        "jinja2>=3.1.2",
+        "markupsafe>=2.1.1",
+        "werkzeug>=3.1.0",
+        "asgiref>=3.2; extra == \"async\"",
+        "python-dotenv; extra == \"dotenv\""
+      ],
+      "requiresPython": ">=3.9",
+      "source": "https://pypi.org/pypi/flask/3.1.2/json",
+      "version": "3.1.2",
+      "wheels": [
+        {
+          "bytes": 103308,
+          "file": "flask-3.1.2-py3-none-any.whl",
+          "sha256": "ca1d8112ec8a6158cc29ea4858963350011b5c846a414cdb7a954aa9e967d03c",
+          "url": "https://files.pythonhosted.org/packages/ec/f9/7f9263c5695f4bd0023734af91bedb2ff8209e8de6ead162f35d8dc762fd/flask-3.1.2-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {
+        "blinker": "1.9.0",
+        "click": "8.3.1",
+        "itsdangerous": "2.2.0",
+        "jinja2": "3.1.6",
+        "markupsafe": "3.0.3",
+        "werkzeug": "3.1.5"
+      }
+    },
+    "itsdangerous": {
+      "requiresDist": null,
+      "requiresPython": ">=3.8",
+      "source": "https://pypi.org/pypi/itsdangerous/2.2.0/json",
+      "version": "2.2.0",
+      "wheels": [
+        {
+          "bytes": 16234,
+          "file": "itsdangerous-2.2.0-py3-none-any.whl",
+          "sha256": "c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef",
+          "url": "https://files.pythonhosted.org/packages/04/96/92447566d16df59b2a776c0fb82dbc4d9e07cd95062562af01e408583fc4/itsdangerous-2.2.0-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {}
+    },
+    "jinja2": {
+      "requiresDist": [
+        "MarkupSafe>=2.0",
+        "Babel>=2.7; extra == \"i18n\""
+      ],
+      "requiresPython": ">=3.7",
+      "source": "https://pypi.org/pypi/jinja2/3.1.6/json",
+      "version": "3.1.6",
+      "wheels": [
+        {
+          "bytes": 134899,
+          "file": "jinja2-3.1.6-py3-none-any.whl",
+          "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+          "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {
+        "markupsafe": "3.0.3"
+      }
+    },
+    "markupsafe": {
+      "requiresDist": null,
+      "requiresPython": ">=3.9",
+      "source": "https://pypi.org/pypi/markupsafe/3.0.3/json",
+      "version": "3.0.3",
+      "wheels": [
+        {
+          "bytes": 24408,
+          "file": "markupsafe-3.0.3-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl",
+          "sha256": "f34c41761022dd093b4b6896d4810782ffbabe30f2d443ff5f083e0cbbb8c737",
+          "url": "https://files.pythonhosted.org/packages/da/ef/e648bfd021127bef5fa12e1720ffed0c6cbb8310c8d9bea7266337ff06de/markupsafe-3.0.3-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl"
+        },
+        {
+          "bytes": 23005,
+          "file": "markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "457a69a9577064c05a97c41f4e65148652db078a3a509039e64d3467b9e7ef97",
+          "url": "https://files.pythonhosted.org/packages/41/3c/a36c2450754618e62008bf7435ccb0f88053e07592e6028a34776213d877/markupsafe-3.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+        }
+      ],
+      "dependsOn": {}
+    },
+    "redis": {
+      "requiresDist": [
+        "async-timeout>=4.0.3; python_full_version < \"3.11.3\"",
+        "hiredis>=3.2.0; extra == \"hiredis\"",
+        "pyjwt>=2.9.0; extra == \"jwt\"",
+        "cryptography>=36.0.1; extra == \"ocsp\"",
+        "pyopenssl>=20.0.1; extra == \"ocsp\"",
+        "requests>=2.31.0; extra == \"ocsp\""
+      ],
+      "requiresPython": ">=3.9",
+      "source": "https://pypi.org/pypi/redis/6.4.0/json",
+      "version": "6.4.0",
+      "wheels": [
+        {
+          "bytes": 279847,
+          "file": "redis-6.4.0-py3-none-any.whl",
+          "sha256": "f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f",
+          "url": "https://files.pythonhosted.org/packages/e8/02/89e2ed7e85db6c93dfa9e8f691c5087df4e3551ab39081a4d7c6d1f90e05/redis-6.4.0-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {}
+    },
+    "werkzeug": {
+      "requiresDist": [
+        "markupsafe>=2.1.1",
+        "watchdog>=2.3; extra == \"watchdog\""
+      ],
+      "requiresPython": ">=3.9",
+      "source": "https://pypi.org/pypi/werkzeug/3.1.5/json",
+      "version": "3.1.5",
+      "wheels": [
+        {
+          "bytes": 225025,
+          "file": "werkzeug-3.1.5-py3-none-any.whl",
+          "sha256": "5111e36e91086ece91f93268bb39b4a35c1e6f1feac762c9c822ded0a4e322dc",
+          "url": "https://files.pythonhosted.org/packages/ad/e4/8d97cca767bcc1be76d16fb76951608305561c6e056811587f36cb1316a8/werkzeug-3.1.5-py3-none-any.whl"
+        }
+      ],
+      "dependsOn": {
+        "markupsafe": "3.0.3"
+      }
     }
   },
   "privacy": {

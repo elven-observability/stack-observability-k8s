@@ -38,6 +38,56 @@
       "payloadPaths": [
         "/javaagent.jar"
       ],
+      "sourceBuild": {
+        "repository": "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git",
+        "revision": "d9045e02e0711837d54f0fd058cd55f77742506d",
+        "buildImage": "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898",
+        "javaVersion": 25,
+        "auxiliaryJdk17Image": "docker.io/library/eclipse-temurin:17-jdk-jammy@sha256:81336a07f69ac361c7f278183b195e32037ebdb532684996806265a3b47ef516",
+        "auxiliaryJdk21Image": "docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0171a472478282fb463790a51edf10e465d578f22b69",
+        "gradleVersion": "9.8.2",
+        "wrapperDistributionSha256": "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607",
+        "restletSources": [
+          {
+            "repository": "https://github.com/restlet/restlet-framework-java.git",
+            "revision": "93fab9888a9eded2c527e9eee8da46a30c403889",
+            "subdirectory": "1.1.5",
+            "version": "1.1.5"
+          },
+          {
+            "repository": "https://github.com/restlet/restlet-framework-java.git",
+            "revision": "aec544eb2622f1959e9c905d435077dd7fec4092",
+            "subdirectory": "2.0.2",
+            "version": "2.0.2"
+          }
+        ],
+        "restletBuildScript": {
+          "path": "images/autoinstrumentation/java/build-restlet-compile-only.sh",
+          "sha256": "a66a6b25647b88e187e8a0d1a6a609de00942aec9e88b45db3baa1e1c2b83b2b"
+        },
+        "restletRepositoryInit": {
+          "path": "images/autoinstrumentation/java/restlet-compile-only.init.gradle",
+          "sha256": "48308d22e57863f087fb68d08934f8969907cedc7e24d90c9fa227417be71357"
+        },
+        "restletPayloadCheck": {
+          "path": "images/autoinstrumentation/java/verify-restlet-payload.sh",
+          "sha256": "9ed3071ce9b4fc915a19ca6ba3092a367bc91725c1b7e95971bbf8a54625c776"
+        },
+        "restletPreflightSettings": {
+          "path": "images/autoinstrumentation/java/restlet-preflight.settings.gradle",
+          "sha256": "817233b8e3d57b2365a9bcbb9147db693a155a00cda9917e602d6e4ac4034732"
+        },
+        "restletPreflightBuild": {
+          "path": "images/autoinstrumentation/java/restlet-preflight.build.gradle",
+          "sha256": "6a65a01259808ae742c2ae9ffcae2a6160bef2e3e5a93ef04ef42fe608adabe0"
+        },
+        "patches": [
+          {
+            "path": "images/autoinstrumentation/java/jedis4-terminal-error.patch",
+            "sha256": "25dc0866daf97461bb4110d38d36225d8f336b90d1c4c1a9a00b949006b54be0"
+          }
+        ]
+      },
       "stability": "stable-release-not-all-integrations-GA",
       "upstream": {
         "digest": "sha256:6886169e41415eedcaa04d67485592022026eab5b33e2c83ce86561a72f15452",

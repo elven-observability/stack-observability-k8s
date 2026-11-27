@@ -69,7 +69,11 @@ func (p *privacyProcessor) processTraces(_ context.Context, data ptrace.Traces) 
 				if redis {
 					span.SetName(redisOperation(span.Name()))
 					if span.Status().Message() != "" {
-						span.Status().SetMessage(mask)
+						message := mask
+						if len(span.Status().Message()) <= p.config.MaxStringBytes {
+							message = redisDiagnosticValue("status.description", span.Status().Message())
+						}
+						span.Status().SetMessage(message)
 					}
 				} else {
 					span.SetName(p.cleanText(span.Name()))
@@ -87,7 +91,7 @@ func (p *privacyProcessor) processTraces(_ context.Context, data ptrace.Traces) 
 						if e.Name() != "exception" {
 							e.SetName("redis.event")
 						}
-						sanitizeRedisException(e.Attributes())
+						sanitizeRedisException(e.Attributes(), p.config.MaxStringBytes)
 					} else {
 						e.SetName(p.cleanText(e.Name()))
 					}

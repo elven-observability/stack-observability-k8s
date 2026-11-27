@@ -1,0 +1,155 @@
+diff --git a/instrumentation/jedis/jedis-4.0/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/v4_0/JedisInstrumentation.java b/instrumentation/jedis/jedis-4.0/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/v4_0/JedisInstrumentation.java
+--- a/instrumentation/jedis/jedis-4.0/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/v4_0/JedisInstrumentation.java
++++ b/instrumentation/jedis/jedis-4.0/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/v4_0/JedisInstrumentation.java
+@@ -64,9 +64,10 @@
+ 
+     @Advice.OnMethodExit(onThrowable = Throwable.class, suppress = Throwable.class, inline = false)
+     public static void onExit(
++        @Advice.Thrown @Nullable Throwable throwable,
+         @Advice.Enter @Nullable JedisRequestContext<JedisRequest> requestContext) {
+       if (requestContext != null) {
+-        requestContext.detachAndEnd();
++        requestContext.detachAndEnd(throwable);
+       }
+     }
+   }
+diff --git a/instrumentation/jedis/jedis-common-1.4/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContext.java b/instrumentation/jedis/jedis-common-1.4/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContext.java
+--- a/instrumentation/jedis/jedis-common-1.4/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContext.java
++++ b/instrumentation/jedis/jedis-common-1.4/javaagent/src/main/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContext.java
+@@ -32,9 +32,14 @@
+   }
+ 
+   public void detachAndEnd() {
++    detachAndEnd(null);
++  }
++
++  public void detachAndEnd(@Nullable Throwable terminalFailure) {
+     contextThreadLocal.remove();
+     if (request != null && instrumenter != null && context != null) {
+-      endSpan(instrumenter, context, request, throwable);
++      endSpan(
++          instrumenter, context, request, terminalFailure != null ? terminalFailure : throwable);
+     }
+   }
+ 
+diff --git a/instrumentation/jedis/jedis-common-1.4/javaagent/build.gradle.kts b/instrumentation/jedis/jedis-common-1.4/javaagent/build.gradle.kts
+--- a/instrumentation/jedis/jedis-common-1.4/javaagent/build.gradle.kts
++++ b/instrumentation/jedis/jedis-common-1.4/javaagent/build.gradle.kts
+@@ -2,3 +2,14 @@
+   id("otel.javaagent-instrumentation")
+   id("otel.nullaway-conventions")
+ }
++
++testing {
++  suites {
++    register<JvmTestSuite>("unitTests") {
++      dependencies {
++        implementation(project())
++        implementation(project(":instrumentation-api"))
++      }
++    }
++  }
++}
+diff --git a/instrumentation/jedis/jedis-common-1.4/javaagent/src/unitTests/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContextTest.java b/instrumentation/jedis/jedis-common-1.4/javaagent/src/unitTests/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContextTest.java
+new file mode 100644
+--- /dev/null
++++ b/instrumentation/jedis/jedis-common-1.4/javaagent/src/unitTests/java/io/opentelemetry/javaagent/instrumentation/jedis/common/v1_4/JedisRequestContextTest.java
+@@ -0,0 +1,98 @@
++/*
++ * Copyright The OpenTelemetry Authors
++ * Elven Observability contributors: synchronous Jedis4 terminal-error backport tests.
++ * SPDX-License-Identifier: Apache-2.0
++ */
++
++package io.opentelemetry.javaagent.instrumentation.jedis.common.v1_4;
++
++import static org.junit.jupiter.api.Assertions.assertNotNull;
++import static org.junit.jupiter.api.Assertions.assertNull;
++import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.verifyNoInteractions;
++import static org.mockito.Mockito.verifyNoMoreInteractions;
++
++import io.opentelemetry.context.Context;
++import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
++import org.junit.jupiter.api.AfterEach;
++import org.junit.jupiter.api.Test;
++
++class JedisRequestContextTest {
++  @SuppressWarnings("unchecked")
++  private final Instrumenter<Object, Void> instrumenter = mock(Instrumenter.class);
++  private final Context context = Context.root();
++  private final Object request = new Object();
++
++  @AfterEach
++  void noThreadLocalLeak() {
++    JedisRequestContext<Object> fresh = JedisRequestContext.attach();
++    assertNotNull(fresh, "Every completion must detach the old thread-local context");
++    fresh.detachAndEnd();
++  }
++
++  @Test
++  void emptyContextDoesNotInventSpan() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    owner.detachAndEnd(new IllegalStateException("before any Redis command"));
++    verifyNoInteractions(instrumenter);
++  }
++
++  @Test
++  void terminalReadFailureWinsOverEarlierSendFailure() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    Throwable sendFailure = new IllegalStateException("send");
++    Throwable terminalFailure = new IllegalStateException("WRONGTYPE");
++    JedisRequestContext.endIfNotAttached(instrumenter, context, request, sendFailure);
++    verifyNoInteractions(instrumenter);
++    owner.detachAndEnd(terminalFailure);
++    verify(instrumenter).end(context, request, null, terminalFailure);
++    verifyNoMoreInteractions(instrumenter);
++  }
++
++  @Test
++  void sendFailureIsNotLostWhenTerminalFailureIsAbsent() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    Throwable sendFailure = new IllegalStateException("transport");
++    JedisRequestContext.endIfNotAttached(instrumenter, context, request, sendFailure);
++    owner.detachAndEnd(null);
++    verify(instrumenter).end(context, request, null, sendFailure);
++    verifyNoMoreInteractions(instrumenter);
++  }
++
++  @Test
++  void legacyNoArgumentCallerKeepsSendFailure() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    Throwable sendFailure = new IllegalStateException("legacy transport");
++    JedisRequestContext.endIfNotAttached(instrumenter, context, request, sendFailure);
++    owner.detachAndEnd();
++    verify(instrumenter).end(context, request, null, sendFailure);
++    verifyNoMoreInteractions(instrumenter);
++  }
++
++  @Test
++  void nestedAttachDoesNotOwnOrEndAnotherSpan() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    assertNull(JedisRequestContext.attach());
++    JedisRequestContext.endIfNotAttached(instrumenter, context, request, null);
++    verifyNoInteractions(instrumenter);
++    owner.detachAndEnd(null);
++    verify(instrumenter).end(context, request, null, null);
++    verifyNoMoreInteractions(instrumenter);
++  }
++
++  @Test
++  void successfulRequestEndsOnceWithoutInventingError() {
++    JedisRequestContext<Object> owner = JedisRequestContext.attach();
++    assertNotNull(owner);
++    JedisRequestContext.endIfNotAttached(instrumenter, context, request, null);
++    owner.detachAndEnd(null);
++    verify(instrumenter).end(context, request, null, null);
++    verifyNoMoreInteractions(instrumenter);
++  }
++}

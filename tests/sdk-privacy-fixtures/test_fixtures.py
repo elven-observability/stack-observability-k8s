@@ -84,7 +84,7 @@ class RealSDKFixtureContracts(unittest.TestCase):
             (path / "fixtures.json").write_text(json.dumps({"javaDependencies": {"synthetic": artifact}}))
             response = mock.MagicMock()
             response.__enter__.return_value.read.return_value = b"different"
-            with mock.patch.object(P, "SOURCE", path), mock.patch.object(P, "java_lock", return_value=1), mock.patch.object(P.urllib.request, "urlopen", return_value=response):
+            with mock.patch.object(P, "SOURCE", path), mock.patch.object(P, "java_lock", return_value=1), mock.patch.object(P, "python_lock", return_value="synthetic"), mock.patch.object(P.urllib.request, "urlopen", return_value=response):
                 with self.assertRaisesRegex(ValueError, "SHA-256"):
                     P.prepare(path)
             self.assertFalse((path / "synthetic.jar").exists())

@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("sdk_privacy_lab_test", ROOT / "scripts/test-sdk-privacy-kind.py")
@@ -12,32 +13,142 @@ PRIVATE = {"email": "person@example.invalid", "exceptionSecret": "SYNTHETIC_PRIV
 
 
 def attrs(values):
-    return [{"key": key, "value": {"int_value" if isinstance(value, int) else "string_value": value}}
-            for key, value in values.items()]
+    def any_value(value):
+        if type(value) is int:
+            return {"int_value": str(value)}
+        if type(value) is bool:
+            return {"bool_value": value}
+        if type(value) is float:
+            return {"double_value": value}
+        return {"string_value": value}
+    return [{"key": key, "value": any_value(value)} for key, value in values.items()]
 
 
 def corpus(sanitized):
     result = {}
     for case in H.CASES:
-        java = case.startswith("java")
+        runtime = {"java17": "java", "java21": "java", "node22": "node", "python314": "python"}[case]
+        server_scope, sql_scope, redis_scope, api_type, redis_type = {
+            "java": ("io.opentelemetry.java-http-server", "io.opentelemetry.jdbc", "io.opentelemetry.jedis-4.0",
+                     "java.lang.IllegalStateException", "redis.clients.jedis.exceptions.JedisDataException"),
+            "node": ("@opentelemetry/instrumentation-http", "@opentelemetry/instrumentation-pg", "@opentelemetry/instrumentation-redis-4", "Error", "Error"),
+            "python": ("opentelemetry.instrumentation.flask", "opentelemetry.instrumentation.sqlite3", "opentelemetry.instrumentation.redis", "ValueError", "redis.exceptions.ResponseError"),
+        }[runtime]
         message = "checkout failed email=" + ("[REDACTED]" if sanitized else PRIVATE["email"]) + " password=" + (
             "[REDACTED]" if sanitized else PRIVATE["exceptionSecret"]) + " retry=false"
+        stack = ("Traceback (most recent call last):\n  File \"/fixture/main.py\", line 55, in exercise\n    fetchPrice()\n"
+                 "  File \"/fixture/main.py\", line 42, in fetchPrice\n    raise ValueError(detail)\nValueError: " + message
+                 if runtime == "python" else message + "\n at fetchPrice (checkout:42)\n at exercise (checkout:55)")
+        sql_event = {"exception.message": "PostgreSQL error of type 'error' occurred (code: 42883)"} if runtime == "node" else {
+            "exception.type": "org.postgresql.util.PSQLException" if runtime == "java" else "sqlite3.OperationalError"}
         exception = {"name": "elven.privacy.exception", "trace_id": "trace", "span_id": "exception", "parent_span_id": "server",
             "status": {"code": "STATUS_CODE_ERROR"}, "attributes": attrs({"http.route": "/exercise", "http.request.method": "GET", "http.response.status_code": 502}),
-            "events": [{"name": "exception", "attributes": attrs({"exception.type": "java.lang.IllegalStateException" if java else "Error",
-                "exception.message": message, "exception.stacktrace": message + "\n at fetchPrice (checkout:42)\n at exercise (checkout:55)"})}]}
-        result[case] = [("io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http",
-                        {"kind": 2, "trace_id": "trace", "span_id": "server"}),
-                       ("io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg",
-                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"})}),
-                       ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
-                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "name": "SET"}),
-                       ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
-                        {"kind": 3, "trace_id": "trace", "name": "GET"}), ("fixture-api", exception)]
+            "events": [{"name": "exception", "attributes": attrs({"exception.type": api_type,
+                "exception.message": message, "exception.stacktrace": stack})}]}
+        result[case] = [(server_scope,
+                        {"kind": 2, "trace_id": "trace", "span_id": "server", "status": {"code": 2},
+                         "attributes": attrs({"http.request.method": "GET", "http.response.status_code": 502})}),
+                       (sql_scope,
+                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"}),
+                         "events": [{"name": "exception", "attributes": attrs(sql_event)}]}),
+                       (redis_scope,
+                        {"kind": 3, "trace_id": "trace", "name": "SET"}),
+                       (redis_scope,
+                        {"kind": 3, "trace_id": "trace", "name": "GET"}),
+                       (redis_scope,
+                        {"kind": 3, "trace_id": "trace", "name": "HGET", "status": {"code": 2, "message": "WRONGTYPE Operation against wrong kind of value"},
+                         "events": [{"name": "exception", "attributes": attrs({"exception.type": redis_type,
+                            "exception.message": "[REDACTED:redis:WRONGTYPE]" if sanitized else "WRONGTYPE Operation against wrong kind of value"})}]}),
+                       ("elven.sdk.privacy.fixture", exception)]
     return result
 
 
 class ActualSdkPrivacyOracleTests(unittest.TestCase):
+    def test_real_protojson_int64_is_string_on_wire_and_only_int_union_is_normalized(self):
+        # Decoder contract only: this protobuf fixture is not a runtime receipt.
+        from google.protobuf.json_format import MessageToDict
+        from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+        request = ExportTraceServiceRequest()
+        span = request.resource_spans.add().scope_spans.add().spans.add()
+        for key, value in (("http.response.status_code", 502), ("min", -(2**63)), ("max", 2**63 - 1), ("zero", 0)):
+            item = span.attributes.add()
+            item.key, item.value.int_value = key, value
+        item = span.attributes.add(); item.key, item.value.string_value = "string", "502"
+        item = span.attributes.add(); item.key, item.value.bool_value = "boolean", True
+        item = span.attributes.add(); item.key, item.value.double_value = "double", 502.0
+        decoded = MessageToDict(request, preserving_proto_field_name=True)
+        items = decoded["resource_spans"][0]["scope_spans"][0]["spans"][0]["attributes"]
+        self.assertEqual(items[0]["value"], {"int_value": "502"})
+        actual = H.attributes(items)
+        self.assertEqual(actual["http.response.status_code"], 502)
+        self.assertIs(type(actual["http.response.status_code"]), int)
+        self.assertEqual(actual["min"], -(2**63))
+        self.assertEqual(actual["max"], 2**63 - 1)
+        self.assertEqual(actual["zero"], 0)
+        self.assertEqual(actual["string"], "502")
+        self.assertIs(type(actual["string"]), str)
+        self.assertIs(type(actual["boolean"]), bool)
+        self.assertIs(type(actual["double"]), float)
+
+    def test_malformed_out_of_range_or_ambiguous_anyvalue_never_coerces(self):
+        for raw in ("9223372036854775808", "-9223372036854775809", "00", "-0", "+502", " 502", "502.0", "5e2", "５０２", "", True, 502, 502.0, None):
+            with self.subTest(raw=raw), self.assertRaises(AssertionError):
+                H.attributes([{"key": "http.response.status_code", "value": {"int_value": raw}}])
+        for value in ({}, {"unknown_value": "502"}, {"int_value": "502", "string_value": "502"},
+                      {"bool_value": "true"}, {"double_value": True}, {"string_value": 502}, None):
+            with self.subTest(value=value), self.assertRaises(AssertionError):
+                H.attributes([{"key": "http.response.status_code", "value": value}])
+        with self.assertRaises(AssertionError):
+            H.attributes([{"key": "status"}])
+        with self.assertRaises(AssertionError):
+            H.attributes(attrs({"status": 200}) + attrs({"status": 502}))
+
+    def test_http_auto_server_requires_fresh_single_error502_get_and_accepts_legacy_aliases(self):
+        legacy = corpus(True)
+        for case in H.CASES:
+            legacy[case][0][1]["attributes"] = attrs({"http.method": "GET", "http.status_code": 502})
+        H.check_capture(legacy, PRIVATE, sanitized=True)
+        for mutation in ("200", "unset", "duplicate", "missing_method", "post", "string", "double", "bool"):
+            data = corpus(True)
+            server = data["node22"][0][1]
+            if mutation == "200":
+                server["attributes"] = attrs({"http.request.method": "GET", "http.response.status_code": 200})
+            elif mutation == "unset":
+                server["status"] = {}
+            elif mutation == "duplicate":
+                data["node22"].append(data["node22"][0])
+            elif mutation == "missing_method":
+                server["attributes"] = attrs({"http.response.status_code": 502})
+            elif mutation == "post":
+                server["attributes"] = attrs({"http.request.method": "POST", "http.response.status_code": 502})
+            else:
+                server["attributes"] = attrs({"http.request.method": "GET", "http.response.status_code": {"string": "502", "double": 502.0, "bool": True}[mutation]})
+            with self.subTest(mutation=mutation), self.assertRaises(AssertionError):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        with self.assertRaisesRegex(AssertionError, "exactly one"):
+            H.check_capture(corpus(True), PRIVATE, sanitized=True,
+                            required_traces={case: {"trace", "missing-request"} for case in H.CASES})
+
+    def test_api_status_requires_integer_union_not_equal_double_or_numeric_string(self):
+        for code in ("502", 502.0, True):
+            data = corpus(True)
+            data["java17"][-1][1]["attributes"] = attrs({"http.route": "/exercise", "http.request.method": "GET", "http.response.status_code": code})
+            with self.subTest(code=code), self.assertRaisesRegex(AssertionError, "HTTP diagnostic context"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_python314_case_enables_only_explicit_python_profile(self):
+        self.assertEqual(H.CASES, ("java17", "java21", "node22", "python314"))
+        self.assertEqual(H.CASE_RUNTIMES["python314"], "python")
+        lab = object.__new__(H.PrivacyLab)
+        with mock.patch.object(H.SDK.InstrumentationLab, "operator_values", return_value={
+                "runtimes": {"java": True, "nodejs": True, "python": False}}):
+            settings = lab.operator_values("https://synthetic.invalid")
+        self.assertTrue(settings["runtimes"]["python"])
+        pod = {"metadata": {}, "spec": {"containers": [{"env": []}]}}
+        with mock.patch.object(H.SDK.InstrumentationLab, "app", return_value=pod):
+            self.assertEqual(lab.app("python314", "python314", "python")["metadata"]["annotations"],
+                             {"elven.observability/python-platform": "glibc"})
+
     def test_raw_control_requires_known_values_and_sanitized_requires_selective_diagnostics(self):
         H.check_capture(corpus(False), PRIVATE, sanitized=False)
         H.check_capture(corpus(True), PRIVATE, sanitized=True)
@@ -73,10 +184,60 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, "Missing real"):
             H.check_capture(data, PRIVATE, sanitized=True)
 
+    def test_exception_lookalike_scope_is_not_the_real_fixture_api(self):
+        data = corpus(True)
+        data["java17"][-1] = ("fixture-api", data["java17"][-1][1])
+        with self.assertRaisesRegex(AssertionError, "Missing real"):
+            H.check_capture(data, PRIVATE, sanitized=True)
+
     def test_stale_spans_cannot_prove_fresh_capture_after_rollback(self):
         with self.assertRaisesRegex(AssertionError, "Missing SDK"):
             H.check_capture(corpus(True), PRIVATE, sanitized=True,
                             required_traces={case: {"new-trace"} for case in H.CASES})
+
+    def test_python_cannot_fall_back_to_node_or_lookalike_scopes(self):
+        for index, wrong in ((0, "@opentelemetry/instrumentation-http"),
+                             (1, "opentelemetry.instrumentation.sqlite3-NOT-REAL"),
+                             (2, "@opentelemetry/instrumentation-redis-4")):
+            data = corpus(True)
+            if index == 2:
+                for position in (2, 3, 4):
+                    data["python314"][position] = (wrong, data["python314"][position][1])
+            else:
+                data["python314"][index] = (wrong, data["python314"][index][1])
+            with self.subTest(scope=wrong), self.assertRaisesRegex(AssertionError, "Missing real"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        data = corpus(True)
+        data.pop("python314")
+        with self.assertRaisesRegex(AssertionError, "Missing SDK spans: python314"):
+            H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_python_exact_exception_types_and_full_traceback_are_required(self):
+        for change in ("builtins_type", "header", "tail", "frames", "redis_type"):
+            data = corpus(True)
+            event = data["python314"][-1][1]["events"][0]
+            values = H.attributes(event["attributes"])
+            if change == "builtins_type":
+                values["exception.type"] = "builtins.ValueError"
+            elif change == "header":
+                values["exception.stacktrace"] = values["exception.stacktrace"].replace("Traceback (most recent call last):\n", "")
+            elif change == "tail":
+                values["exception.stacktrace"] = values["exception.stacktrace"].replace("ValueError: ", "OtherError: ")
+            elif change == "frames":
+                values["exception.stacktrace"] = values["exception.stacktrace"].replace("fetchPrice", "removedFrame")
+            else:
+                data["python314"][4][1]["events"][0]["attributes"] = attrs({"exception.type": "ResponseError"})
+            event["attributes"] = attrs(values)
+            with self.subTest(change=change), self.assertRaises(AssertionError):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        data = corpus(True)
+        event = data["python314"][-1][1]["events"][0]
+        values = H.attributes(event["attributes"])
+        values["exception.stacktrace"] = values["exception.stacktrace"].replace("line 42", "line 99")
+        event["attributes"] = attrs(values)
+        changed = H.check_capture(data, PRIVATE, sanitized=True)
+        self.assertNotEqual(raw["python314"]["selectiveDiagnosticDigests"], changed["python314"]["selectiveDiagnosticDigests"])
 
     def test_redis_lookalike_is_not_two_distinct_commands(self):
         for command in ("GETSET", "MGET", "SETEX"):
@@ -90,12 +251,133 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         post = H.check_capture(corpus(True), PRIVATE, sanitized=True)
         for case in H.CASES:
             self.assertEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
+            self.assertTrue(raw[case]["redisExceptionClassDigests"])
+            self.assertEqual(raw[case]["redisExceptionClassDigests"], post[case]["redisExceptionClassDigests"])
+            self.assertTrue(raw[case]["sqlExceptionClassDigests"])
+            self.assertEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
+            expected_sql, expected_redis, expected_api = {
+                "java17": ("org.postgresql.util.PSQLException", "redis.clients.jedis.exceptions.JedisDataException", "java.lang.IllegalStateException"),
+                "java21": ("org.postgresql.util.PSQLException", "redis.clients.jedis.exceptions.JedisDataException", "java.lang.IllegalStateException"),
+                "node22": ("error", "Error", "Error"),
+                "python314": ("sqlite3.OperationalError", "redis.exceptions.ResponseError", "ValueError"),
+            }[case]
+            self.assertEqual(post[case]["sqlExceptionPublicTypes"], [expected_sql])
+            self.assertEqual(post[case]["redisExceptionPublicTypes"], [expected_redis])
+            self.assertEqual(post[case]["expectedApiExceptionType"], expected_api)
+            for field in ("sqlExceptionPublicTypes", "redisExceptionPublicTypes", "expectedApiExceptionType"):
+                self.assertEqual(raw[case][field], post[case][field])
+        self.assertEqual(post["node22"]["sqlExceptionTypeOrigin"], "official_pg_sanitized_exception_message")
+        self.assertEqual(post["node22"]["sqlExceptionSqlStates"], ["42883"])
+
+    def test_public_type_receipt_lists_are_sorted_and_never_contain_diagnostics(self):
+        data = corpus(False)
+        data["java17"][1][1]["events"].append({"name": "exception", "attributes": attrs({"exception.type": "APublicSqlError"})})
+        data["java17"][4][1]["events"].append({"name": "exception", "attributes": attrs({"exception.type": "APublicRedisError"})})
+        summary = H.check_capture(data, PRIVATE, sanitized=False)["java17"]
+        self.assertEqual(summary["sqlExceptionPublicTypes"], ["APublicSqlError", "org.postgresql.util.PSQLException"])
+        self.assertEqual(summary["redisExceptionPublicTypes"], ["APublicRedisError", "redis.clients.jedis.exceptions.JedisDataException"])
+        for field in ("sqlExceptionPublicTypes", "redisExceptionPublicTypes", "expectedApiExceptionType"):
+            text = str(summary[field])
+            for value in [*PRIVATE["forbidden"], "checkout failed", "fetchPrice", "WRONGTYPE"]:
+                self.assertNotIn(value, text)
+
+    def test_sql_error_requires_public_exception_event_not_status_alone(self):
+        for case in H.CASES:
+            for change in ("no_event", "wrong_event", "missing", "masked", "non_string", "private"):
+                data = corpus(True)
+                span = data[case][1][1]
+                if change == "no_event":
+                    span.pop("events")
+                elif change == "wrong_event":
+                    span["events"][0]["name"] = "not-exception"
+                else:
+                    value = {"missing": None, "masked": "[REDACTED]", "non_string": 42, "private": PRIVATE["exceptionSecret"]}[change]
+                    key = "exception.message" if case == "node22" else "exception.type"
+                    span["events"][0]["attributes"] = attrs({key: value}) if value is not None else []
+                with self.subTest(case=case, change=change), self.assertRaises(AssertionError):
+                    H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_sql_class_or_pg_state_changes_cannot_match_the_raw_control(self):
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        for case in H.CASES:
+            data = corpus(True)
+            span = data[case][1][1]
+            span["events"][0]["attributes"] = attrs({"exception.message": "PostgreSQL error of type 'OtherPublicError' occurred (code: 42883)"}
+                if case == "node22" else {"exception.type": "OtherPublicError", "exception.stacktrace": "[REDACTED]"})
+            post = H.check_capture(data, PRIVATE, sanitized=True)
+            self.assertNotEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
+            self.assertNotEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
+        data = corpus(True)
+        data["node22"][1][1]["events"][0]["attributes"] = attrs({"exception.message": "PostgreSQL error of type 'error' occurred (code: 42P01)"})
+        changed = H.check_capture(data, PRIVATE, sanitized=True)
+        self.assertNotEqual(raw["node22"]["sqlExceptionClassDigests"], changed["node22"]["sqlExceptionClassDigests"])
+
+    def test_pg_only_accepts_the_complete_official_sanitized_format(self):
+        for message in ("[REDACTED]", "PostgreSQL error of type '[REDACTED]' occurred (code: 42883)",
+                        "PostgreSQL error of type 'error' occurred (code: 428)",
+                        "PostgreSQL error of type 'error' occurred (code: 42883) trailing text",
+                        "SQL failed: error 42883"):
+            data = corpus(True)
+            data["node22"][1][1]["events"][0]["attributes"] = attrs({"exception.type": "error", "exception.message": message})
+            with self.subTest(message=message), self.assertRaisesRegex(AssertionError, "SQL client exception class"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_sql_stack_masking_is_not_mistaken_for_loss_of_public_class(self):
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        data = corpus(True)
+        for case in H.CASES:
+            event = data[case][1][1]["events"][0]
+            values = H.attributes(event["attributes"])
+            values["exception.stacktrace"] = "[REDACTED:sql-stack]"
+            event["attributes"] = attrs(values)
+        post = H.check_capture(data, PRIVATE, sanitized=True)
+        for case in H.CASES:
+            self.assertEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
+
+    def test_redis_exception_class_missing_masked_private_or_changed_cannot_qualify_preservation(self):
+        for mutation in ("missing_event", "wrong_event", "missing_type", "masked_type", "private_type", "non_string_type"):
+            data = corpus(True)
+            span = data["java17"][4][1]
+            if mutation == "missing_event":
+                span.pop("events")
+            elif mutation == "wrong_event":
+                span["events"][0]["name"] = "not-exception"
+            else:
+                values = H.attributes(span["events"][0]["attributes"])
+                if mutation == "missing_type":
+                    values.pop("exception.type")
+                else:
+                    values["exception.type"] = {"masked_type": "[REDACTED]", "private_type": PRIVATE["exceptionSecret"], "non_string_type": 42}[mutation]
+                span["events"][0]["attributes"] = attrs(values)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(AssertionError, "exception class|private sentinel"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        changed = corpus(True)
+        changed["java17"][4][1]["events"][0]["attributes"] = attrs({"exception.type": "OtherPublicError"})
+        post = H.check_capture(changed, PRIVATE, sanitized=True)
+        self.assertNotEqual(raw["java17"]["selectiveDiagnosticDigests"], post["java17"]["selectiveDiagnosticDigests"])
 
     def test_blanket_sql_redaction_does_not_preserve_query_shape(self):
         data = corpus(True)
         data["java17"][1][1]["attributes"] = attrs({"db.query.text": "SELECT [REDACTED]"})
         with self.assertRaisesRegex(AssertionError, "SQL query shape"):
             H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_redis_error_is_the_real_hget_reply_not_an_unrelated_error_or_duplicate(self):
+        for mutation in ("missing_status", "unrelated_error", "lost_context", "duplicate"):
+            data = corpus(True)
+            if mutation == "missing_status":
+                data["java17"][4][1]["status"] = {}
+            elif mutation == "unrelated_error":
+                data["java17"][4][1]["status"] = {}
+                data["java17"].insert(0, ("io.opentelemetry.jedis-4.0", {"kind": 3, "trace_id": "trace", "name": "AUTH", "status": {"code": 2}}))
+            elif mutation == "lost_context":
+                data["java17"][4][1]["status"] = {"code": 2}
+                data["java17"][4][1]["events"][0]["attributes"] = attrs({"exception.type": "redis.clients.jedis.exceptions.JedisDataException"})
+            else:
+                data["java17"].append(data["java17"][4])
+            with self.subTest(mutation=mutation), self.assertRaises(AssertionError):
+                H.check_capture(data, PRIVATE, sanitized=True)
 
 
 if __name__ == "__main__":
