@@ -90,6 +90,20 @@ public final class PrivacyFixture {
     }
 
     private static void exercise(HttpExchange exchange) throws IOException {
+        try {
+            exerciseWithTelemetry(exchange);
+        } catch (Exception | LinkageError failure) {
+            // Do not print exception messages/cause strings: they can contain PII.
+            System.err.println("Synthetic exercise infrastructure failure: " + failure.getClass().getName());
+            StackTraceElement[] frames = failure.getStackTrace();
+            for (int index = 0; index < Math.min(frames.length, 32); index++) {
+                System.err.println("\tat " + frames[index]);
+            }
+            if (exchange.getResponseCode() < 0) reply(exchange, 500, "{\"ok\":false}");
+        } finally { exchange.close(); }
+    }
+
+    private static void exerciseWithTelemetry(HttpExchange exchange) throws IOException {
         Span span = GlobalOpenTelemetry.getTracer("elven.sdk.privacy.fixture").spanBuilder("elven.privacy.exception").startSpan();
         try (Scope ignored = span.makeCurrent()) {
             span.setAttribute("elven.test.case", "sdk-exception-" + RUNTIME);
@@ -125,6 +139,16 @@ public final class PrivacyFixture {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 1 && "--check-dependencies".equals(args[0])) {
+            for (String name : new String[]{"io.opentelemetry.common.ComponentLoader", "io.opentelemetry.context.Context",
+                    "io.opentelemetry.api.GlobalOpenTelemetry", "redis.clients.jedis.Jedis", "org.h2.Driver",
+                    "org.slf4j.Logger", "org.apache.commons.pool2.impl.GenericObjectPool", "org.json.JSONObject",
+                    "com.google.gson.Gson", "com.google.errorprone.annotations.CanIgnoreReturnValue"}) {
+                Class.forName(name);
+            }
+            System.out.println("API/client dependency classes verified; no SDK/provider or HTTP server started");
+            return;
+        }
         Class.forName("org.h2.Driver");
         HttpServer server = HttpServer.create(new InetSocketAddress(environment("BIND_ADDRESS", "0.0.0.0"), Integer.parseInt(environment("PORT", "8080"))), 0);
         server.setExecutor(Executors.newFixedThreadPool(4));

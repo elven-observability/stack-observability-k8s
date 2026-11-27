@@ -12,6 +12,13 @@
     "postgres": "docker.io/library/postgres:18.1-bookworm@sha256:cc9f4143a8d2fa8cf3749d0cb4d26ecf2d53a77a2ac807e9ebd67ae22426221a"
   },
   "javaDependencies": {
+    "error_prone_annotations": {
+      "bytes": 19370,
+      "file": "error_prone_annotations.jar",
+      "sha256": "24c923372c58e35d0b9f16a028929bb9aedc77521867c274f2bd0735df5ba1f5",
+      "url": "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.27.0/error_prone_annotations-2.27.0.jar",
+      "version": "2.27.0"
+    },
     "commons-pool2": {
       "bytes": 150048,
       "file": "commons-pool2.jar",
@@ -20,6 +27,7 @@
       "version": "2.12.0"
     },
     "gson": {
+      "dependsOn": {"error_prone_annotations": "2.27.0"},
       "bytes": 298435,
       "file": "gson.jar",
       "sha256": "57928d6e5a6edeb2abd3770a8f95ba44dce45f3b23b7a9dc2b309c581552a78b",
@@ -27,6 +35,7 @@
       "version": "2.11.0"
     },
     "jedis": {
+      "dependsOn": {"slf4j-api": "1.7.36", "commons-pool2": "2.12.0", "json": "20240303", "gson": "2.11.0"},
       "bytes": 980084,
       "file": "jedis.jar",
       "sha256": "dd4fbda2c103f319ab495adb2bc1906139840746cfd4c66b27710d1af98382d4",
@@ -41,18 +50,27 @@
       "version": "20240303"
     },
     "opentelemetry-api": {
-      "bytes": 181171,
+      "dependsOn": {"opentelemetry-context": "1.67.0"},
+      "bytes": 178812,
       "file": "opentelemetry-api.jar",
-      "sha256": "921398d19e2723a356a4e86442daa8e7cb3d8edd84e97e44f5e34807e9b46c2a",
-      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-api/1.68.0/opentelemetry-api-1.68.0.jar",
-      "version": "1.68.0"
+      "sha256": "538d1dff2f9a37aecbc0ef98fd17273a3affb058e734e6763a3a07a38a5fdc59",
+      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-api/1.67.0/opentelemetry-api-1.67.0.jar",
+      "version": "1.67.0"
     },
     "opentelemetry-context": {
-      "bytes": 51644,
+      "dependsOn": {"opentelemetry-common": "1.67.0"},
+      "bytes": 50865,
       "file": "opentelemetry-context.jar",
-      "sha256": "9ca2a322fbe6736c610086e2fecec8d292daca6fd755bd5670f751bb373c2b70",
-      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-context/1.68.0/opentelemetry-context-1.68.0.jar",
-      "version": "1.68.0"
+      "sha256": "40fb813fb5e27ec2691daa29c81b572b5b1541ef9b41e62490c3ee3e6407c55e",
+      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-context/1.67.0/opentelemetry-context-1.67.0.jar",
+      "version": "1.67.0"
+    },
+    "opentelemetry-common": {
+      "bytes": 6134,
+      "file": "opentelemetry-common.jar",
+      "sha256": "da97bdb395418e16ecdcbe7ad3497f45b9e767ceda4ae7e86133e7a757ac377f",
+      "url": "https://repo.maven.apache.org/maven2/io/opentelemetry/opentelemetry-common/1.67.0/opentelemetry-common-1.67.0.jar",
+      "version": "1.67.0"
     },
     "slf4j-api": {
       "bytes": 41125,

@@ -50,6 +50,15 @@ compatibility fixtures inside the supported instrumentations, not a claim to
 test latest clients or a production dependency recommendation. JS API 1.9.0
 avoids requiring a newer global API than the injected provider supports.
 
+Java's ten-JAR closure explicitly records API → context → common at version
+1.67.0, matching agent 2.33.1's BOM, and Jedis → Gson → error-prone annotations.
+Missing/mismatched dependencies or SDK/provider additions fail preparation.
+The earlier HTTP failure was caused by missing `opentelemetry-common`, not by
+the previous API minor version itself. Both Java Docker builds now run an
+API/client-only class-loading check before Kind; it starts neither a server nor
+an SDK. HTTP linkage failures return a bounded 500 and close the exchange;
+diagnostics retain only exception type and up to 32 frames, not private messages.
+
 The CI harness copies this directory, then calls:
 
 ```sh

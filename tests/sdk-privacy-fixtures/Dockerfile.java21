@@ -3,6 +3,7 @@ FROM docker.io/library/eclipse-temurin:21-jdk-jammy@sha256:4b1a74fbffbe6b4e7b6f0
 WORKDIR /fixture
 COPY PrivacyFixture.java *.jar /fixture/
 RUN javac --release 17 --add-modules jdk.httpserver -cp '/fixture/*' PrivacyFixture.java
+RUN java --add-modules jdk.httpserver -cp '/fixture:/fixture/*' PrivacyFixture --check-dependencies
 USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["java", "--add-modules", "jdk.httpserver", "-cp", "/fixture:/fixture/*", "PrivacyFixture"]

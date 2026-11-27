@@ -40,6 +40,24 @@ class RealSDKFixtureContracts(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     P.node_lock(path)
 
+    def test_java_transitive_closure_missing_common_mismatch_and_provider_fail(self):
+        pins = json.loads((ROOT / "fixtures.json").read_text())
+        self.assertEqual(P.java_lock(pins), 10)
+        for edit in (lambda d: d.pop("opentelemetry-common"),
+                     lambda d: d["opentelemetry-common"].update(version="1.68.0"),
+                     lambda d: d["opentelemetry-context"].pop("dependsOn"),
+                     lambda d: d.pop("error_prone_annotations"),
+                     lambda d: d.update({"opentelemetry-sdk": d["opentelemetry-api"]})):
+            altered = copy.deepcopy(pins)
+            edit(altered["javaDependencies"])
+            with self.assertRaises(ValueError):
+                P.java_lock(altered)
+        source = (ROOT / "PrivacyFixture.java").read_text()
+        self.assertIn('Class.forName(name)', source)
+        self.assertIn('io.opentelemetry.common.ComponentLoader', source)
+        for case in ("java17", "java21"):
+            self.assertIn('PrivacyFixture --check-dependencies', (ROOT / ("Dockerfile." + case)).read_text())
+
     def test_applications_use_real_clients_and_exception_api_not_exporters(self):
         java, node = ((ROOT / name).read_text() for name in ("PrivacyFixture.java", "main.js"))
         for source in (java, node):
@@ -66,7 +84,7 @@ class RealSDKFixtureContracts(unittest.TestCase):
             (path / "fixtures.json").write_text(json.dumps({"javaDependencies": {"synthetic": artifact}}))
             response = mock.MagicMock()
             response.__enter__.return_value.read.return_value = b"different"
-            with mock.patch.object(P, "SOURCE", path), mock.patch.object(P.urllib.request, "urlopen", return_value=response):
+            with mock.patch.object(P, "SOURCE", path), mock.patch.object(P, "java_lock", return_value=1), mock.patch.object(P.urllib.request, "urlopen", return_value=response):
                 with self.assertRaisesRegex(ValueError, "SHA-256"):
                     P.prepare(path)
             self.assertFalse((path / "synthetic.jar").exists())

@@ -29,7 +29,7 @@ def corpus(sanitized):
         result[case] = [("io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http",
                         {"kind": 2, "trace_id": "trace", "span_id": "server"}),
                        ("io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg",
-                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS answer"})}),
+                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"})}),
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
                         {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "name": "SET"}),
                        ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
@@ -90,6 +90,12 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
         post = H.check_capture(corpus(True), PRIVATE, sanitized=True)
         for case in H.CASES:
             self.assertEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
+
+    def test_blanket_sql_redaction_does_not_preserve_query_shape(self):
+        data = corpus(True)
+        data["java17"][1][1]["attributes"] = attrs({"db.query.text": "SELECT [REDACTED]"})
+        with self.assertRaisesRegex(AssertionError, "SQL query shape"):
+            H.check_capture(data, PRIVATE, sanitized=True)
 
 
 if __name__ == "__main__":
