@@ -30,9 +30,9 @@ def corpus(sanitized):
                         {"kind": 2, "trace_id": "trace", "span_id": "server"}),
                        ("io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg",
                         {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS answer"})}),
-                       ("io.opentelemetry.jedis-1.4" if java else "@opentelemetry/instrumentation-redis-4",
+                       ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
                         {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "name": "SET"}),
-                       ("io.opentelemetry.jedis-1.4" if java else "@opentelemetry/instrumentation-redis-4",
+                       ("io.opentelemetry.jedis-4.0" if java else "@opentelemetry/instrumentation-redis-4",
                         {"kind": 3, "trace_id": "trace", "name": "GET"}), ("fixture-api", exception)]
     return result
 

@@ -122,6 +122,10 @@ jobs:
           python scripts/images-install-trivy.py --lock versions.lock.json
           python -m pip install --requirement requirements-test.txt
           bash scripts/images-install-ci-tools.sh
+      - name: Check the fixture dependency closure and offline negative oracles
+        run: |
+          python -m unittest discover -s tests/sdk-privacy-fixtures -p test_fixtures.py
+          python -m unittest discover -s tests -p 'test_sdk_privacy*.py'
       - name: Refresh all core and SDK scans without rebuilding or publishing
         run: |
           python scripts/images-release.py scan --evidence-dir artifacts/images

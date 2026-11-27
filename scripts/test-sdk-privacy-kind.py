@@ -53,7 +53,9 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             raise AssertionError("Known private sentinel crossed the actual Collector: " + case)
         java = case.startswith("java")
         sql_scope = "io.opentelemetry.jdbc" if java else "@opentelemetry/instrumentation-pg"
-        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0"} if java else {
+        # Pinned Java agent v2.33.1 JedisSingletons.java for Jedis 4+:
+        # INSTRUMENTATION_NAME = "io.opentelemetry.jedis-4.0".
+        redis_scopes = {"io.opentelemetry.jedis-1.4", "io.opentelemetry.jedis-3.0", "io.opentelemetry.jedis-4.0"} if java else {
             "@opentelemetry/instrumentation-redis", "@opentelemetry/instrumentation-redis-4"}
         server_scope = "io.opentelemetry.java-http-server" if java else "@opentelemetry/instrumentation-http"
         servers = [s for scope, s in spans if scope == server_scope and s.get("kind") in (2, "SPAN_KIND_SERVER")]
