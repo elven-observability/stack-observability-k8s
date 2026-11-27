@@ -13,8 +13,15 @@ PRIVATE = {"email": "person@example.invalid", "exceptionSecret": "SYNTHETIC_PRIV
 
 
 def attrs(values):
-    return [{"key": key, "value": {"int_value" if isinstance(value, int) else "string_value": value}}
-            for key, value in values.items()]
+    def any_value(value):
+        if type(value) is int:
+            return {"int_value": str(value)}
+        if type(value) is bool:
+            return {"bool_value": value}
+        if type(value) is float:
+            return {"double_value": value}
+        return {"string_value": value}
+    return [{"key": key, "value": any_value(value)} for key, value in values.items()]
 
 
 def corpus(sanitized):
@@ -39,7 +46,8 @@ def corpus(sanitized):
             "events": [{"name": "exception", "attributes": attrs({"exception.type": api_type,
                 "exception.message": message, "exception.stacktrace": stack})}]}
         result[case] = [(server_scope,
-                        {"kind": 2, "trace_id": "trace", "span_id": "server"}),
+                        {"kind": 2, "trace_id": "trace", "span_id": "server", "status": {"code": 2},
+                         "attributes": attrs({"http.request.method": "GET", "http.response.status_code": 502})}),
                        (sql_scope,
                         {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"}),
                          "events": [{"name": "exception", "attributes": attrs(sql_event)}]}),
@@ -56,6 +64,78 @@ def corpus(sanitized):
 
 
 class ActualSdkPrivacyOracleTests(unittest.TestCase):
+    def test_real_protojson_int64_is_string_on_wire_and_only_int_union_is_normalized(self):
+        # Decoder contract only: this protobuf fixture is not a runtime receipt.
+        from google.protobuf.json_format import MessageToDict
+        from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+        request = ExportTraceServiceRequest()
+        span = request.resource_spans.add().scope_spans.add().spans.add()
+        for key, value in (("http.response.status_code", 502), ("min", -(2**63)), ("max", 2**63 - 1), ("zero", 0)):
+            item = span.attributes.add()
+            item.key, item.value.int_value = key, value
+        item = span.attributes.add(); item.key, item.value.string_value = "string", "502"
+        item = span.attributes.add(); item.key, item.value.bool_value = "boolean", True
+        item = span.attributes.add(); item.key, item.value.double_value = "double", 502.0
+        decoded = MessageToDict(request, preserving_proto_field_name=True)
+        items = decoded["resource_spans"][0]["scope_spans"][0]["spans"][0]["attributes"]
+        self.assertEqual(items[0]["value"], {"int_value": "502"})
+        actual = H.attributes(items)
+        self.assertEqual(actual["http.response.status_code"], 502)
+        self.assertIs(type(actual["http.response.status_code"]), int)
+        self.assertEqual(actual["min"], -(2**63))
+        self.assertEqual(actual["max"], 2**63 - 1)
+        self.assertEqual(actual["zero"], 0)
+        self.assertEqual(actual["string"], "502")
+        self.assertIs(type(actual["string"]), str)
+        self.assertIs(type(actual["boolean"]), bool)
+        self.assertIs(type(actual["double"]), float)
+
+    def test_malformed_out_of_range_or_ambiguous_anyvalue_never_coerces(self):
+        for raw in ("9223372036854775808", "-9223372036854775809", "00", "-0", "+502", " 502", "502.0", "5e2", "５０２", "", True, 502, 502.0, None):
+            with self.subTest(raw=raw), self.assertRaises(AssertionError):
+                H.attributes([{"key": "http.response.status_code", "value": {"int_value": raw}}])
+        for value in ({}, {"unknown_value": "502"}, {"int_value": "502", "string_value": "502"},
+                      {"bool_value": "true"}, {"double_value": True}, {"string_value": 502}, None):
+            with self.subTest(value=value), self.assertRaises(AssertionError):
+                H.attributes([{"key": "http.response.status_code", "value": value}])
+        with self.assertRaises(AssertionError):
+            H.attributes([{"key": "status"}])
+        with self.assertRaises(AssertionError):
+            H.attributes(attrs({"status": 200}) + attrs({"status": 502}))
+
+    def test_http_auto_server_requires_fresh_single_error502_get_and_accepts_legacy_aliases(self):
+        legacy = corpus(True)
+        for case in H.CASES:
+            legacy[case][0][1]["attributes"] = attrs({"http.method": "GET", "http.status_code": 502})
+        H.check_capture(legacy, PRIVATE, sanitized=True)
+        for mutation in ("200", "unset", "duplicate", "missing_method", "post", "string", "double", "bool"):
+            data = corpus(True)
+            server = data["node22"][0][1]
+            if mutation == "200":
+                server["attributes"] = attrs({"http.request.method": "GET", "http.response.status_code": 200})
+            elif mutation == "unset":
+                server["status"] = {}
+            elif mutation == "duplicate":
+                data["node22"].append(data["node22"][0])
+            elif mutation == "missing_method":
+                server["attributes"] = attrs({"http.response.status_code": 502})
+            elif mutation == "post":
+                server["attributes"] = attrs({"http.request.method": "POST", "http.response.status_code": 502})
+            else:
+                server["attributes"] = attrs({"http.request.method": "GET", "http.response.status_code": {"string": "502", "double": 502.0, "bool": True}[mutation]})
+            with self.subTest(mutation=mutation), self.assertRaises(AssertionError):
+                H.check_capture(data, PRIVATE, sanitized=True)
+        with self.assertRaisesRegex(AssertionError, "exactly one"):
+            H.check_capture(corpus(True), PRIVATE, sanitized=True,
+                            required_traces={case: {"trace", "missing-request"} for case in H.CASES})
+
+    def test_api_status_requires_integer_union_not_equal_double_or_numeric_string(self):
+        for code in ("502", 502.0, True):
+            data = corpus(True)
+            data["java17"][-1][1]["attributes"] = attrs({"http.route": "/exercise", "http.request.method": "GET", "http.response.status_code": code})
+            with self.subTest(code=code), self.assertRaisesRegex(AssertionError, "HTTP diagnostic context"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+
     def test_python314_case_enables_only_explicit_python_profile(self):
         self.assertEqual(H.CASES, ("java17", "java21", "node22", "python314"))
         self.assertEqual(H.CASE_RUNTIMES["python314"], "python")

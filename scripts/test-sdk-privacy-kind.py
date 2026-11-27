@@ -48,7 +48,35 @@ CAPTURE_PROFILES = {
 
 
 def attributes(items):
-    return {item["key"]: next(iter(item["value"].values()), None) for item in items}
+    """Decode canonical ProtoJSON AnyValue without confusing union types."""
+    result = {}
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str):
+            raise AssertionError("Malformed OTLP attribute key")
+        key, value = item["key"], item.get("value")
+        if key in result or not isinstance(value, dict) or len(value) != 1:
+            raise AssertionError("Duplicate attribute or missing/ambiguous OTLP AnyValue union")
+        kind, raw = next(iter(value.items()))
+        if kind == "int_value":
+            # MessageToDict emits int64 as decimal strings. Never infer an
+            # integer from string_value or accept a double/bool as a status.
+            if (not isinstance(raw, str) or len(raw) > 20 or not re.fullmatch(r"-?(?:0|[1-9][0-9]*)", raw)
+                    or str(int(raw)) != raw or not -(2**63) <= int(raw) < 2**63):
+                raise AssertionError("OTLP int_value is not a canonical signed int64")
+            result[key] = int(raw)
+        elif kind in ("string_value", "bytes_value") and isinstance(raw, str):
+            result[key] = raw
+        elif kind == "bool_value" and type(raw) is bool:
+            result[key] = raw
+        elif kind == "double_value" and type(raw) in (int, float):
+            result[key] = float(raw)
+        elif kind == "double_value" and raw in ("NaN", "Infinity", "-Infinity"):
+            result[key] = raw
+        elif kind in ("array_value", "kvlist_value") and isinstance(raw, dict):
+            result[key] = raw
+        else:
+            raise AssertionError("Unknown or malformed OTLP AnyValue union")
+    return result
 
 
 def check_capture(service_spans, private, *, sanitized, required_traces=None):
@@ -71,6 +99,22 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         exceptions = [s for scope, s in spans if scope == "elven.sdk.privacy.fixture" and s.get("name") == "elven.privacy.exception"]
         if not servers or not sql or not redis or not exceptions:
             raise AssertionError("Missing real HTTP/SQL/Redis/exception SDK capture: " + case)
+        requested = required_traces[case] if required_traces is not None else {span.get("trace_id") for span in exceptions}
+        if not requested or any(not isinstance(trace_id, str) or not trace_id for trace_id in requested):
+            raise AssertionError("No required HTTP request trace identity: " + case)
+        for trace_id in requested:
+            matched = [span for span in servers if span.get("trace_id") == trace_id]
+            if len(matched) != 1:
+                raise AssertionError("Expected exactly one real HTTP server span per required request: " + case)
+            server = matched[0]
+            status = server.get("status", {}).get("code")
+            context = attributes(server.get("attributes", []))
+            codes = [context[key] for key in ("http.response.status_code", "http.status_code") if key in context]
+            methods = [context[key] for key in ("http.request.method", "http.method") if key in context]
+            if (not ((type(status) is int and status == 2) or status == "STATUS_CODE_ERROR")
+                    or not codes or any(type(code) is not int or code != 502 for code in codes)
+                    or not methods or any(method != "GET" or not isinstance(method, str) for method in methods)):
+                raise AssertionError("Real HTTP server must retain ERROR, integer 502 and GET: " + case)
         sql_errors = [span for span in sql if span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR")]
         if not sql_errors:
             raise AssertionError("Real SQL client error status missing: " + case)
@@ -159,7 +203,8 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             if not any(server.get("trace_id") == exception.get("trace_id") and server.get("span_id") == exception.get("parent_span_id") for server in servers):
                 raise AssertionError("SDK exception is not a child of the real HTTP server span: " + case)
             context = attributes(exception.get("attributes", []))
-            if context.get("http.route") != "/exercise" or context.get("http.request.method") != "GET" or context.get("http.response.status_code") != 502:
+            if (context.get("http.route") != "/exercise" or context.get("http.request.method") != "GET"
+                    or type(context.get("http.response.status_code")) is not int or context.get("http.response.status_code") != 502):
                 raise AssertionError("Exception HTTP diagnostic context was lost: " + case)
             if exception.get("status", {}).get("code") not in (2, "STATUS_CODE_ERROR"):
                 raise AssertionError("SDK error status was lost: " + case)
@@ -220,6 +265,12 @@ class PrivacyLab(SDK.InstrumentationLab):
         self.pins = json.loads((FIXTURES / "fixtures.json").read_text())
         self.report.update(test="real SDK SQL Redis exceptions privacy", completed=False,
                            input_origin="actual_sdk_injected_application_execution", customer_acceptance=False)
+        self.report["exception_capture_mode"] = {
+            "businessExceptions": "Real thrown/caught exception objects explicitly recorded through recordException/record_exception APIs",
+            "providerAndExporter": "External injected SDK only; no application-bundled SDK/provider/exporter",
+            "automaticCapture": ["HTTP server", "SQL client", "Redis client"],
+            "allHandledBusinessExceptionsAutomaticallyCaptured": False,
+        }
         self.report["runtime_cases"] = list(CASES)
         self.report["not_proven"] = [item for item in self.report["not_proven"]
                                     if item != "Python SDK application compatibility"] + [
