@@ -71,9 +71,43 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
         exceptions = [s for scope, s in spans if scope == "elven.sdk.privacy.fixture" and s.get("name") == "elven.privacy.exception"]
         if not servers or not sql or not redis or not exceptions:
             raise AssertionError("Missing real HTTP/SQL/Redis/exception SDK capture: " + case)
-        for name, client_spans in (("SQL", sql),):
-            if not any(span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR") for span in client_spans):
-                raise AssertionError("Real " + name + " client error status missing: " + case)
+        sql_errors = [span for span in sql if span.get("status", {}).get("code") in (2, "STATUS_CODE_ERROR")]
+        if not sql_errors:
+            raise AssertionError("Real SQL client error status missing: " + case)
+        diagnostics, redis_diagnostics, sql_diagnostics, sql_states = set(), set(), set(), set()
+        sql_types, redis_types = set(), set()
+        for span in sql_errors:
+            events = [attributes(event.get("attributes", [])) for event in span.get("events", [])
+                      if event.get("name") == "exception"]
+            if not events:
+                raise AssertionError("Real SQL client exception event missing: " + case)
+            for event in events:
+                # Java JDBC Instrumenter.end(Throwable) and Python DBAPI's span
+                # context manager record standard exception.type. Pinned Node
+                # pg0.78.0 instead passes sanitizedErrorMessage(error), a STRING,
+                # to recordException: its event has only exception.message.
+                # Source fc3b13eb.../packages/instrumentation-pg/src/utils.ts:
+                #456-460 retains a public error.name in this exact safe format.
+                if runtime == "nodejs":
+                    message = event.get("exception.message")
+                    parsed = re.fullmatch(r"PostgreSQL error of type '([^']{1,256})' occurred \(code: ([0-9A-Z]{5}|UNKNOWN)\)",
+                                          message) if isinstance(message, str) else None
+                    kind = parsed.group(1) if parsed else None
+                    sql_state = parsed.group(2) if parsed else None
+                    origin = "official_pg_sanitized_exception_message"
+                else:
+                    kind, origin = event.get("exception.type"), "exception.type"
+                    sql_state = None
+                if (not isinstance(kind, str) or len(kind) > 256
+                        or not re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*(?:[.$][A-Za-z_$][A-Za-z0-9_$]*)*", kind)
+                        or any(value in kind for value in private["forbidden"])):
+                    raise AssertionError("Real SQL client exception class is missing, masked or non-public: " + case)
+                digest = hashlib.sha256(json.dumps(["sql-client", origin, kind, sql_state]).encode()).hexdigest()
+                diagnostics.add(digest)
+                sql_diagnostics.add(digest)
+                sql_types.add(kind)
+                if sql_state is not None and sql_state != "UNKNOWN":
+                    sql_states.add(sql_state)
         statements = [attributes(s.get("attributes", [])).get(key, "") for s in sql for key in ("db.statement", "db.query.text")]
         if not any("SELECT" in value.upper() and "answer" in value.lower() and "customer_email" in value.lower()
                    for value in statements if isinstance(value, str)):
@@ -88,7 +122,6 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
             operations.append(str(operation).upper())
         if not {"SET", "GET", "HGET"}.issubset(operations):
             raise AssertionError("Real Redis SET/GET operations were lost: " + case)
-        diagnostics, redis_diagnostics = set(), set()
         for operation in ("SET", "GET", "HGET"):
             if operations.count(operation) != 1:
                 raise AssertionError("Real Redis command was duplicated or lost: " + case + "/" + operation)
@@ -121,6 +154,7 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                     digest = hashlib.sha256(json.dumps(["redis-client", "HGET", kind]).encode()).hexdigest()
                     diagnostics.add(digest)
                     redis_diagnostics.add(digest)
+                    redis_types.add(kind)
         for exception in exceptions:
             if not any(server.get("trace_id") == exception.get("trace_id") and server.get("span_id") == exception.get("parent_span_id") for server in servers):
                 raise AssertionError("SDK exception is not a child of the real HTTP server span: " + case)
@@ -166,6 +200,12 @@ def check_capture(service_spans, private, *, sanitized, required_traces=None):
                          "exceptionSpans": len(exceptions), "selectiveMasking": sanitized,
                          "selectiveDiagnosticDigests": sorted(diagnostics),
                          "redisExceptionClassDigests": sorted(redis_diagnostics),
+                         "sqlExceptionClassDigests": sorted(sql_diagnostics),
+                         "sqlExceptionPublicTypes": sorted(sql_types),
+                         "redisExceptionPublicTypes": sorted(redis_types),
+                         "expectedApiExceptionType": profile["exception"],
+                         "sqlExceptionTypeOrigin": "official_pg_sanitized_exception_message" if runtime == "nodejs" else "exception.type",
+                         "sqlExceptionSqlStates": sorted(sql_states),
                          "realSdkScopes": sorted({scope for scope, _ in spans})}
     return summary
 
@@ -407,8 +447,8 @@ def main():
                 observed = {case: lab.report["capture"][case]["selectiveDiagnosticDigests"] for case in CASES}
                 if combined:
                     if observed != raw_diagnostics:
-                        raise AssertionError("Post-Collector Redis error classes or API exception types, selective messages or full frames differ from the real RAW SDK control")
-                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_REDIS_CLASS_API_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
+                        raise AssertionError("Post-Collector SQL/Redis error classes or API exception types, selective messages or full frames differ from the real RAW SDK control")
+                    lab.report["rawControlDiagnosticComparison"] = "PASS_EXACT_SQL_REDIS_CLASS_API_TYPE_SELECTIVE_MESSAGE_FULL_FRAMES"
                 else:
                     raw_diagnostics = observed
             except Exception as error:

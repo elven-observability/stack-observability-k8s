@@ -32,6 +32,8 @@ def corpus(sanitized):
         stack = ("Traceback (most recent call last):\n  File \"/fixture/main.py\", line 55, in exercise\n    fetchPrice()\n"
                  "  File \"/fixture/main.py\", line 42, in fetchPrice\n    raise ValueError(detail)\nValueError: " + message
                  if runtime == "python" else message + "\n at fetchPrice (checkout:42)\n at exercise (checkout:55)")
+        sql_event = {"exception.message": "PostgreSQL error of type 'error' occurred (code: 42883)"} if runtime == "node" else {
+            "exception.type": "org.postgresql.util.PSQLException" if runtime == "java" else "sqlite3.OperationalError"}
         exception = {"name": "elven.privacy.exception", "trace_id": "trace", "span_id": "exception", "parent_span_id": "server",
             "status": {"code": "STATUS_CODE_ERROR"}, "attributes": attrs({"http.route": "/exercise", "http.request.method": "GET", "http.response.status_code": 502}),
             "events": [{"name": "exception", "attributes": attrs({"exception.type": api_type,
@@ -39,7 +41,8 @@ def corpus(sanitized):
         result[case] = [(server_scope,
                         {"kind": 2, "trace_id": "trace", "span_id": "server"}),
                        (sql_scope,
-                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"})}),
+                        {"kind": 3, "trace_id": "trace", "status": {"code": 2}, "attributes": attrs({"db.query.text": "SELECT ? AS customer_email, ? AS answer"}),
+                         "events": [{"name": "exception", "attributes": attrs(sql_event)}]}),
                        (redis_scope,
                         {"kind": 3, "trace_id": "trace", "name": "SET"}),
                        (redis_scope,
@@ -170,6 +173,86 @@ class ActualSdkPrivacyOracleTests(unittest.TestCase):
             self.assertEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
             self.assertTrue(raw[case]["redisExceptionClassDigests"])
             self.assertEqual(raw[case]["redisExceptionClassDigests"], post[case]["redisExceptionClassDigests"])
+            self.assertTrue(raw[case]["sqlExceptionClassDigests"])
+            self.assertEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
+            expected_sql, expected_redis, expected_api = {
+                "java17": ("org.postgresql.util.PSQLException", "redis.clients.jedis.exceptions.JedisDataException", "java.lang.IllegalStateException"),
+                "java21": ("org.postgresql.util.PSQLException", "redis.clients.jedis.exceptions.JedisDataException", "java.lang.IllegalStateException"),
+                "node22": ("error", "Error", "Error"),
+                "python314": ("sqlite3.OperationalError", "redis.exceptions.ResponseError", "ValueError"),
+            }[case]
+            self.assertEqual(post[case]["sqlExceptionPublicTypes"], [expected_sql])
+            self.assertEqual(post[case]["redisExceptionPublicTypes"], [expected_redis])
+            self.assertEqual(post[case]["expectedApiExceptionType"], expected_api)
+            for field in ("sqlExceptionPublicTypes", "redisExceptionPublicTypes", "expectedApiExceptionType"):
+                self.assertEqual(raw[case][field], post[case][field])
+        self.assertEqual(post["node22"]["sqlExceptionTypeOrigin"], "official_pg_sanitized_exception_message")
+        self.assertEqual(post["node22"]["sqlExceptionSqlStates"], ["42883"])
+
+    def test_public_type_receipt_lists_are_sorted_and_never_contain_diagnostics(self):
+        data = corpus(False)
+        data["java17"][1][1]["events"].append({"name": "exception", "attributes": attrs({"exception.type": "APublicSqlError"})})
+        data["java17"][4][1]["events"].append({"name": "exception", "attributes": attrs({"exception.type": "APublicRedisError"})})
+        summary = H.check_capture(data, PRIVATE, sanitized=False)["java17"]
+        self.assertEqual(summary["sqlExceptionPublicTypes"], ["APublicSqlError", "org.postgresql.util.PSQLException"])
+        self.assertEqual(summary["redisExceptionPublicTypes"], ["APublicRedisError", "redis.clients.jedis.exceptions.JedisDataException"])
+        for field in ("sqlExceptionPublicTypes", "redisExceptionPublicTypes", "expectedApiExceptionType"):
+            text = str(summary[field])
+            for value in [*PRIVATE["forbidden"], "checkout failed", "fetchPrice", "WRONGTYPE"]:
+                self.assertNotIn(value, text)
+
+    def test_sql_error_requires_public_exception_event_not_status_alone(self):
+        for case in H.CASES:
+            for change in ("no_event", "wrong_event", "missing", "masked", "non_string", "private"):
+                data = corpus(True)
+                span = data[case][1][1]
+                if change == "no_event":
+                    span.pop("events")
+                elif change == "wrong_event":
+                    span["events"][0]["name"] = "not-exception"
+                else:
+                    value = {"missing": None, "masked": "[REDACTED]", "non_string": 42, "private": PRIVATE["exceptionSecret"]}[change]
+                    key = "exception.message" if case == "node22" else "exception.type"
+                    span["events"][0]["attributes"] = attrs({key: value}) if value is not None else []
+                with self.subTest(case=case, change=change), self.assertRaises(AssertionError):
+                    H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_sql_class_or_pg_state_changes_cannot_match_the_raw_control(self):
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        for case in H.CASES:
+            data = corpus(True)
+            span = data[case][1][1]
+            span["events"][0]["attributes"] = attrs({"exception.message": "PostgreSQL error of type 'OtherPublicError' occurred (code: 42883)"}
+                if case == "node22" else {"exception.type": "OtherPublicError", "exception.stacktrace": "[REDACTED]"})
+            post = H.check_capture(data, PRIVATE, sanitized=True)
+            self.assertNotEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
+            self.assertNotEqual(raw[case]["selectiveDiagnosticDigests"], post[case]["selectiveDiagnosticDigests"])
+        data = corpus(True)
+        data["node22"][1][1]["events"][0]["attributes"] = attrs({"exception.message": "PostgreSQL error of type 'error' occurred (code: 42P01)"})
+        changed = H.check_capture(data, PRIVATE, sanitized=True)
+        self.assertNotEqual(raw["node22"]["sqlExceptionClassDigests"], changed["node22"]["sqlExceptionClassDigests"])
+
+    def test_pg_only_accepts_the_complete_official_sanitized_format(self):
+        for message in ("[REDACTED]", "PostgreSQL error of type '[REDACTED]' occurred (code: 42883)",
+                        "PostgreSQL error of type 'error' occurred (code: 428)",
+                        "PostgreSQL error of type 'error' occurred (code: 42883) trailing text",
+                        "SQL failed: error 42883"):
+            data = corpus(True)
+            data["node22"][1][1]["events"][0]["attributes"] = attrs({"exception.type": "error", "exception.message": message})
+            with self.subTest(message=message), self.assertRaisesRegex(AssertionError, "SQL client exception class"):
+                H.check_capture(data, PRIVATE, sanitized=True)
+
+    def test_sql_stack_masking_is_not_mistaken_for_loss_of_public_class(self):
+        raw = H.check_capture(corpus(False), PRIVATE, sanitized=False)
+        data = corpus(True)
+        for case in H.CASES:
+            event = data[case][1][1]["events"][0]
+            values = H.attributes(event["attributes"])
+            values["exception.stacktrace"] = "[REDACTED:sql-stack]"
+            event["attributes"] = attrs(values)
+        post = H.check_capture(data, PRIVATE, sanitized=True)
+        for case in H.CASES:
+            self.assertEqual(raw[case]["sqlExceptionClassDigests"], post[case]["sqlExceptionClassDigests"])
 
     def test_redis_exception_class_missing_masked_private_or_changed_cannot_qualify_preservation(self):
         for mutation in ("missing_event", "wrong_event", "missing_type", "masked_type", "private_type", "non_string_type"):
