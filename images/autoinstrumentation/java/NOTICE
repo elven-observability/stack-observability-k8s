@@ -17,5 +17,10 @@ Upstream reference: https://github.com/open-telemetry/opentelemetry-java-instrum
 This narrow backport is not the full upstream pipeline/transaction/cluster fix.
 Build-only tests use a mock Instrumenter and are not runtime telemetry evidence.
 Java17/21 real Redis WRONGTYPE ERROR capture remains a separate CI acceptance gate.
+The build runs Gradle 9.8.2 on the pinned official Gradle JDK25 image, matching
+the upstream repository's default Java25 compiler/toolchain. Java toolchain
+auto-detection and auto-download are disabled; only the pinned JAVA_HOME is
+eligible. This builder JDK is not copied into the runtime payload image and
+does not change the Java17/21 client compatibility claim or its required tests.
 Elven branding does not imply upstream endorsement or transfer of third-party ownership.
 Dependencies retain their respective licenses; inspect the inherited notices and SPDX SBOM.

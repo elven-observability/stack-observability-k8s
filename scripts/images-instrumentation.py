@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -34,6 +35,7 @@ REPOSITORIES = {
     "python": "docker.io/elvenobservability/elven-auto-python",
 }
 VERSION = re.compile(r"v?1\.[0-9]+\.[0-9]+(?:-dev|-rc\.[0-9]+)?\Z")
+JAVA_BUILD_IMAGE = "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898"
 
 
 def source_ref(image):
@@ -49,8 +51,9 @@ def validate_java_source_build(image, recipe):
         raise ValueError("Java requires the official immutable source-build provenance")
     revision, builder = build.get("revision", ""), build.get("buildImage", "")
     if (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{40}", revision)
-            or not isinstance(builder, str) or not re.fullmatch(r"gradle:[0-9]+\.[0-9]+\.[0-9]+-jdk21@sha256:[0-9a-f]{64}", builder)):
-        raise ValueError("Java source revision and Gradle builder must be immutable")
+            or builder != JAVA_BUILD_IMAGE or type(build.get("javaVersion")) is not int
+            or build["javaVersion"] != 25):
+        raise ValueError("Java source revision and the approved Gradle/JDK25 builder must be immutable")
     lines = [line.strip() for line in recipe.replace("\\\n", " ").splitlines()
              if line.strip() and not line.lstrip().startswith("#")]
     if (f"FROM --platform=$BUILDPLATFORM {builder} AS builder" not in lines
@@ -91,12 +94,42 @@ def validate_java_source_build(image, recipe):
             or "COPY --from=builder /src/javaagent/build/libs/opentelemetry-javaagent.jar /javaagent.jar" not in lines):
         raise ValueError("Java patch/application/build/payload transfer differs from source-build provenance")
     version, wrapper_sha = build.get("gradleVersion", ""), build.get("wrapperDistributionSha256", "")
-    if (not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)
-            or not builder.startswith(f"gradle:{version}-jdk21@")
+    if (version != "9.8.2"
+            or not builder.startswith(f"gradle:{version}-jdk25@")
             or not isinstance(wrapper_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", wrapper_sha)
             or not invokes(f"grep -Fx 'distributionUrl=https\\://services.gradle.org/distributions/gradle-{version}-bin.zip' gradle/wrapper/gradle-wrapper.properties")
             or not invokes(f"grep -Fx 'distributionSha256Sum={wrapper_sha}' gradle/wrapper/gradle-wrapper.properties")):
         raise ValueError("Java Gradle wrapper version/checksum differs from the pinned build provenance")
+    required_flags = {"--no-parallel", "-Pkotlin.compiler.execution.strategy=in-process",
+                      "-Porg.gradle.java.installations.auto-download=false",
+                      "-Porg.gradle.java.installations.auto-detect=false",
+                      "-Porg.gradle.java.installations.paths=$JAVA_HOME"}
+    assemblies = []
+    for line in run_lines:
+        lexer = shlex.shlex(line.removeprefix("RUN "), posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        shell_commands, current = [], []
+        for token in lexer:
+            if token and set(token) <= set(";&|"):
+                shell_commands.append(current)
+                current = []
+            else:
+                current.append(token)
+        shell_commands.append(current)
+        for args in shell_commands:
+            if not args or args[0] != "./gradlew":
+                continue
+            if not required_flags <= set(args):
+                raise ValueError("Every Gradle invocation must confine toolchains to pinned JAVA_HOME")
+            for flag in args:
+                if ((flag.startswith(("-Porg.gradle.java.installations.", "-Pkotlin.compiler.execution.strategy="))
+                     and flag not in required_flags)
+                        or flag.startswith("-Dorg.gradle.java.installations.") or flag == "--parallel"):
+                    raise ValueError("Java compiler discovery/download or Kotlin process policy cannot be overridden")
+            if ":javaagent:assemble" in args:
+                assemblies.append(args)
+    if not assemblies or any(not required_flags <= set(args) for args in assemblies):
+        raise ValueError("Java assembly must use only pinned JAVA_HOME toolchains without download or parallel compiler heaps")
 
 
 def read_lock(path=ROOT / "instrumentation.lock.json"):
@@ -381,7 +414,8 @@ def main():
     args = parser.parse_args()
     lock = read_lock(args.lock)
     if args.command == "check":
-        print("Independent operator/SDK lock consistent; publication=" + lock["distribution"]["publicationStatus"])
+        print("Independent operator/SDK recipe check only; historical publication="
+              + lock["distribution"]["publicationStatus"] + "; runtime/release acceptance not implied")
     elif args.command == "verify":
         verify(args, lock)
     else:

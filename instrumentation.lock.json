@@ -41,7 +41,8 @@
       "sourceBuild": {
         "repository": "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git",
         "revision": "d9045e02e0711837d54f0fd058cd55f77742506d",
-        "buildImage": "gradle:9.8.2-jdk21@sha256:85f8f572045bfb31874d66d7d8a2bd0c17d8cb9ad34b6a4d02f5d552b4b92c04",
+        "buildImage": "gradle:9.8.2-jdk25@sha256:e46e15353757ef9c9be0197a243653e88d25ebcd4c3c841057cf839c11fcf898",
+        "javaVersion": 25,
         "gradleVersion": "9.8.2",
         "wrapperDistributionSha256": "21bd5da2de49b642904077f38c0efdc7778e92b3ed0889392dca61b97e389607",
         "patches": [

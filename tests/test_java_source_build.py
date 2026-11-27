@@ -26,7 +26,7 @@ class JavaSourceBuildTests(unittest.TestCase):
         self.build = {
             "repository": "https://github.com/open-telemetry/opentelemetry-java-instrumentation.git",
             "revision": "a" * 40,
-            "buildImage": "gradle:9.8.2-jdk21@sha256:" + "b" * 64,
+            "buildImage": SDK.JAVA_BUILD_IMAGE, "javaVersion": 25,
             "gradleVersion": "9.8.2", "wrapperDistributionSha256": "d" * 64,
             "patches": [{"path": self.relative, "sha256": hashlib.sha256(self.patch.read_bytes()).hexdigest()}],
         }
@@ -39,7 +39,9 @@ class JavaSourceBuildTests(unittest.TestCase):
             f"ADD --keep-git-dir=true {self.build['repository']}#{self.build['revision']} /src",
             f"COPY {self.relative} /tmp/{self.patch.name}",
             f"RUN git apply --check /tmp/{self.patch.name} && git apply /tmp/{self.patch.name} && "
-            + "\\" + "\n ./gradlew --no-daemon :javaagent:assemble",
+            + "\\" + "\n ./gradlew --no-daemon --no-parallel -Pkotlin.compiler.execution.strategy=in-process "
+            + "-Porg.gradle.java.installations.auto-download=false -Porg.gradle.java.installations.auto-detect=false "
+            + '"-Porg.gradle.java.installations.paths=$JAVA_HOME" :javaagent:assemble',
             "RUN grep -Fx 'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.8.2-bin.zip' gradle/wrapper/gradle-wrapper.properties"
             + " && grep -Fx 'distributionSha256Sum=" + "d" * 64 + "' gradle/wrapper/gradle-wrapper.properties",
             "FROM ${UPSTREAM_IMAGE}",
@@ -65,6 +67,9 @@ class JavaSourceBuildTests(unittest.TestCase):
             lambda image: image["sourceBuild"].update(revision="d" * 40),
             lambda image: image["sourceBuild"].update(buildImage="gradle:latest"),
             lambda image: image["sourceBuild"].update(buildImage="gradle:9.8.2-jdk21@sha256:" + "d" * 64),
+            lambda image: image["sourceBuild"].update(javaVersion=21),
+            lambda image: image["sourceBuild"].update(javaVersion="25"),
+            lambda image: image["sourceBuild"].update(buildImage=SDK.JAVA_BUILD_IMAGE.replace("e46e", "a46e")),
             lambda image: image["sourceBuild"].update(gradleVersion="9.8.1"),
             lambda image: image["sourceBuild"].update(wrapperDistributionSha256="e" * 64),
             lambda image: image["upstream"].update(sourceVersion="2.32.0"),
@@ -110,6 +115,12 @@ class JavaSourceBuildTests(unittest.TestCase):
                          (":javaagent:assemble", ":unrelated:assemble"),
                          ("FROM ${UPSTREAM_IMAGE}", "FROM scratch"),
                          ("FROM --platform=$BUILDPLATFORM", "FROM"),
+                         ("--no-parallel", "--parallel"),
+                         ("-Pkotlin.compiler.execution.strategy=in-process", "-Pkotlin.compiler.execution.strategy=daemon"),
+                         ("-Porg.gradle.java.installations.auto-download=false", "-Porg.gradle.java.installations.auto-download=true"),
+                         ("-Porg.gradle.java.installations.auto-download=false", "-Dorg.gradle.java.installations.auto-download=false"),
+                         ("-Porg.gradle.java.installations.auto-detect=false", ""),
+                         ("-Porg.gradle.java.installations.paths=$JAVA_HOME", "-Porg.gradle.java.installations.paths=/downloaded/jdk"),
                          ("ADD --keep-git-dir=true", "# ADD --keep-git-dir=true")):
             with self.subTest(old=old), self.assertRaises(ValueError):
                 self.validate(recipe=self.recipe.replace(old, new))
