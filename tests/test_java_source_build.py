@@ -37,14 +37,17 @@ class JavaSourceBuildTests(unittest.TestCase):
             "restletSources": copy.deepcopy(SDK.JAVA_RESTLET_SOURCES),
         }
         helpers = []
-        for key, filename in (("restletBuildScript", "build-restlet-compile-only.sh"),
-                              ("restletRepositoryInit", "restlet-compile-only.init.gradle"),
-                              ("restletPayloadCheck", "verify-restlet-payload.sh")):
+        for key, filename, destination in (
+                ("restletBuildScript", "build-restlet-compile-only.sh", "/tmp/build-restlet-compile-only.sh"),
+                ("restletRepositoryInit", "restlet-compile-only.init.gradle", "/tmp/restlet-compile-only.init.gradle"),
+                ("restletPayloadCheck", "verify-restlet-payload.sh", "/tmp/verify-restlet-payload.sh"),
+                ("restletPreflightSettings", "restlet-preflight.settings.gradle", "/opt/elven-restlet-preflight/settings.gradle"),
+                ("restletPreflightBuild", "restlet-preflight.build.gradle", "/opt/elven-restlet-preflight/build.gradle")):
             relative = "images/autoinstrumentation/java/" + filename
             raw = (ROOT / relative).read_bytes()
             (self.root / relative).write_bytes(raw)
             self.build[key] = {"path": relative, "sha256": hashlib.sha256(raw).hexdigest()}
-            helpers.append(f"COPY {relative} /tmp/{filename}")
+            helpers.append(f"COPY {relative} {destination}")
         self.image = {"sourceBuild": self.build, "upstream": {
             "repository": "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java",
             "tag": "2.33.1-2", "digest": "sha256:" + "c" * 64, "sourceVersion": "2.33.1"}}
@@ -61,6 +64,10 @@ class JavaSourceBuildTests(unittest.TestCase):
             "RUN sh /tmp/build-restlet-compile-only.sh",
             f"ADD --keep-git-dir=true {self.build['repository']}#{self.build['revision']} /src",
             f"COPY {self.relative} /tmp/{self.patch.name}",
+            "RUN ./gradlew --no-daemon --no-parallel -Pkotlin.compiler.execution.strategy=in-process "
+            + "-Porg.gradle.java.installations.auto-download=false -Porg.gradle.java.installations.auto-detect=false "
+            + '"-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" '
+            + '--init-script /tmp/restlet-compile-only.init.gradle --project-dir /opt/elven-restlet-preflight verifyRepositoryBoundaries',
             f"RUN git apply --check /tmp/{self.patch.name} && git apply /tmp/{self.patch.name} && "
             + "\\" + "\n ./gradlew --no-daemon --no-parallel -Pkotlin.compiler.execution.strategy=in-process "
             + "-Porg.gradle.java.installations.auto-download=false -Porg.gradle.java.installations.auto-detect=false "
@@ -118,6 +125,8 @@ class JavaSourceBuildTests(unittest.TestCase):
             lambda image: image["sourceBuild"]["restletSources"][1].update(version="2.5.0"),
             lambda image: image["sourceBuild"]["restletBuildScript"].update(sha256="e" * 64),
             lambda image: image["sourceBuild"]["restletRepositoryInit"].update(path="/tmp/init.gradle"),
+            lambda image: image["sourceBuild"].pop("restletPreflightBuild"),
+            lambda image: image["sourceBuild"]["restletPreflightSettings"].update(sha256="e" * 64),
             lambda image: image["upstream"].update(sourceVersion="2.32.0"),
             lambda image: image["upstream"].update(digest="sha256:" + "d" * 64),
         )
@@ -152,7 +161,7 @@ class JavaSourceBuildTests(unittest.TestCase):
                 self.validate(image)
 
     def test_restlet_helper_bytes_and_recomputed_broad_repository_are_rejected(self):
-        for key in ("restletBuildScript", "restletRepositoryInit", "restletPayloadCheck"):
+        for key in ("restletBuildScript", "restletRepositoryInit", "restletPayloadCheck", "restletPreflightSettings", "restletPreflightBuild"):
             path = self.root / self.build[key]["path"]
             raw = path.read_bytes()
             path.write_bytes(raw + b"\n# changed\n")
@@ -220,6 +229,23 @@ class JavaSourceBuildTests(unittest.TestCase):
         self.assertNotEqual(check({"lib/invalid.jar": b"not a ZIP"}), 0)
         self.assertNotEqual(check(entries={"unrelated.class": b"fixture"}), 0)
 
+    def test_global_repository_injection_or_noop_preflight_cannot_be_relocked(self):
+        for key, old, new in (
+                ("restletRepositoryInit", "if (path in [", "if (true || path in ["),
+                ("restletPreflightSettings", "mavenCentral()", "mavenLocal()"),
+                ("restletPreflightBuild", "assert project.repositories.isEmpty()", "assert true"),
+                ("restletPreflightBuild", "assert resolved == expected", "assert true"),
+                ("restletPreflightBuild", "assert java.nio.file.Files.mismatch(artifact.file.toPath(), original.toPath()) == -1L", "assert true")):
+            path = self.root / self.build[key]["path"]
+            raw, old_hash = path.read_bytes(), self.build[key]["sha256"]
+            self.assertIn(old.encode(), raw)
+            path.write_bytes(raw.replace(old.encode(), new.encode()))
+            self.build[key]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.subTest(helper=key, mutation=old), self.assertRaises(ValueError):
+                self.validate()
+            path.write_bytes(raw)
+            self.build[key]["sha256"] = old_hash
+
     def test_recipe_cannot_claim_unmodified_or_skip_reviewed_patch_and_transfer(self):
         for old, new in (("Elven patched Java agent", "unmodified pinned upstream payload"),
                          ("git apply --check", "echo git-apply-check"),
@@ -248,6 +274,9 @@ class JavaSourceBuildTests(unittest.TestCase):
                          ("--init-script /tmp/restlet-compile-only.init.gradle", "--init-script /tmp/other.init.gradle"),
                          ("RUN sh /tmp/build-restlet-compile-only.sh", "RUN echo sh /tmp/build-restlet-compile-only.sh"),
                          ("RUN sh /tmp/verify-restlet-payload.sh", "RUN echo sh /tmp/verify-restlet-payload.sh"),
+                         ("--project-dir /opt/elven-restlet-preflight", "--project-dir /opt/unreviewed-project"),
+                         ("verifyRepositoryBoundaries", "help"),
+                         ("RUN ./gradlew", "RUN echo ./gradlew"),
                          ("FROM ${UPSTREAM_IMAGE}", "FROM ${UPSTREAM_IMAGE}\nCOPY --from=builder /opt/elven-restlet-maven /runtime-restlet"),
                          ("ADD --keep-git-dir=true", "# ADD --keep-git-dir=true")):
             with self.subTest(old=old), self.assertRaises(ValueError):
@@ -274,7 +303,7 @@ class JavaSourceBuildTests(unittest.TestCase):
         self.assertIn(ROOT / "instrumentation.lock.json", inputs)
         for patch in validated["images"]["java"]["sourceBuild"]["patches"]:
             self.assertIn(ROOT / patch["path"], inputs)
-        for key in ("restletBuildScript", "restletRepositoryInit", "restletPayloadCheck"):
+        for key in ("restletBuildScript", "restletRepositoryInit", "restletPayloadCheck", "restletPreflightSettings", "restletPreflightBuild"):
             self.assertIn(ROOT / validated["images"]["java"]["sourceBuild"][key]["path"], inputs)
 
 

@@ -1,7 +1,18 @@
 // Build-only source reconstructions. Never a repository for customer libraries.
-// Exact coordinates/versions only: all other resolution stays upstream.
+// Exact coordinates/versions only, on the six projects that already declare
+// Central + the old Restlet endpoint + mavenLocal in the pinned upstream source.
+// Do not create project repositories elsewhere: that hides settings repositories
+// under Gradle's PREFER_PROJECT default (including the Central BOMs).
 allprojects {
-    repositories {
+    if (path in [
+        ':instrumentation:restlet:restlet-1.1:javaagent',
+        ':instrumentation:restlet:restlet-1.1:library',
+        ':instrumentation:restlet:restlet-1.1:testing',
+        ':instrumentation:restlet:restlet-2.0:javaagent',
+        ':instrumentation:restlet:restlet-2.0:library',
+        ':instrumentation:restlet:restlet-2.0:testing'
+    ]) {
+      repositories {
         exclusiveContent {
             forRepository {
                 maven {
@@ -15,5 +26,6 @@ allprojects {
                 includeVersion('org.restlet.jse', 'org.restlet', '2.0.2')
             }
         }
+      }
     }
 }

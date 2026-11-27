@@ -32,7 +32,12 @@ source subtrees pinned in sourceBuild.restletSources, using Java17 --release8.
 These are explicitly SOURCE_REBUILD_NOT_UPSTREAM_MAVEN_BINARY, not downloaded
 historical Maven publications, and are never runtime customer dependencies.
 Only the three exact original coordinates/versions use the isolated local
-Maven repository. No instrumentation or dependency version is removed/changed.
+Maven repository on only the six upstream Restlet projects, which already
+declare their own Central/Restlet/local repositories. No repository is added
+to unrelated projects or settings. A small resolution-only preflight confirms
+the three source-rebuilt coordinates and the official OpenTelemetry1.67.0 BOM
+coexist, while an unrelated project retains settings-level Central. No
+instrumentation or dependency version is removed/changed.
 The official source trees include OSGi4.0 core under its original license;
 its exact SHA256 is verified and its license accompanies the build-only jars.
 A fail-closed final-JAR check requires both Restlet instrumentations and rejects

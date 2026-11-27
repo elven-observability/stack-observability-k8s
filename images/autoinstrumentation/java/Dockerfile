@@ -18,9 +18,13 @@ COPY images/autoinstrumentation/java/jedis4-terminal-error.patch /tmp/jedis4-ter
 COPY images/autoinstrumentation/java/build-restlet-compile-only.sh /tmp/build-restlet-compile-only.sh
 COPY images/autoinstrumentation/java/restlet-compile-only.init.gradle /tmp/restlet-compile-only.init.gradle
 COPY images/autoinstrumentation/java/verify-restlet-payload.sh /tmp/verify-restlet-payload.sh
+COPY images/autoinstrumentation/java/restlet-preflight.settings.gradle /opt/elven-restlet-preflight/settings.gradle
+COPY images/autoinstrumentation/java/restlet-preflight.build.gradle /opt/elven-restlet-preflight/build.gradle
 RUN echo 'a66a6b25647b88e187e8a0d1a6a609de00942aec9e88b45db3baa1e1c2b83b2b  /tmp/build-restlet-compile-only.sh' | sha256sum -c - \
-    && echo '41acdfa8bf4662e8ba0b97225e6bc04042c5999edc8dc71d12bba4f53d32a84c  /tmp/restlet-compile-only.init.gradle' | sha256sum -c - \
-    && echo '9ed3071ce9b4fc915a19ca6ba3092a367bc91725c1b7e95971bbf8a54625c776  /tmp/verify-restlet-payload.sh' | sha256sum -c -
+    && echo '48308d22e57863f087fb68d08934f8969907cedc7e24d90c9fa227417be71357  /tmp/restlet-compile-only.init.gradle' | sha256sum -c - \
+    && echo '9ed3071ce9b4fc915a19ca6ba3092a367bc91725c1b7e95971bbf8a54625c776  /tmp/verify-restlet-payload.sh' | sha256sum -c - \
+    && echo '817233b8e3d57b2365a9bcbb9147db693a155a00cda9917e602d6e4ac4034732  /opt/elven-restlet-preflight/settings.gradle' | sha256sum -c - \
+    && echo 'f9bff3d1a3638feb685681aa6f8bd9650e3636f6e0f058ce828db88b26f8450a  /opt/elven-restlet-preflight/build.gradle' | sha256sum -c -
 RUN test "$(git rev-parse HEAD)" = d9045e02e0711837d54f0fd058cd55f77742506d \
     && echo '25dc0866daf97461bb4110d38d36225d8f336b90d1c4c1a9a00b949006b54be0  /tmp/jedis4-terminal-error.patch' | sha256sum -c - \
     && git apply --check /tmp/jedis4-terminal-error.patch \
@@ -41,6 +45,20 @@ RUN grep -Fx 'distributionUrl=https\://services.gradle.org/distributions/gradle-
        -Porg.gradle.java.installations.auto-detect=false \
        "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" \
        --version | grep -Fx 'Gradle 9.8.2'
+# Resolve only the three rebuilt API jars and the exact official Central BOM.
+# Catch project-repository shadowing before configuring the full agent graph.
+RUN ./gradlew --no-daemon --no-parallel --max-workers=2 \
+    --init-script /tmp/restlet-compile-only.init.gradle \
+    --project-dir /opt/elven-restlet-preflight \
+    '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m' \
+    -Dorg.gradle.internal.http.connectionTimeout=30000 \
+    -Dorg.gradle.internal.http.socketTimeout=30000 \
+    -Dorg.gradle.internal.repository.max.retries=2 \
+    -Pkotlin.compiler.execution.strategy=in-process \
+    -Porg.gradle.java.installations.auto-download=false \
+    -Porg.gradle.java.installations.auto-detect=false \
+    "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21" \
+    verifyRepositoryBoundaries
 # This pure mocked unit suite has no Redis/Docker/Testcontainers dependency.
 # Real SDK/Redis ERROR acceptance remains a separate disposable hosted CI gate.
 # Upstream compilation defaults to Java25. Use only the JDK from the pinned

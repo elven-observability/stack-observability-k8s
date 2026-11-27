@@ -69,22 +69,49 @@ def validate_java_restlet_build(build, lines):
         if instruction not in lines:
             raise ValueError("Java Restlet source ADD differs from its locked revision/subdirectory")
     helpers = {}
-    for key, filename in (("restletBuildScript", "build-restlet-compile-only.sh"),
-                          ("restletRepositoryInit", "restlet-compile-only.init.gradle"),
-                          ("restletPayloadCheck", "verify-restlet-payload.sh")):
+    for key, filename, destination in (
+            ("restletBuildScript", "build-restlet-compile-only.sh", "/tmp/build-restlet-compile-only.sh"),
+            ("restletRepositoryInit", "restlet-compile-only.init.gradle", "/tmp/restlet-compile-only.init.gradle"),
+            ("restletPayloadCheck", "verify-restlet-payload.sh", "/tmp/verify-restlet-payload.sh"),
+            ("restletPreflightSettings", "restlet-preflight.settings.gradle", "/opt/elven-restlet-preflight/settings.gradle"),
+            ("restletPreflightBuild", "restlet-preflight.build.gradle", "/opt/elven-restlet-preflight/build.gradle")):
         path = java_build_helper(build, key, filename)
         helpers[key] = path.read_text()
-        if f"COPY {path.relative_to(ROOT)} /tmp/{filename}" not in lines:
+        if f"COPY {path.relative_to(ROOT)} {destination}" not in lines:
             raise ValueError("Java Restlet helper COPY differs from its locked local source")
     init = re.sub(r"\s+", " ", "\n".join(line for line in helpers["restletRepositoryInit"].splitlines()
                                            if not line.lstrip().startswith("//"))).strip()
-    expected_init = ("allprojects { repositories { exclusiveContent { forRepository { maven { "
+    project_paths = ", ".join(f"':instrumentation:restlet:restlet-{version}:{module}'"
+                              for version in ("1.1", "2.0") for module in ("javaagent", "library", "testing"))
+    expected_init = (f"allprojects {{ if (path in [ {project_paths} ]) {{ repositories {{ exclusiveContent {{ forRepository {{ maven {{ "
                      "name = 'elvenRestletSourceRebuild' url = uri('/opt/elven-restlet-maven') } } filter { "
                      "includeVersion('org.restlet', 'org.restlet', '1.1.5') "
                      "includeVersion('com.noelios.restlet', 'com.noelios.restlet', '1.1.5') "
-                     "includeVersion('org.restlet.jse', 'org.restlet', '2.0.2') } } } }")
+                     "includeVersion('org.restlet.jse', 'org.restlet', '2.0.2') } } } } }")
     if init != expected_init:
-        raise ValueError("Java compile-only local repository must resolve only the three original exact coordinates")
+        raise ValueError("Java compile-only local repository must resolve only the three original exact coordinates on the six original Restlet projects")
+    settings = re.sub(r"\s+", " ", "\n".join(line for line in helpers["restletPreflightSettings"].splitlines()
+                                               if not line.lstrip().startswith("//"))).strip()
+    expected_settings = ("rootProject.name = 'elven-restlet-repository-preflight' "
+                         "dependencyResolutionManagement { repositories { mavenCentral() mavenLocal() } } "
+                         "include(':instrumentation:restlet:restlet-1.1:javaagent') "
+                         "include(':instrumentation:restlet:restlet-2.0:javaagent') include(':central-check') "
+                         "[ 'instrumentation/restlet/restlet-1.1/javaagent', "
+                         "'instrumentation/restlet/restlet-2.0/javaagent', 'central-check' ].each { relativePath -> "
+                         "def directory = file(relativePath) assert directory.mkdirs() || directory.isDirectory() }")
+    preflight = "\n".join(line for line in helpers["restletPreflightBuild"].splitlines()
+                           if not line.lstrip().startswith("//"))
+    if (settings != expected_settings or not all(fragment in preflight for fragment in (
+            "def centralBom = 'io.opentelemetry:opentelemetry-bom:1.67.0'",
+            "'org.restlet:org.restlet:1.1.5'", "'com.noelios.restlet:com.noelios.restlet:1.1.5'",
+            "'org.restlet.jse:org.restlet:2.0.2'", "mavenCentral()", "mavenLocal()",
+            "uri('https://maven.restlet.talend.com/')",
+            "assert project.repositories.isEmpty()", "assert resolved == expected", "assert jars.size() == (isRestlet ? 3 : 0)",
+            "assert artifacts.size() == (isRestlet ? 3 : 0)", "file('/opt/elven-restlet-maven/' + id.group.replace('.', '/') +",
+            "assert original.isFile()", "assert java.nio.file.Files.mismatch(artifact.file.toPath(), original.toPath()) == -1L",
+            "tasks.register('verifyRepositoryBoundaries')",
+            "dependsOn(':central-check:verifyResolution')"))):
+        raise ValueError("Java repository preflight must prove exact local Restlet coordinates and unchanged settings Central resolution")
     compiler = helpers["restletBuildScript"]
     compiler_lines = [line.strip() for line in compiler.replace("\\\n", " ").splitlines()
                       if line.strip() and not line.lstrip().startswith("#")]
@@ -105,6 +132,7 @@ def validate_java_restlet_build(build, lines):
         raise ValueError("Java Restlet build-only compilation and final payload isolation oracle are required")
     instructions = "\n".join(lines)
     if not (instructions.index("sh /tmp/build-restlet-compile-only.sh")
+            < instructions.index("verifyRepositoryBoundaries")
             < instructions.index(":javaagent:assemble")
             < instructions.index("sh /tmp/verify-restlet-payload.sh /src/javaagent/build/libs/opentelemetry-javaagent.jar")
             < instructions.index("FROM ${UPSTREAM_IMAGE}")):
@@ -186,7 +214,7 @@ def validate_java_source_build(image, recipe):
                       "-Porg.gradle.java.installations.auto-download=false",
                       "-Porg.gradle.java.installations.auto-detect=false",
                       "-Porg.gradle.java.installations.paths=$JAVA_HOME,/opt/elven-toolchains/jdk17,/opt/elven-toolchains/jdk21"}
-    assemblies = []
+    assemblies, preflights = [], []
     for line in run_lines:
         lexer = shlex.shlex(line.removeprefix("RUN "), posix=True, punctuation_chars=";&|")
         lexer.whitespace_split = True
@@ -219,8 +247,15 @@ def validate_java_source_build(image, recipe):
                     raise ValueError("Java compiler discovery/download or Kotlin process policy cannot be overridden")
             if ":javaagent:assemble" in args:
                 assemblies.append(args)
+            if "verifyRepositoryBoundaries" in args:
+                if (":javaagent:assemble" in args or args.count("--project-dir") != 1 or args.index("--project-dir") + 1 >= len(args)
+                        or args[args.index("--project-dir") + 1] != "/opt/elven-restlet-preflight"):
+                    raise ValueError("Java repository preflight must run the locked tiny project through the pinned wrapper")
+                preflights.append(args)
     if not assemblies or any(not required_flags <= set(args) for args in assemblies):
         raise ValueError("Java assembly must use only pinned JAVA_HOME toolchains without download or parallel compiler heaps")
+    if len(preflights) != 1:
+        raise ValueError("Java requires one genuine pinned-wrapper repository-boundary preflight before assembly")
     validate_java_restlet_build(build, lines)
 
 

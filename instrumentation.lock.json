@@ -67,11 +67,19 @@
         },
         "restletRepositoryInit": {
           "path": "images/autoinstrumentation/java/restlet-compile-only.init.gradle",
-          "sha256": "41acdfa8bf4662e8ba0b97225e6bc04042c5999edc8dc71d12bba4f53d32a84c"
+          "sha256": "48308d22e57863f087fb68d08934f8969907cedc7e24d90c9fa227417be71357"
         },
         "restletPayloadCheck": {
           "path": "images/autoinstrumentation/java/verify-restlet-payload.sh",
           "sha256": "9ed3071ce9b4fc915a19ca6ba3092a367bc91725c1b7e95971bbf8a54625c776"
+        },
+        "restletPreflightSettings": {
+          "path": "images/autoinstrumentation/java/restlet-preflight.settings.gradle",
+          "sha256": "817233b8e3d57b2365a9bcbb9147db693a155a00cda9917e602d6e4ac4034732"
+        },
+        "restletPreflightBuild": {
+          "path": "images/autoinstrumentation/java/restlet-preflight.build.gradle",
+          "sha256": "f9bff3d1a3638feb685681aa6f8bd9650e3636f6e0f058ce828db88b26f8450a"
         },
         "patches": [
           {

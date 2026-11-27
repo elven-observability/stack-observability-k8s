@@ -1,0 +1,73 @@
+// Small resolution-only gate. No Java/Kotlin plugin, compilation or SDK traces.
+def restletProjects = [
+    ':instrumentation:restlet:restlet-1.1:javaagent',
+    ':instrumentation:restlet:restlet-2.0:javaagent'
+]
+def localCoordinates = [
+    'org.restlet:org.restlet:1.1.5',
+    'com.noelios.restlet:com.noelios.restlet:1.1.5',
+    'org.restlet.jse:org.restlet:2.0.2'
+]
+def centralBom = 'io.opentelemetry:opentelemetry-bom:1.67.0'
+
+configure(subprojects.findAll { it.path in restletProjects || it.path == ':central-check' }) {
+    def isRestlet = path in restletProjects
+    if (isRestlet) {
+        // These are the actual three repository declarations from all six
+        // upstream Restlet build.gradle.kts files at d9045e02e0711837d54f0fd058cd55f77742506d.
+        repositories {
+            mavenCentral()
+            maven { url = uri('https://maven.restlet.talend.com/') }
+            mavenLocal()
+        }
+    }
+    configurations {
+        probe {
+            canBeConsumed = false
+            canBeResolved = true
+        }
+    }
+    dependencies {
+        probe(platform(centralBom))
+        if (isRestlet) {
+            localCoordinates.each { coordinate -> probe(coordinate) }
+        }
+    }
+    tasks.register('verifyResolution') {
+        doLast {
+            if (isRestlet) {
+                assert project.repositories.collect { it.name }.toSet() ==
+                    ['elvenRestletSourceRebuild', 'MavenRepo', 'maven', 'MavenLocal'].toSet()
+            } else {
+                // A broad init script would hide settings Central here.
+                assert project.repositories.isEmpty(): 'Unrelated project repositories were changed'
+            }
+            def resolved = project.configurations.probe.incoming.resolutionResult.allComponents
+                .findAll { it.id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+                .collect { it.moduleVersion.toString() }.toSet()
+            def expected = ([centralBom] + (isRestlet ? localCoordinates : [])).toSet()
+            assert resolved == expected: "Unexpected component identities: ${resolved}"
+            def jars = project.configurations.probe.files
+            assert jars.size() == (isRestlet ? 3 : 0)
+            def artifacts = project.configurations.probe.resolvedConfiguration.resolvedArtifacts
+            assert artifacts.size() == (isRestlet ? 3 : 0)
+            artifacts.each { artifact ->
+                def id = artifact.moduleVersion.id
+                assert "${id.group}:${id.name}:${id.version}".toString() in localCoordinates
+                def original = file('/opt/elven-restlet-maven/' + id.group.replace('.', '/') +
+                    "/${id.name}/${id.version}/${id.name}-${id.version}.jar")
+                assert original.isFile()
+                // Gradle may copy file-repository artifacts into its cache.
+                // Compare exact source bytes instead of assuming a cache path.
+                assert java.nio.file.Files.mismatch(artifact.file.toPath(), original.toPath()) == -1L:
+                    'Resolved Restlet bytes differ from the isolated source rebuild'
+            }
+            println("Verified exact repository boundaries for ${project.path}")
+        }
+    }
+}
+
+tasks.register('verifyRepositoryBoundaries') {
+    dependsOn(':central-check:verifyResolution')
+    restletProjects.each { projectPath -> dependsOn("${projectPath}:verifyResolution") }
+}

@@ -30,6 +30,15 @@ não se usa mirror de terceiros, HTTP, remoção da instrumentação ou troca da
 Restlet. A compilação usa `--release 8` com JDK pinado, sem descoberta/download
 automático de toolchains.
 
+O init Gradle atua **somente nos seis projetos Restlet** que já declaravam
+repositórios no commit upstream. Injetar um repositório em todos os projetos
+ocultou o Maven Central de `settings` e fez o CI `46026043759` falhar ao resolver
+BOMs, depois de a reconstrução Restlet passar. A receita exige um preflight
+pequeno, no mesmo builder/wrapper/toolchains pinados: resolve as três coordenadas
+locais e o BOM OpenTelemetry 1.67.0 do Central; um projeto de controle deve
+continuar sem repositório próprio. O preflight ocorre antes da compilação grande
+e não substitui o build, os scans ou os ensaios nativos.
+
 Esses JARs não são dependências novas da aplicação nem devem ser empacotados no
 agente. O build exige uma inspeção do JAR final que rejeita classes da biblioteca
 Restlet e dependências Restlet aninhadas, preservando o código legítimo de
